@@ -1,0 +1,472 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Regression Metrics</title>
+<link rel="stylesheet" href="pg_style.css?v=24">
+<link rel="stylesheet" href="vendor/katex/katex.min.css">
+<script src="vendor/katex/katex.min.js"></script>
+<script src="vendor/katex/auto-render.min.js"></script>
+<style>
+  /* fit_metrics-only: MAIN = figure + result (left) · LEVERS = controls (right); dual plots; scorecards */
+  /* MAIN (stage) = รูปซ้าย (ใหญ่สุด เต็มความสูง) + ผล/ตาราง ขวา ภายใน MAIN · LEVERS (panel) = control ขวาสุด ไม่แตะ */
+  :root{--panel-h:263px}   /* UD §1.2: ตรึงความสูง Control = tab ที่ยาวสุด */
+  .stage{grid-column:1}
+  .pg .stage{display:flex;flex-direction:row;gap:18px;align-items:stretch;min-height:0}
+  .gbox{flex:1 1 auto;min-width:0;display:flex;flex-direction:column;min-height:0;position:relative;justify-content:flex-start}
+  .gbox .plots{flex:none;min-height:0}   /* รูปไม่ยืด → legend ชิดใต้รูป (ไม่ถูกดันลงล่างสุด) */
+  /* GOF: 2 รูปเท่ากัน · ผล SST/SSE/R² อยู่ "ใต้รูป" ในพื้นที่ที่เหลือ (ไม่กินคอลัมน์ → control ไม่หาย) */
+  /* ผล GOF = การ์ดขวาล่าง กว้างเท่ารูปบน (UD §1 Body แบบ 4: รูป+ตาราง แยกข้าง) — width ตั้งจาก JS ให้ = side ของรูป */
+  .gofres{flex:none;margin-left:auto;min-width:max-content;background:#fff;border:1px solid var(--line);border-radius:12px;padding:6px 14px;box-shadow:0 1px 3px rgba(0,0,0,.04)}   /* min-width กันตารางโดนหั่นที่จอเตี้ยสุด (การ์ดกว้าง=รูป ยกเว้นตารางใหญ่กว่า) */
+  .brow{display:flex;gap:14px;align-items:flex-start;margin-top:4px}   /* แถวล่างของ Body: chip ซ้าย · ผลขวา (กว้างรวม = แถวรูปบน) */
+  .brow .vchip{flex:0 1 auto;min-width:0}   /* จอเตี้ยสุด: chip หดตัว/พับบรรทัด ยอมให้การ์ดผล (min-width:max-content) ยึดขอบขวาตรงรูปเสมอ */
+  .gofres .scard{font-size:13px}
+  .gofres .scard th,.gofres .scard td{padding:2px 7px}
+  .eqbox{flex:0 0 360px;width:360px;min-width:0;align-self:flex-start;max-height:none;overflow:visible}   /* result/ตาราง = บนสุด เทียบเท่ารูป (top-aligned) · UD §1: no-scroll — ห้ามมี scrollbar */
+  .eqbox .scard{font-size:14px}   /* ย่อสมการเล็กน้อยให้จบบรรทัดเดียว */
+  .panel{grid-column:2}
+  .layout.wmode{grid-template-columns:1fr}      /* calc: ไม่มี control → MAIN เต็มกว้าง */
+  .layout.wmode .panel{display:none}
+  @media(max-width:820px){ .pg .stage{flex-direction:column;align-items:stretch} .eqbox{width:auto;align-self:stretch}
+    /* U34 mobile tier: รูปเรียงแนวตั้งเต็มกว้าง (เลิกหารสอง) · แถวล่างเรียงลง · scroll-mode ตาม pg_style กลาง */
+    .plots{flex-direction:column;gap:12px}
+    .brow{flex-direction:column;gap:8px}
+    .gofres{margin-left:0}
+    /* U34b sticky control (RIT เลือก 12 ก.ค.): แท็บที่มีคันโยก (.levers) → control ปักล่างจอเป็น bottom-sheet
+       เพื่อให้ลากสไลเดอร์แล้วยังเห็นรูป (observe→adjust→read ไม่ขาด) · แท็บ calc (ไม่มี .levers) = ตารางอ่าน ไหลปกติ */
+    /* max-height (ไม่ใช่ height): คันโยกน้อย=แถบเตี้ยพอดี · คันโยกเยอะ (sandbox)=cap 44vh + เลื่อนในแถบ (รูปไม่ถูกบังหมด) */
+    .pg .panel.levers{position:fixed;left:0;right:0;bottom:0;margin:0;max-height:44vh;overflow-y:auto;
+      border:1px solid var(--line);border-bottom:0;border-radius:14px 14px 0 0;
+      box-shadow:0 -3px 14px rgba(0,0,0,.10);z-index:50}
+    /* padding-bottom ของ wrap = ความสูงแถบจริง (ตั้งจาก JS ใน relayout) กัน content ท้ายถูกทับ + ไม่เหลือที่ว่างตอนแถบสั้น */
+  }
+  /* U34: touch target — thumb ≥24px เมื่อ pointer หยาบ (นิ้ว) ตาม WCAG 2.5.8 · pilot-inline (rollout เข้ากลางทีหลัง) */
+  @media(pointer:coarse){
+    input[type=range]::-webkit-slider-thumb{width:26px;height:26px}
+    input[type=range]::-moz-range-thumb{width:24px;height:24px}
+  }
+  h1 .katex-display{text-align:left;margin:0}
+  .dlab{width:30px;flex:none;text-align:right;color:#475569}
+  .row .primary{width:100%}
+  .ctrl{margin-bottom:6px}
+  .ctrl>.kl{display:block;font-weight:600;margin-bottom:3px}
+  .plots{align-items:flex-start}
+  .plotcol{flex:1;min-width:0}
+  .ptitle{font-size:15px;font-weight:600;color:#334155;text-align:center;margin-bottom:3px;min-height:1px}
+  .plotwrap{position:relative}
+  .ovl{position:absolute;top:8px;left:8px;background:rgba(255,255,255,.86);border:1px solid var(--line);border-radius:8px;padding:6px 10px;font-size:15px;line-height:1.8;display:none;box-shadow:0 1px 4px rgba(0,0,0,.06)}
+  .r2head{display:none;text-align:center;font-size:18px;color:var(--navy);margin:8px 0 2px}
+  .resline{display:none;text-align:center;font-size:15px;line-height:2.2;margin:8px 0 2px}
+  /* ห้ามตั้ง padding ปุ่ม seg เอง — ความสูงคุมกลางที่ pg_style (--seg-h) ให้เท่ากันทุก playground */
+  /* UD: ปุ่ม control = 15px เท่ากันทุกที่ (ห้ามย่อเฉพาะไฟล์) */
+  .axlab{position:absolute;color:#475569;pointer-events:none;font-size:15px}
+  .qlab{position:absolute;pointer-events:none;font-size:15px;line-height:1.15;background:rgba(255,255,255,.78);border-radius:5px;padding:2px 6px;transform:translate(-50%,-50%);display:none;white-space:nowrap}
+  .qlab .katex-display{margin:0;text-align:center}
+  .legend{margin-top:4px}   /* ชิดใต้รูป (ไม่ห่าง) · size = central .legend (--fs-sec) */
+  .seg{width:100%}.seg button{flex:1}
+  .chk{display:flex;align-items:center;gap:7px;font-size:15px;margin:5px 0;cursor:pointer}
+  canvas{display:block}
+  .rcard,#worked{border:1px solid var(--line);border-radius:12px;background:#fff;padding:6px 14px;box-shadow:0 1px 3px rgba(0,0,0,.04)}  /* การ์ดเดียวกัน: corr(rcard) = calc r(#worked) */
+  .scard{border-collapse:collapse;width:auto;font-size:15px}
+  .scard th,.scard td{border:0;border-bottom:1px solid var(--line);padding:3px 8px;text-align:left;vertical-align:middle}
+  .scard tr:last-child td,.scard tr:last-child th{border-bottom:0}
+  .scard th{font-weight:600;color:#475569}
+  .scard td.v,.scard th.v{text-align:right;font-variant-numeric:tabular-nums}
+  .wtab{border-collapse:collapse;width:100%;font-size:15px;margin-bottom:4px}
+  .wtab th,.wtab td{border:1px solid var(--line);padding:2px 6px;text-align:right}
+  .wtab th{background:var(--sec);color:#475569;font-weight:600}
+  .wtab tr.sum td{font-weight:700;background:#fff7ed;color:#9a3412}
+  /* calc: ตารางข้อมูล+สมการ อยู่ในกล่องขวา (Control slot) → ย่อพอดี 320px */
+  #datatbl .wnote{font-size:13px;color:#475569;margin:0 0 6px}
+  #datatbl .wtab{font-size:13px}
+  #datatbl .wtab th,#datatbl .wtab td{padding:2px 5px}
+  /* summary (สรุปสูตร) ใน Body: corr/calc r = eqbox (#worked) · GOF/calc R² = gofres */
+  #worked .scard,#gofres .scard{font-size:14px}
+  /* ---- U1 pilot: .goal = โจทย์ 1 บรรทัดใต้ Head (นอก rail — ไม่แตะ --panel-h) · .vchip = feedback ตามสถานะ อยู่กับผลใน Body ---- */
+  .goal{flex:none;background:var(--sec);border:1px solid var(--line);border-radius:8px;padding:5px 12px;font-size:15px;color:var(--ink);line-height:1.55}
+  .goal .katex{font-size:1em}
+  .vchip{align-self:flex-start;display:none;align-items:center;font-size:15px;font-weight:600;border-radius:8px;padding:2px 10px;border:1px solid transparent}
+  .vchip .katex{font-size:1em}
+  .vchip.ok{display:inline-flex;background:#EAF3EE;border-color:#CFE3D8;color:#3F7D63}
+  .vchip.watch{display:inline-flex;background:#FAF3E2;border-color:#ECD9A8;color:#8A6510}
+  .vchip.neutral{display:inline-flex;background:#EEF0F4;border-color:var(--line);color:#475569}
+</style>
+</head>
+<body class="pg">
+<h2 class="sr-only" style="position:absolute;width:1px;height:1px;overflow:hidden">Regression metrics playground: correlation r shown as signed area, goodness of fit shown as two side-by-side plots (Total SST vs Residual SSE), plus a fixed worked example — every label rendered as math.</h2>
+<div class="wrap">
+  <div class="hdr"><h1 id="title"></h1><div class="tabs" id="tabs"></div></div>
+  <div class="goal" id="goal"></div>   <!-- U1: โจทย์ของ tab ปัจจุบัน (อ่านก่อนรูปและคันโยก) -->
+
+  <div class="layout">
+    <!-- MAIN: figure(s) + result together -->
+    <div class="stage">
+      <div class="gbox">
+        <div class="plots" id="plots">
+          <div class="plotcol" id="col1">
+            <div class="ptitle" id="ptitle1"></div>
+            <div class="plotwrap">
+              <canvas id="plot"></canvas>
+              <span class="axlab" id="lbl1"></span><span class="axlab" id="lbl2"></span>
+              <span class="qlab" id="q1"></span><span class="qlab" id="q2"></span>
+              <span class="qlab" id="q3"></span><span class="qlab" id="q4"></span>
+              <div class="ovl" id="ovl"></div>
+            </div>
+            <div class="legend" id="legend1"></div>
+          </div>
+          <div class="plotcol" id="col2" style="display:none">
+            <div class="ptitle" id="ptitle2"></div>
+            <div class="plotwrap"><canvas id="plot2"></canvas><span class="axlab" id="lbl3"></span><span class="axlab" id="lbl4"></span><div class="ovl" id="ovl2"></div></div>
+            <div class="legend" id="legend2"></div>
+          </div>
+        </div>
+        <div class="legend" id="legend"></div>
+        <div class="brow" id="brow">   <!-- แถวล่าง Body: vchip ซ้าย · gofres ขวา (กว้าง=รูปขวาบน) -->
+          <div class="vchip" id="vchip"></div>   <!-- U1: feedback ตามสถานะ — อยู่กับผล (Mayer contiguity) -->
+          <div class="gofres" id="gofres" style="display:none"></div>   <!-- GOF/calc R²: ผล SST/SSE/R² ใต้รูปขวา -->
+        </div>
+      </div>
+      <!-- result ของ corr/calc r (table) อยู่ขวาภายใน MAIN -->
+      <div class="eq eqbox">
+        <div class="resline" id="resline"></div>
+        <div class="rcard" id="rcard" style="display:none"><table class="scard" id="scard"><thead id="scardhead"></thead><tbody id="scardbody"></tbody></table></div>
+        <div id="worked" style="display:none"></div>   <!-- calc r: ตารางคำนวณอยู่ใน Body ขวา (เหมือน corr) -->
+        <div class="r2head" id="r2head" style="display:none"></div>
+      </div>
+    </div>
+
+    <!-- ขวาสุด: หน้า live = control · หน้า calculation = ตัวอย่างการคำนวณ (แทนที่ control ในพื้นที่เดียวกัน พื้นขาวเหมือนกัน) -->
+    <div class="panel" id="panel">
+      <div id="controls">
+        <div class="ctrl"><span class="kl" data-tex="\text{Relationship}"></span>
+          <div class="seg" id="shapeSeg"><button data-s="linear" class="on"></button><button data-s="curved"></button></div>
+        </div>
+        <div class="drow" id="c-rho"><span class="dlab" id="lblR"></span>
+          <input type="range" id="strength" min="-100" max="100" value="75" step="1">
+          <input type="text" class="num" id="numR" inputmode="decimal"></div>
+        <div class="drow"><span class="dlab" id="lblN"></span>
+          <input type="range" id="n" min="5" max="40" value="5" step="1">
+          <input type="text" class="num" id="numN" inputmode="numeric"></div>
+        <label class="chk" id="c-areachk"><input type="checkbox" id="areachk" checked> <span class="kl" data-tex="\text{Show area}"></span></label>
+        <div class="row"><button class="primary" id="regen"></button></div>
+      </div>
+      <div id="datatbl" style="display:none"></div>   <!-- calc: ช่อง Control → ตารางข้อมูล+สมการ -->
+      <div class="row" id="wregenrow" style="display:none"><button class="primary" id="wregen"></button></div>
+    </div>
+  </div>
+</div>
+
+<script src="pg_engine.js?v=5"></script>
+<script>
+(function(){
+  const cv=document.getElementById('plot'), cv2=document.getElementById('plot2');
+  const strengthEl=document.getElementById('strength'), nEl=document.getElementById('n'),
+        shapeSeg=document.getElementById('shapeSeg');
+  const legend=document.getElementById('legend'), legend1=document.getElementById('legend1'), legend2=document.getElementById('legend2'),
+        lbl1=document.getElementById('lbl1'), lbl2=document.getElementById('lbl2'), lbl3=document.getElementById('lbl3'), lbl4=document.getElementById('lbl4'),
+        q1=document.getElementById('q1'), q2=document.getElementById('q2'), q3=document.getElementById('q3'), q4=document.getElementById('q4');
+  const COL={data:'#E07A5F', line:'#5B8FB9', mean:'#94a3b8', pos:'107,163,140', neg:'227,178,60', tot:'94,156,148', res:'176,122,174'};  /* SST=teal #5E9C94 (ห่างแดง y_i) · SSE=ม่วง #B07AAE (ห่างน้ำเงิน ŷ) */
+  let plot, plot2, pts=[], seed=3, curTab=0, shapeMode='linear';
+
+  function K(tex,el){ try{ if(window.katex) katex.render(tex,el,{throwOnError:false,displayMode:true}); else el.textContent=tex; }catch(e){ el.textContent=tex; } }
+  function Kin(tex,el){ try{ if(window.katex) katex.render(tex,el,{throwOnError:false,displayMode:false}); else el.textContent=tex; }catch(e){ el.textContent=tex; } }
+  function kx(tex){ try{ return window.katex?katex.renderToString(tex,{throwOnError:false}):tex; }catch(e){ return tex; } }
+
+  let s=3; function reseed(x){s=x>>>0;} function rng(){let t=s+=0x6D2B79F5;t=Math.imul(t^t>>>15,t|1);t^=t+Math.imul(t^t>>>7,t|61);return((t^t>>>14)>>>0)/4294967296;}
+  function gauss(){let u=Math.max(1e-9,rng()),v=rng();return Math.sqrt(-2*Math.log(u))*Math.cos(6.2831853*v);}
+
+  /* ---- รูป (square) เต็มความสูง MAIN เสมอ: side = min(ความสูง stage, ความกว้างที่ใช้ได้) — รูปใหญ่สุด ผลอยู่ขวาภายใน MAIN
+         corr/calc รูปขนาดเท่ากัน (height-bound เท่ากัน) · GOF 2 รูปแบ่งครึ่งกว้าง ---- */
+  /* ขนาดรูป "คงที่เท่ากันทุก tab" = ขนาด 1 ใน 2 รูปของ GOF (ต้นแบบ) · ไม่ผูกกับ tab/EQW → ไม่เปลี่ยนไปมา */
+  function makePlot(canvas,X0,X1,Y0,Y1,RESERVE){
+    const stage=document.querySelector('.stage');
+    const sH=Math.max(220,(stage&&stage.clientHeight)||520);
+    const sW=Math.max(300,(stage&&stage.clientWidth)||900);
+    const GAP=16;   // RESERVE = ที่ว่างใต้รูป (legend/chip/ผล) — two-plot tabs ต้องเผื่อการ์ดผลขวาล่าง (จอเตี้ย/zoom แล้วรูปย่อเอง ไม่ล้น)
+    const narrow=window.matchMedia('(max-width:820px)').matches;   // U34: มือถือ/แท็บแนวตั้ง = scroll-mode → รูปเต็มกว้าง (cap 420) ไม่หารสอง ไม่สน RESERVE
+    const side=narrow? Math.min(sW,420) : Math.max(160, Math.min(sH-(RESERVE||92), Math.floor((sW-GAP)/2)));
+    makePlot._side=side;
+    const wrap=canvas.parentElement; wrap.style.width=side+'px'; wrap.style.margin='0';
+    return PG.fitPlot(canvas,{X0,X1,Y0,Y1,margin:30,height:side,minW:120}); }
+  function relayout(){
+    const two=(TK()==='fitlive'||TK()==='fitcalc');   // R²-tabs (GOF + calc R²) = 2 รูป · r-tabs = 1 รูป · ทุก tab แกน [0,6]
+    plot=makePlot(cv,0,6,0,6,two?140:92);   // 140 = พอดีแถวล่าง (ตาราง~110+gap) — ห้ามเผื่อเกิน รูปต้องใหญ่สุดตาม UD §1 (จอสูงปกติ = width-bound 363 เท่าเดิม)
+    plot2 = two ? makePlot(cv2,0,6,0,6,140) : null;
+    // แถวรูปบนแพ็กชิดซ้าย (กว้าง = 2·side+gap) → แถวล่างกว้างเท่ากันเป๊ะ: chip ใต้รูปซ้าย · ผลใต้รูปขวา (ตรงคอลัมน์กันทุกขนาดจอ)
+    // U34 narrow: ทุกอย่างเรียงลง กว้าง = side เดียว (รูปเต็มจอ)
+    const side=makePlot._side||0, narrow=window.matchMedia('(max-width:820px)').matches,
+          plots=document.getElementById('plots'), brow=document.getElementById('brow'), gof=document.getElementById('gofres');
+    const rowW=(two&&!narrow)? side*2+14 : side;
+    if(plots) plots.style.width=rowW+'px';
+    if(brow) brow.style.width=rowW+'px';
+    if(gof) gof.style.width=two? side+'px':'';
+    // U34b: มือถือ + แท็บมีคันโยก → จองที่ล่าง = ความสูงแถบ control จริง (กันเนื้อหาท้ายถูกทับ · ไม่เว้นว่างตอนคันโยกสั้น)
+    const wrap=document.querySelector('.wrap'), pnl=document.getElementById('panel');
+    if(narrow && wrap && wrap.classList.contains('haslevers') && pnl)
+      wrap.style.paddingBottom=(Math.ceil(pnl.getBoundingClientRect().height)+14)+'px';
+    else if(wrap) wrap.style.paddingBottom='';
+  }
+
+  // ตัวอย่าง default ร่วมทุก tab (ชุดเดียวกับหน้า calculation) · live tabs จะสุ่มใหม่เมื่อกด Resample/เลื่อน slider
+  const EX={X:[1,2,3,4,5], Y:[1,3,2,5,4]};
+  let resampled=false;
+  function gen(){
+    if(!resampled){ pts=EX.X.map((x,i)=>({x:x,y:EX.Y[i]})); render(); return; }
+    reseed(seed); const N=+nEl.value; pts=[]; const C=3, SP=1.5, cl=v=>Math.max(0.3,Math.min(5.7,v));
+    if(shapeMode==='linear'){ const r=+strengthEl.value/100, k=Math.sqrt(Math.max(0,1-r*r));
+      let xs=[], es=[]; for(let i=0;i<N;i++){ xs.push(gauss()); es.push(gauss()); }
+      const mean=a=>a.reduce((s,v)=>s+v,0)/(a.length||1);
+      let mx=mean(xs), me=mean(es); xs=xs.map(v=>v-mx); es=es.map(v=>v-me);
+      let xx=xs.reduce((s,v)=>s+v*v,0)||1, xe=0; for(let i=0;i<N;i++) xe+=xs[i]*es[i];
+      const beta=xe/xx; let ep=es.map((v,i)=>v-beta*xs[i]);
+      const sd=a=>Math.sqrt(a.reduce((s,v)=>s+v*v,0)/(a.length||1))||1;
+      const sx=sd(xs), se=sd(ep);
+      for(let i=0;i<N;i++){ const X=xs[i]/sx, E=ep[i]/se; pts.push({x:cl(C+SP*0.95*X), y:cl(C+SP*(r*X+k*E))}); }
+    } else {
+      const mean=a=>a.reduce((s,v)=>s+v,0)/(a.length||1), sd=a=>Math.sqrt(a.reduce((s,v)=>s+v*v,0)/(a.length||1))||1;
+      let xs=[]; for(let i=0;i<N;i++) xs.push(gauss());
+      const mx=mean(xs); xs=xs.map(v=>v-mx); const sx=sd(xs)||1; xs=xs.map(v=>v/sx);
+      let ys=xs.map(v=>0.6*v*v + 0.32*gauss());
+      const my=mean(ys); ys=ys.map(v=>v-my); const sy=sd(ys)||1;
+      for(let i=0;i<N;i++) pts.push({x:cl(C+SP*xs[i]), y:cl(C+SP*ys[i]/sy)});
+    }
+    render();
+  }
+
+  function stats(){
+    const n=pts.length||1; let mx=0,my=0; for(const p of pts){mx+=p.x;my+=p.y;} mx/=n; my/=n;
+    let sxy=0,sxx=0,syy=0; for(const p of pts){const dx=p.x-mx,dy=p.y-my; sxy+=dx*dy; sxx+=dx*dx; syy+=dy*dy;}
+    const r=(sxx*syy<1e-12)?0:sxy/Math.sqrt(sxx*syy);
+    const m=PG.fit.poly(pts,{degree:1});
+    let ssr=0; for(const p of pts){const e=p.y-m.predict(p.x); ssr+=e*e;}
+    const sst=syy, r2=sst<1e-12?0:1-ssr/sst;
+    const rmse=Math.sqrt(ssr/n), mae=pts.reduce((a,p)=>a+Math.abs(p.y-m.predict(p.x)),0)/n;
+    return {n,mx,my,sxy,sxx,syy,r,m,ssr,sst,r2,rmse,mae};
+  }
+
+  function setLegendEl(el,items){ el.innerHTML=items.map(it=>'<span><i style="background:'+it[0]+(it[2]?';width:12px;height:12px;border-radius:2px':'')+'"></i>'+kx(it[1])+'</span>').join(''); }
+  function setLegend(items){ setLegendEl(legend,items); legend1.innerHTML=''; legend2.innerHTML=''; }
+
+  /* ---- drawing primitives, parametrised by a plot P (so #plot and #plot2 can both be drawn) ---- */
+  function clamp(P,y){ return Math.max(P.Y0,Math.min(P.Y1,y)); }
+  function dash(P,x0,y0,x1,y1,col){ const c=P.ctx; c.save(); c.strokeStyle=col; c.lineWidth=1.4; c.setLineDash([5,4]); c.beginPath(); c.moveTo(P.px(x0),P.py(y0)); c.lineTo(P.px(x1),P.py(y1)); c.stroke(); c.restore(); }
+  function axes(P){ const c=P.ctx; c.strokeStyle='rgba(128,128,128,0.4)'; c.lineWidth=1; c.beginPath(); c.moveTo(P.px(P.X0),P.py(0)); c.lineTo(P.px(P.X1),P.py(0)); c.moveTo(P.px(0),P.py(P.Y0)); c.lineTo(P.px(0),P.py(P.Y1)); c.stroke(); }
+  /* ตัวอักษร x (ปลายขวา) · y (บนสุด) — ใช้ทุก tab ที่มีแกน */
+  function axisLetters(P){ const c=P.ctx; c.fillStyle='#64748b'; c.font='italic 16px "KaTeX_Math","Times New Roman",serif';
+    c.textAlign='left'; c.textBaseline='alphabetic';
+    c.fillText('x', P.px(P.X1)-15, P.py(0)-7);
+    c.fillText('y', P.px(0)+8, P.py(P.Y1)+16); }
+  /* GOF (ไอเดีย): เส้นแกน L + ตัวอักษร x/y แต่ "ไม่มีเลข" */
+  function axisFrame(P){ const c=P.ctx; c.strokeStyle='rgba(128,128,128,0.55)'; c.lineWidth=1; c.beginPath();
+    c.moveTo(P.px(0),P.py(P.Y0)); c.lineTo(P.px(0),P.py(P.Y1)); c.moveTo(P.px(P.X0),P.py(0)); c.lineTo(P.px(P.X1),P.py(0)); c.stroke();
+    axisLetters(P); }
+  function drawPtsOn(P){ const c=P.ctx; for(const p of pts){ const R=p._out?6:4.4; c.fillStyle=COL.data; c.beginPath(); c.arc(P.px(p.x),P.py(clamp(P,p.y)),R,0,7); c.fill(); c.strokeStyle=p._out?'#7f1d1d':'#fff'; c.lineWidth=p._out?2.2:1.4; c.stroke(); } }  // outlier = แดงเดิม (เน้นด้วยวงขอบแดงเข้ม) ไม่ใช้ม่วง (กันชนสี SSE)
+  function squaresOn(P,predict,rgb,a){ const c=P.ctx; c.fillStyle='rgba('+rgb+','+a+')'; c.strokeStyle='rgba('+rgb+',0.5)'; c.lineWidth=1;
+    for(const p of pts){ const sx=P.px(p.x), syD=P.py(clamp(P,p.y)), syP=P.py(clamp(P,predict(p.x))), side=Math.abs(syD-syP);
+      c.fillRect(sx,Math.min(syD,syP),side,side); c.strokeRect(sx,Math.min(syD,syP),side,side); } }
+  function setLab(el,tex,X,Y,dx,dy){ Kin(tex,el); el.style.left=(plot.px(X)+dx)+'px'; el.style.top=(plot.py(Y)+dy)+'px'; el.style.display=''; }
+  function setLab2(el,tex,X,Y,dx,dy){ if(!plot2)return; Kin(tex,el); el.style.left=(plot2.px(X)+dx)+'px'; el.style.top=(plot2.py(Y)+dy)+'px'; el.style.display=''; }
+  function setQ(el,tex,X,Y,col){ K(tex,el); el.style.left=plot.px(X)+'px'; el.style.top=plot.py(Y)+'px'; el.style.color=col; el.style.display='block'; }
+  function hideQ(){ [q1,q2,q3,q4].forEach(e=>{ if(e) e.style.display='none'; }); }
+
+  /* ---- ตารางผลมาตรฐานเดียว (corr≡calc r · GOF≡calc R²) · header Capital ---- */
+  function tableHTML(rows){return '<table class="scard"><thead><tr><th>'+kx('\\text{Quantity}')+'</th><th>'+kx('\\text{Formula}')+'</th><th class="v">'+kx('\\text{Value}')+'</th></tr></thead><tbody>'+rows.map(r=>'<tr><td>'+kx(r.n)+'</td><td>'+kx(r.f)+'</td><td class="v">'+kx(r.v)+'</td></tr>').join('')+'</tbody></table>';}
+  function rowsR(sxy,r,w1,yhat){return [
+    {n:'\\textcolor{#3F6E99}{s_{xy}}', f:'\\left(\\textstyle\\sum(x_i-\\bar x)(y_i-\\bar y)\\right)/n', v:sxy},
+    {n:'r',   f:'\\textcolor{#3F6E99}{s_{xy}}\\,/\\,(s_x s_y)', v:r},
+    {n:'w_1', f:'\\textcolor{#3F6E99}{s_{xy}}\\,/\\,s_x^2', v:w1},
+    {n:'\\hat y', f:'\\hat y='+yhat, v:''}];}   // highlight = s_xy (ตัวที่ไหลไป r→w₁) · ŷ ตัวธรรมดา · สมการมีตัวเลขในช่อง Formula · ตัด Value
+  function rowsR2(sst,sse,r2){return [
+    {n:'\\textcolor{#2E6B63}{\\mathrm{SST}}', f:'\\textstyle\\sum(\\textcolor{#B0503A}{y_i}-\\bar y)^2', v:sst},
+    {n:'\\textcolor{#7E5A93}{\\mathrm{SSE}}', f:'\\textstyle\\sum(\\textcolor{#B0503A}{y_i}-\\textcolor{#3F6E99}{\\hat y_i})^2', v:sse},
+    {n:'R^2', f:'1-\\textcolor{#7E5A93}{\\mathrm{SSE}}\\,/\\,\\textcolor{#2E6B63}{\\mathrm{SST}}', v:r2}];}
+
+  /* ---- Pearson correlation coefficient (r) ---- */
+  function rCorr(S){
+    const c=plot.ctx; plot.clear();
+    if(document.getElementById('areachk').checked) for(const p of pts){ const contrib=(p.x-S.mx)*(p.y-S.my), rgb=contrib>=0?COL.pos:COL.neg;
+      const x0=plot.px(S.mx),x1=plot.px(p.x),y0=plot.py(clamp(plot,S.my)),y1=plot.py(clamp(plot,p.y));
+      const X=Math.min(x0,x1),Y=Math.min(y0,y1),W=Math.abs(x1-x0),H=Math.abs(y1-y0);
+      c.fillStyle='rgba('+rgb+',0.14)'; c.fillRect(X,Y,W,H);
+      c.strokeStyle='rgba('+rgb+',0.4)'; c.lineWidth=1; c.strokeRect(X,Y,W,H);
+    }
+    dash(plot,S.mx,plot.Y0,S.mx,plot.Y1,COL.mean); dash(plot,plot.X0,S.my,plot.X1,S.my,COL.mean);
+    PG.draw.curve(plot,S.m.predict,{color:COL.line,width:2.2});
+    drawPtsOn(plot);
+    setLab(lbl1,'\\bar x',S.mx,plot.Y1,4,0); setLab(lbl2,'\\bar y',plot.X0,S.my,4,-26);
+    { const g=0.84, GP='#3E7D68', GN='#9A6B1E', NT='#334155';
+      const L=(sx,sy)=>'\\begin{aligned} \\textcolor{'+(sx>0?GP:GN)+'}{x-\\bar x'+(sx>0?'>0':'<0')+'}&\\\\ \\textcolor{'+(sy>0?GP:GN)+'}{y-\\bar y'+(sy>0?'>0':'<0')+'}& \\end{aligned}';
+      setQ(q1,L(1,1),   S.mx+g*(plot.X1-S.mx), S.my+g*(plot.Y1-S.my), NT);
+      setQ(q2,L(-1,1),  S.mx+g*(plot.X0-S.mx), S.my+g*(plot.Y1-S.my), NT);
+      setQ(q3,L(-1,-1), S.mx+g*(plot.X0-S.mx), S.my+g*(plot.Y0-S.my), NT);
+      setQ(q4,L(1,-1),  S.mx+g*(plot.X1-S.mx), S.my+g*(plot.Y0-S.my), NT); }
+    setLegend([['rgba('+COL.pos+',.65)','(x-\\bar x)(y-\\bar y)>0:\\ \\text{raises } r',true],['rgba('+COL.neg+',.65)','(x-\\bar x)(y-\\bar y)<0:\\ \\text{lowers } r',true]]);
+    const a=S.m.weights[0]||0, b=S.m.weights[1]||0;
+    var rl=document.getElementById('resline'); if(rl) rl.innerHTML='';
+    var yh=(Math.abs(a)<0.005?0:a).toFixed(2)+(b>=0?'+':'')+b.toFixed(2)+'x';
+    document.getElementById('rcard').innerHTML=tableHTML(rowsR((S.sxy/S.n).toFixed(2),S.r.toFixed(2),b.toFixed(2),yh));  // = ตารางเดียวกับ calc r
+    /* U1: verdict — จับกับดัก "Curved: r≈0 แต่มี pattern" (aha ของ tab) · นอกนั้นบรรยายกำลัง/ทิศของ r */
+    if(shapeMode==='curved'&&Math.abs(S.r)<0.35){ setChip('watch','r='+S.r.toFixed(2)+':\\ \\text{near zero — }\\allowbreak\\text{yet the pattern is clear. }\\allowbreak r\\text{ sees only }\\allowbreak\\text{linear association.}'); }
+    else { const ar=Math.abs(S.r); const w=ar>=0.8?'\\text{strong':ar>=0.5?'\\text{moderate':ar>=0.2?'\\text{weak':'\\text{almost no';
+      const sg=(S.r>=0.2?' positive':S.r<=-0.2?' negative':'')+' }\\allowbreak\\text{linear association}';
+      setChip(ar>=0.5?'ok':'neutral','r='+S.r.toFixed(2)+':\\ '+w+sg); }
+  }
+
+  /* ---- Goodness of fit: two plots side by side — Total (SST) | Residual (SSE) ---- */
+  function rFit(S){
+    // GOF (ไอเดีย): เส้นแกน x/y + ตัวอักษร แต่ไม่มีเลข · SST เก็บเส้น ȳ (สี่เหลี่ยมวัดถึงค่าเฉลี่ย) · ไม่มี x̄
+    plot.clear(); hideQ(); dash(plot,plot.X0,S.my,plot.X1,S.my,COL.mean);
+    squaresOn(plot,()=>S.my, COL.tot, 0.22);
+    drawPtsOn(plot); axisFrame(plot);
+    setLab(lbl1,'\\bar y',plot.X0,S.my,4,-26); lbl2.style.display='none';
+    // SSE (ไอเดีย): เส้นแกน + ตัวอักษร · ไม่มี x̄ และไม่มี ȳ (สี่เหลี่ยมวัดถึงเส้นฟิต)
+    plot2.clear();
+    squaresOn(plot2,S.m.predict, COL.res, 0.18);
+    PG.draw.curve(plot2,S.m.predict,{color:COL.line,width:2.2}); drawPtsOn(plot2); axisFrame(plot2);
+    lbl3.style.display='none'; lbl4.style.display='none';
+    // legend ตัดออก — สีอยู่ในสมการแล้ว (y=แดง · ŷ=น้ำเงิน) ทำให้ขยายรูปได้
+    legend.innerHTML=''; if(legend1)legend1.innerHTML=''; if(legend2)legend2.innerHTML='';
+    document.getElementById('gofres').innerHTML=tableHTML(rowsR2(S.sst.toFixed(2),S.ssr.toFixed(2),S.r2.toFixed(2)));  // = ตารางเดียวกับ calc R² (เรียง SST→SSE→R²)
+    /* U1: verdict — จับกับดัก "Curved: R² ต่ำเพราะเส้นตรงพลาดโค้ง" · นอกนั้นอ่านความหมาย R² */
+    if(shapeMode==='curved'&&S.r2<0.5){ setChip('watch','R^2='+S.r2.toFixed(2)+':\\ \\text{low — }\\allowbreak\\text{a straight line }\\allowbreak\\text{misses the curve.}'); }
+    else { const q=S.r2>=0.8?['ok','\\text{the line }\\allowbreak\\text{explains }\\allowbreak\\text{most of }\\mathrm{SST}.']:S.r2>=0.4?['neutral','\\text{the line }\\allowbreak\\text{explains }\\allowbreak\\text{part of }\\mathrm{SST}.']:['neutral','\\text{the line }\\allowbreak\\text{barely beats }\\bar y.'];
+      setChip(q[0],'R^2='+S.r2.toFixed(2)+':\\ '+q[1]); }
+  }
+
+  /* ---- Worked example (fixed data) ---- */
+  const WX=[1,2,3,4,5], WMX=3, WMY=3;
+  const POOL=[[1,4,3,2,5],[1,2,4,5,3],[1,3,2,5,4],[1,2,3,5,4]];
+  let WIDX=2;
+  const fmt=v=>(+v.toFixed(2)).toString();
+  function wdata(){ const Y=POOL[WIDX], dx=WX.map(x=>x-WMX), dy=Y.map(y=>y-WMY);
+    let sp=0,sy=0; for(let i=0;i<5;i++){ sp+=dx[i]*dy[i]; sy+=dy[i]*dy[i]; }
+    const cov=sp/5, sx2=2, sy2=sy/5, sxsy=Math.sqrt(sx2*sy2), r=cov/sxsy, w1=cov/sx2, w0=WMY-w1*WMX;
+    return {Y,dx,dy,sp,cov,sx2,sy2,sxsy,r,w1,w0}; }
+  function buildWorked(){
+    if(TABS[curTab].kind==='fitcalc'){ buildWorked2(); return; }
+    const d=wdata(); let rows='';
+    for(let i=0;i<5;i++){ const pr=d.dx[i]*d.dy[i];
+      rows+='<tr><td>'+kx(''+WX[i])+'</td><td>'+kx(''+d.Y[i])+'</td><td>'+kx(''+d.dx[i])+'</td><td>'+kx(''+d.dy[i])+'</td><td>'+kx(''+pr)+'</td></tr>'; }
+    const th='<tr><th>'+kx('x_i')+'</th><th>'+kx('y_i')+'</th><th>'+kx('x_i-\\bar x')+'</th><th>'+kx('y_i-\\bar y')+'</th><th>'+kx('(x_i-\\bar x)(y_i-\\bar y)')+'</th></tr>';
+    document.getElementById('datatbl').innerHTML=   // ตารางข้อมูล → ช่องขวา (Control slot)
+      '<div class="wnote">'+kx('s_x^2=s_y^2=\\tfrac{10}{5}=2,\\ s_x s_y=2')+'</div>'
+      +'<table class="wtab"><thead>'+th+'</thead><tbody>'+rows+'</tbody></table>';
+    document.getElementById('worked').innerHTML=tableHTML(rowsR(d.cov.toFixed(2),d.r.toFixed(2),d.w1.toFixed(2),d.w0.toFixed(2)+(d.w1>=0?'+':'')+d.w1.toFixed(2)+'x'));   // สรุป = ตารางเดียวกับ corr (เป๊ะ)
+  }
+  function buildWorked2(){
+    const d=wdata(); let rows='', sse=0, sst=0;
+    for(let i=0;i<5;i++){ const yh=d.w0+d.w1*WX[i], e=d.Y[i]-yh, e2=e*e, t2=d.dy[i]*d.dy[i]; sse+=e2; sst+=t2;
+      rows+='<tr><td>'+kx(''+WX[i])+'</td><td>'+kx(''+d.Y[i])+'</td><td>'+kx(yh.toFixed(1))+'</td><td>'+kx(e.toFixed(1))+'</td><td>'+kx(e2.toFixed(2))+'</td><td>'+kx(''+t2)+'</td></tr>'; }
+    const r2=1-sse/sst;
+    const th='<tr><th>'+kx('x_i')+'</th><th>'+kx('y_i')+'</th><th>'+kx('\\hat y_i')+'</th><th>'+kx('y_i-\\hat y_i')+'</th><th>'+kx('(y_i-\\hat y_i)^2')+'</th><th>'+kx('(y_i-\\bar y)^2')+'</th></tr>';
+    document.getElementById('datatbl').innerHTML=   // ตารางข้อมูล → ช่องขวา (Control slot)
+      '<div class="wnote">'+kx('\\hat y='+fmt(d.w0)+(d.w1>=0?'+':'')+fmt(d.w1)+'x')+'</div>'
+      +'<table class="wtab"><thead>'+th+'</thead><tbody>'+rows+'</tbody></table>';
+    document.getElementById('gofres').innerHTML=tableHTML(rowsR2(sst.toFixed(2),sse.toFixed(2),r2.toFixed(2)));   // สรุป = ตารางเดียวกับ GOF (เป๊ะ · SST→SSE→R²)
+  }
+  function worked(){
+    const d=wdata(), kind=TABS[curTab].kind;
+    // calc = tab "เห็นค่า": เส้นแกน + เลข 1–6 ที่แกน x/y · o.xbar/o.ybar เลือกเส้นค่าเฉลี่ยตาม logic เดียวกับ GOF
+    function axes(P,o){o=o||{};const c=P.ctx;P.clear();c.strokeStyle='rgba(128,128,128,0.55)';c.lineWidth=1;c.beginPath();
+      c.moveTo(P.px(0),P.py(P.Y0));c.lineTo(P.px(0),P.py(P.Y1));c.moveTo(P.px(P.X0),P.py(0));c.lineTo(P.px(P.X1),P.py(0));c.stroke();
+      c.fillStyle='#94a3b8';c.font='14px KaTeX_Main,serif';c.textAlign='center';c.textBaseline='top';
+      for(let t=1;t<=6;t++)c.fillText(t,P.px(t),P.py(0)+4);
+      c.textAlign='right';c.textBaseline='middle';for(let t=1;t<=6;t++)c.fillText(t,P.px(0)-4,P.py(t));c.textBaseline='alphabetic';
+      if(o.xbar)dash(P,WMX,P.Y0,WMX,P.Y1,COL.mean);
+      if(o.ybar)dash(P,P.X0,WMY,P.X1,WMY,COL.mean);}
+    function pts5(P){const c=P.ctx;for(let i=0;i<5;i++){c.fillStyle=COL.data;c.beginPath();c.arc(P.px(WX[i]),P.py(d.Y[i]),5,0,7);c.fill();c.strokeStyle='#fff';c.lineWidth=1.6;c.stroke();}}
+    function sqTo(P,baseFn,rgb){const c=P.ctx;c.fillStyle='rgba('+rgb+',0.16)';c.strokeStyle='rgba('+rgb+',0.5)';c.lineWidth=1;
+      for(let i=0;i<5;i++){const sx=P.px(WX[i]),syD=P.py(d.Y[i]),syP=P.py(baseFn(WX[i])),side=Math.abs(syD-syP);c.fillRect(sx,Math.min(syD,syP),side,side);c.strokeRect(sx,Math.min(syD,syP),side,side);}}
+    if(kind==='rcalc'){
+      const P=plot,c=P.ctx; axes(P,{xbar:true,ybar:true});
+      for(let i=0;i<5;i++){const rgb=(d.dx[i]*d.dy[i])>=0?COL.pos:COL.neg,x0=P.px(WMX),x1=P.px(WX[i]),y0=P.py(WMY),y1=P.py(d.Y[i]);c.fillStyle='rgba('+rgb+',0.14)';c.fillRect(Math.min(x0,x1),Math.min(y0,y1),Math.abs(x1-x0),Math.abs(y1-y0));c.strokeStyle='rgba('+rgb+',0.45)';c.lineWidth=1;c.strokeRect(Math.min(x0,x1),Math.min(y0,y1),Math.abs(x1-x0),Math.abs(y1-y0));}
+      PG.draw.curve(P,x=>d.w0+d.w1*x,{color:COL.line,width:2.4}); pts5(P); axisLetters(P);
+      setLab(lbl1,'\\bar x=3',WMX,P.Y1,4,2); setLab(lbl2,'\\bar y=3',P.X0,WMY,4,-24); hideQ();
+      const ln='\\hat y='+fmt(d.w0)+(d.w1>=0?'+':'')+fmt(d.w1)+'x';
+      setLegend([['rgba('+COL.pos+',.65)','(x-\\bar x)(y-\\bar y)>0:\\ \\text{raises } r',true],['rgba('+COL.neg+',.65)','(x-\\bar x)(y-\\bar y)<0:\\ \\text{lowers } r',true]]);   // = legend เดียวกับ corr
+    } else {  // fitcalc = 2 รูป (SST | SSE) เหมือน GOF
+      axes(plot,{ybar:true}); sqTo(plot,()=>WMY,COL.tot); PG.draw.curve(plot,x=>d.w0+d.w1*x,{color:COL.line,width:2}); pts5(plot); axisLetters(plot);   // SST: ȳ เก็บ + เลข + x/y
+      setLab(lbl1,'\\bar y=3',plot.X0,WMY,4,-24); lbl2.style.display='none';
+      axes(plot2); sqTo(plot2,x=>d.w0+d.w1*x,COL.res); PG.draw.curve(plot2,x=>d.w0+d.w1*x,{color:COL.line,width:2.4}); pts5(plot2); axisLetters(plot2);   // SSE: ไม่มี x̄/ȳ · มีเลข + x/y
+      lbl3.style.display='none'; lbl4.style.display='none'; hideQ();
+      legend.innerHTML=''; legend1.innerHTML=''; legend2.innerHTML='';   // calc R²: เอา label ออก (สี/ค่าอยู่ในตารางล่างแล้ว)
+    }
+  }
+
+  const TABS=[
+    {tex:'\\text{Correlation }(r)', kind:'rlive', fn:rCorr,
+     goal:'\\text{Drag }\\rho\\ \\allowbreak\\text{— how do the }\\allowbreak\\textcolor{#3E7D68}{\\text{green}}\\text{/}\\textcolor{#9A6B1E}{\\text{gold}}\\ \\allowbreak\\text{rectangles set }r\\text{?}\\ \\allowbreak\\text{Then switch to Curved:}\\ \\allowbreak r\\approx 0\\text{ — really no relationship?}'},
+    {tex:'\\text{Calculation: }r', kind:'rcalc', fn:null,
+     goal:'\\text{Pick one row of the table —}\\ \\allowbreak\\text{find its rectangle in the plot,}\\ \\allowbreak\\text{then follow }\\textcolor{#3F6E99}{s_{xy}}\\rightarrow r\\rightarrow w_1\\ \\allowbreak\\text{in the summary.}'},
+    {tex:'\\text{Goodness of fit }(\\mathrm{SSE},\\,R^2)', kind:'fitlive', fn:rFit,
+     goal:'\\text{Drag }\\rho\\text{ toward }0\\text{:}\\ \\allowbreak\\text{which squares grow —}\\ \\allowbreak\\textcolor{#7E5A93}{\\mathrm{SSE}}\\text{ or }\\textcolor{#2E6B63}{\\mathrm{SST}}\\text{?}\\ \\allowbreak\\text{What happens to }R^2\\text{?}'},
+    {tex:'\\text{Calculation: }R^2', kind:'fitcalc', fn:null,
+     goal:'\\text{Verify one row: }\\allowbreak(y_i-\\hat y_i)^2\\text{ adds to }\\textcolor{#7E5A93}{\\mathrm{SSE}}\\text{,}\\ \\allowbreak(y_i-\\bar y)^2\\text{ to }\\textcolor{#2E6B63}{\\mathrm{SST}}\\ \\allowbreak\\text{— then check }R^2=1-\\mathrm{SSE}/\\mathrm{SST}.'},
+  ];
+  /* U1: verdict chip — feedback ตามสถานะ (ok/neutral/watch) · ว่าง = ซ่อน (calc tabs) */
+  function setChip(state,tex){ const el=document.getElementById('vchip'); if(!state){ el.className='vchip'; el.innerHTML=''; return; } el.className='vchip '+state; Kin(tex,el); }
+  const TK=()=>TABS[curTab].kind, isCalc=()=>TK()==='rcalc'||TK()==='fitcalc';
+  function render(){ try{ if(!plot) relayout();
+      if(isCalc()){ setChip(null); worked(); buildWorked(); return; }
+      const S=stats(); TABS[curTab].fn(S); }
+    catch(e){ const c=cv.getContext('2d'); c.fillStyle='#b91c1c'; c.font='15px KaTeX_Main,serif'; c.fillText('err: '+e.message,10,20); } }
+
+  function applyTab(k){ curTab=k; const kind=TABS[k].kind, isWorked=(kind==='rcalc'||kind==='fitcalc');
+    document.querySelectorAll('.tabbtn').forEach((b,i)=>b.className='tabbtn'+(i===k?' on':''));
+    Kin('\\textbf{Goal.}\\ \\allowbreak'+TABS[k].goal, document.getElementById('goal'));   // U1: โจทย์ของ tab (\\allowbreak = หักบรรทัดได้บนจอแคบ)
+    document.getElementById('panel').classList.toggle('levers', !isWorked);   // U34b: live tab = คันโยก → ปักล่างจอบนมือถือ · calc tab = ตารางอ่าน ไหลปกติ
+    document.querySelector('.wrap').classList.toggle('haslevers', !isWorked);
+    const isCorr=(kind==='rlive'), isFit=(kind==='fitlive');
+    document.getElementById('panel').style.display='';                 // panel ขวาสุดเสมอ: live=control · calc=worked table (พื้นที่/พื้นขาวเดียวกัน)
+    document.getElementById('controls').style.display=isWorked?'none':'';
+    document.getElementById('worked').style.display=(kind==='rcalc')?'':'none';   // calc r: ตารางใน Body ขวา
+    document.getElementById('wregenrow').style.display=isWorked?'':'none';        // ปุ่ม Resample ตัวอย่าง (calc) อยู่ใน panel
+    document.getElementById('datatbl').style.display=isWorked?'':'none';          // calc: ตารางข้อมูล+สมการ ในช่องขวา (Control slot)
+    document.getElementById('col2').style.display=(kind==='fitlive'||kind==='fitcalc')?'':'none';   // R²-tabs = 2 รูป
+    document.getElementById('ptitle1').style.display='none';
+    document.getElementById('ptitle2').style.display='none';   // ซ่อนทั้งคู่ → ขอบบน canvas ซ้าย-ขวาตรงกันเป๊ะ
+    document.getElementById('rcard').style.display=isCorr?'':'none';            // corr: ตารางผลใน Body ขวา
+    document.querySelector('.eqbox').style.display=(isCorr||kind==='rcalc')?'':'none';   // Body-right: corr=rcard · calc r=worked
+    document.getElementById('gofres').style.display=(isFit||kind==='fitcalc')?'':'none'; // Body-below: GOF=ผล · calc R²=worked
+    document.getElementById('r2head').style.display='none';
+    document.getElementById('ovl').style.display='none';
+    document.getElementById('ovl2').style.display='none';
+    document.getElementById('resline').style.display='none';
+    { const ac=document.getElementById('c-areachk'); if(ac) ac.style.display=(kind==='rlive')?'flex':'none'; }
+    document.getElementById('c-rho').style.display=(shapeMode==='linear')?'flex':'none';
+    relayout(); render();
+  }
+  const tb=document.getElementById('tabs');
+  TABS.forEach((t,i)=>{const b=document.createElement('button');b.className='tabbtn';b.innerHTML=kx(t.tex);b.onclick=()=>applyTab(i);tb.appendChild(b);});
+  document.getElementById('areachk').onchange=render;
+
+  const numR=document.getElementById('numR'), numN=document.getElementById('numN');
+  function syncStrength(){ numR.value=(+strengthEl.value/100).toFixed(2); }
+  function syncN(){ numN.value=nEl.value; }
+
+  const SHAPE={linear:'\\text{Linear}', curved:'\\text{Curved}'};
+  shapeSeg.querySelectorAll('button').forEach(b=>{ b.innerHTML=kx(SHAPE[b.dataset.s]);
+    b.onclick=()=>{ shapeMode=b.dataset.s; shapeSeg.querySelectorAll('button').forEach(x=>x.className=x===b?'on':'');
+      document.getElementById('c-rho').style.display=(shapeMode==='linear')?'flex':'none'; resampled=true; gen(); }; });
+
+  strengthEl.addEventListener('input',()=>{ resampled=true; syncStrength(); gen(); });
+  nEl.addEventListener('input',()=>{ resampled=true; syncN(); gen(); });
+  numR.addEventListener('change',()=>{ let v=parseFloat(numR.value); if(isFinite(v)){ v=Math.max(-1,Math.min(1,v)); strengthEl.value=Math.round(v*100); } resampled=true; syncStrength(); gen(); });
+  numN.addEventListener('change',()=>{ let v=parseInt(numN.value,10); if(isFinite(v)){ v=Math.max(5,Math.min(40,v)); nEl.value=v; } resampled=true; syncN(); gen(); });
+  document.getElementById('regen').addEventListener('click',()=>{ seed++; resampled=true; gen(); });
+  document.getElementById('wregen').addEventListener('click',()=>{ let j; do{ j=Math.floor(Math.random()*POOL.length); }while(j===WIDX&&POOL.length>1); WIDX=j; render(); });
+  window.addEventListener('resize',()=>{ relayout(); render(); });
+
+  function renderStatic(){ Kin('\\text{Regression Metrics}', document.getElementById('title'));
+    document.querySelectorAll('.kl').forEach(el=>Kin(el.dataset.tex, el));
+    Kin('\\rho', document.getElementById('lblR')); Kin('n', document.getElementById('lblN'));
+    document.getElementById('regen').innerHTML=kx('\\text{Resample}');
+    document.getElementById('wregen').innerHTML=kx('\\text{Resample}');
+    buildWorked(); syncStrength(); syncN(); }
+
+  renderStatic(); relayout(); applyTab(0); gen();
+})();
+</script>
+</body>
+</html>

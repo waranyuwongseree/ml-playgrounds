@@ -1,0 +1,455 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Performance Estimation</title>
+<link rel="stylesheet" href="pg_style.css?v=24">
+<link rel="stylesheet" href="vendor/katex/katex.min.css">
+<script src="vendor/katex/katex.min.js"></script>
+<script src="vendor/katex/auto-render.min.js"></script>
+<style>
+  :root{--panel-h:360px}   /* UD §1.2: ตรึงความสูง Control = tab ที่ยาวสุด */
+  .pcap{display:flex;gap:14px;margin-top:2px}
+  .pcap>span{flex:1 1 0;min-width:0;text-align:center;font-size:12.5px;color:var(--muted)}
+  .eqbox{background:#fff;border:1px solid var(--line);border-radius:12px;padding:8px 14px;box-shadow:0 1px 3px rgba(0,0,0,.04);margin-top:2px;text-align:center;overflow:visible}   /* UD §1: no-scroll — ห้ามมี scrollbar */
+  .qbar{text-align:center;font-size:14px;color:#1e3a8a;font-weight:600;margin:0 0 8px}
+  .runinfo{text-align:center;font-size:13.5px;color:#334155;margin-top:6px}
+  .pg .stage.grid4{display:grid;gap:12px}
+  .pg .stage.grid4 .canvasbox{height:auto;min-height:0;min-width:0}
+  .pg .stage.grid4.two{grid-template-columns:1fr 1fr;grid-template-rows:clamp(260px,40vh,360px) auto}
+  .pg .stage.grid4.two #tblBox{grid-column:1 / -1}
+  /* no-scroll + canvas ไม่เบลอ: ใช้ clamp (ความสูงคงที่ต่อจอ) ไม่ใช่ fr ที่ยืดจนเกิน clamp และทำ canvas ถูก resize หลังวาด */
+  /* stage กินความสูงที่เหลือทั้งหมด → filmstrip 38% / diagram 62% (diagram ต้องพอสำหรับ 4 แถว + E_cv)
+     ห้ามตั้ง px/clamp ตายตัว: จอเตี้ยจะหั่น diagram ขาด จอสูงจะเหลือขาว */
+  /* เต็มความสูงเฉพาะ tab Estimators (.one) ที่มี diagram — tab อื่นสูงเท่าเนื้อหา ไม่เว้นที่ว่างเปล่า */
+  /* tab Estimators กับ Compare ใช้ "แถวเดียวกัน" → รูปฟิล์มสตริปบนขนาดเท่ากันเป๊ะทั้งสองหน้า
+     แถวบน = ที่เหลือทั้งหมด (รูปใหญ่สุด) · แถวล่าง = diagram/ตาราง ขั้นต่ำ 300px (diagram ต้องไม่ถูกหั่น) */
+  .pg .stage.grid4.one{height:100%;min-height:0;grid-template-columns:1fr;grid-template-rows:minmax(140px,1fr) clamp(280px,40vh,360px)}
+  .pg .stage.grid4 .canvasbox{height:auto!important;min-height:0}
+  .pg .stage.grid4.split{grid-template-columns:1fr 1fr;grid-template-rows:clamp(240px,38vh,340px) auto}
+  .pg .stage.grid4.split #tblBox{grid-column:1 / -1}
+  .pg .stage.grid4 #tblBox{padding:12px 8px;background:#fff;border:1px solid #e9e5dc;border-radius:12px;box-shadow:0 1px 3px rgba(0,0,0,.04)}
+  #eqBox{font-size:15px}
+  @media(max-width:640px){.pg .stage.grid4{grid-template-columns:1fr;grid-template-rows:none;grid-auto-rows:minmax(200px,auto)}}
+</style>
+</head>
+<body class="pg">
+<h2 class="sr-only" style="position:absolute;width:1px;height:1px;overflow:hidden">Performance-estimation playground in three tabs, each answering one question. One split: with n=3 (2 train, 1 test) a single holdout estimate swings wildly. Holdout vs cross-validation: averaging folds gives a more precise (lower-SD) estimate. Estimate vs true E_out: resubstitution is biased optimistic while cross-validation is accurate, using resampled data since the target is known.</h2>
+<div class="wrap">
+  <div class="hdr">
+    <h1 id="__pgt" data-tex="\text{Performance Estimation}">Performance Estimation</h1>
+    <div class="tabs" id="tabs"></div>
+  </div>
+  <div class="layout">
+    <div class="stage grid4" id="stage">
+      <div class="canvasbox" id="boxData"><canvas id="dataC"></canvas></div>
+      <!-- class="diagram" = แผนภาพ ไม่ใช่กราฟข้อมูล → ความสูงต้องพอดีเนื้อหา (ยกเว้นจาก clamp กราฟ) -->
+      <div class="canvasbox diagram" id="boxEst"><canvas id="estC"></canvas></div>
+      <!-- UD §1: no-scroll — ห้ามมี scrollbar -->
+      <div class="canvasbox" id="tblBox" style="display:flex;align-items:center;justify-content:center;overflow:visible"><table id="estTable" style="margin:auto;border-collapse:collapse;font-size:14px;font-variant-numeric:tabular-nums"></table></div>
+    </div>
+    <div class="panel">
+      <div class="drow" id="c-target" style="display:flex;align-items:center;gap:10px;margin:9px 0">
+        <span class="dlab" style="flex:0 0 auto;color:#475569;font-size:15px;font-weight:600">\(\text{Target function}\)</span>
+        <div class="seg" data-for="target" style="flex:1 1 auto;display:flex;border:1px solid #e6e6e0;border-radius:8px;overflow:hidden"><button type="button" data-val="sin" style="flex:1;font-size:15px;border:0;padding:7px 8px;cursor:pointer">\(\sin(\pi x)\)</button><button type="button" data-val="quad" style="flex:1;font-size:15px;border:0;border-left:1px solid #e6e6e0;padding:7px 8px;cursor:pointer">\(x^2\)</button><button type="button" data-val="cubic" style="flex:1;font-size:15px;border:0;border-left:1px solid #e6e6e0;padding:7px 8px;cursor:pointer">\(x^3\)</button></div>
+        <select id="target" style="display:none"><option value="sin">sin</option><option value="quad">quad</option><option value="cubic">cubic</option></select>
+      </div>
+      <div class="drow" id="c-model" style="display:flex;align-items:center;gap:10px;margin:9px 0">
+        <span class="dlab" style="flex:0 0 auto;color:#475569;font-size:15px;font-weight:600">\(\text{Model}\)</span>
+        <div class="seg" data-for="model" style="flex:1 1 auto;display:flex;flex-wrap:wrap;border:1px solid #e6e6e0;border-radius:8px;overflow:hidden"><button type="button" data-val="0" style="flex:1;font-size:15px;border:0;padding:7px 6px;cursor:pointer;white-space:nowrap">\(\text{Constant}\)</button><button type="button" data-val="1" style="flex:1;font-size:15px;border:0;border-left:1px solid #e6e6e0;padding:7px 6px;cursor:pointer;white-space:nowrap">\(\text{Linear}\)</button><button type="button" data-val="2" style="flex:1;font-size:15px;border:0;border-left:1px solid #e6e6e0;padding:7px 6px;cursor:pointer;white-space:nowrap">\(\text{Quad.}\)</button><button type="button" data-val="3" style="flex:1;font-size:15px;border:0;border-left:1px solid #e6e6e0;padding:7px 6px;cursor:pointer;white-space:nowrap">\(\text{Cubic}\)</button></div>
+        <select id="model" style="display:none"><option value="0">constant</option><option value="1" selected>linear</option><option value="2">quadratic</option><option value="3">cubic</option></select>
+      </div>
+      <div class="drow" id="c-view" style="display:flex;align-items:center;gap:10px;margin:9px 0">
+        <span class="dlab" style="flex:0 0 auto;color:#475569;font-size:15px;font-weight:600">\(\text{Show}\)</span>
+        <div class="seg" data-for="view" style="flex:1 1 auto;display:flex;flex-wrap:wrap;border:1px solid #e6e6e0;border-radius:8px;overflow:hidden"><button type="button" data-val="resub" style="flex:1;font-size:15px;border:0;padding:7px 5px;cursor:pointer;white-space:nowrap">\(\text{Resub}\)</button><button type="button" data-val="holdout" style="flex:1;font-size:15px;border:0;border-left:1px solid #e6e6e0;padding:7px 5px;cursor:pointer;white-space:nowrap">\(\text{Holdout}\)</button><button type="button" data-val="cv" style="flex:1;font-size:15px;border:0;border-left:1px solid #e6e6e0;padding:7px 5px;cursor:pointer;white-space:nowrap">\(\text{CV}\)</button></div>
+        <select id="view" style="display:none"><option value="resub">resub</option><option value="holdout">holdout</option><option value="cv">cv</option><option value="all" selected>all</option></select>
+      </div>
+      <div class="drow" id="c-n" style="display:flex;align-items:center;gap:10px;margin:9px 0"><span class="dlab" style="flex:0 0 28px;text-align:center;color:#475569;font-size:15px">\(n\)</span><input type="range" id="n" min="3" max="100" value="3" step="1" style="flex:1 1 auto;width:auto;min-width:0;margin:0"><span class="num" id="nV" style="flex:0 0 62px;text-align:right;font-size:15px;padding:4px 7px;border:1px solid #e6e6e0;border-radius:7px;background:#fff;color:#185fa5;font-weight:600">3</span></div>
+      <div class="drow" id="c-frac" style="display:flex;align-items:center;gap:10px;margin:9px 0"><span class="dlab" style="flex:0 0 28px;text-align:center;color:#475569;font-size:15px">\(\text{Train}\%\)</span><input type="range" id="frac" min="50" max="90" value="67" step="1" style="flex:1 1 auto;width:auto;min-width:0;margin:0"><span class="num" id="fracV" style="flex:0 0 62px;text-align:right;font-size:15px;padding:4px 7px;border:1px solid #e6e6e0;border-radius:7px;background:#fff;color:#185fa5;font-weight:600">67</span></div>
+      <div class="drow" id="c-k" style="display:flex;align-items:center;gap:10px;margin:9px 0"><span class="dlab" style="flex:0 0 28px;text-align:center;color:#475569;font-size:15px">\(k\)</span><input type="range" id="k" min="2" max="10" value="5" step="1" style="flex:1 1 auto;width:auto;min-width:0;margin:0"><span class="num" id="kV" style="flex:0 0 62px;text-align:right;font-size:15px;padding:4px 7px;border:1px solid #e6e6e0;border-radius:7px;background:#fff;color:#185fa5;font-weight:600">5</span></div>
+      <div class="drow" id="c-noise" style="display:flex;align-items:center;gap:10px;margin:9px 0"><span class="dlab" style="flex:0 0 28px;text-align:center;color:#475569;font-size:15px">\(\sigma\)</span><input type="range" id="noise" min="0" max="50" value="20" step="1" style="flex:1 1 auto;width:auto;min-width:0;margin:0"><span class="num" id="noiseV" style="flex:0 0 62px;text-align:right;font-size:15px;padding:4px 7px;border:1px solid #e6e6e0;border-radius:7px;background:#fff;color:#185fa5;font-weight:600">0.20</span></div>
+      <div class="drow off" id="c-nseg" style="display:flex;align-items:center;gap:10px;margin:9px 0"><span class="dlab" style="flex:0 0 28px;text-align:center;color:#475569;font-size:15px">\(n\)</span><div class="segd" data-set="n" style="flex:1 1 auto;display:flex;border:1px solid #e6e6e0;border-radius:8px;overflow:hidden"><button type="button" data-v="10" style="flex:1;font-size:15px;border:0;padding:7px 8px;cursor:pointer;background:#fff;color:#555">10</button><button type="button" data-v="20" style="flex:1;font-size:15px;border:0;border-left:1px solid #e6e6e0;padding:7px 8px;cursor:pointer;background:#fff;color:#555">20</button><button type="button" data-v="40" style="flex:1;font-size:15px;border:0;border-left:1px solid #e6e6e0;padding:7px 8px;cursor:pointer;background:#fff;color:#555">40</button></div></div>
+      <div class="drow off" id="c-sigseg" style="display:flex;align-items:center;gap:10px;margin:9px 0"><span class="dlab" style="flex:0 0 28px;text-align:center;color:#475569;font-size:15px">\(\sigma\)</span><div class="segd" data-set="noise" style="flex:1 1 auto;display:flex;border:1px solid #e6e6e0;border-radius:8px;overflow:hidden"><button type="button" data-v="0" style="flex:1;font-size:15px;border:0;padding:7px 8px;cursor:pointer;background:#fff;color:#555">0</button><button type="button" data-v="20" style="flex:1;font-size:15px;border:0;border-left:1px solid #e6e6e0;padding:7px 8px;cursor:pointer;background:#fff;color:#555">0.2</button></div></div>
+      <div class="drow off" id="c-fracseg" style="display:flex;align-items:center;gap:10px;margin:9px 0"><span class="dlab" style="flex:0 0 auto;color:#475569;font-size:15px">\(\text{Train}\%\)</span><div class="segd" data-set="frac" style="flex:1 1 auto;display:flex;border:1px solid #e6e6e0;border-radius:8px;overflow:hidden"><button type="button" data-v="50" style="flex:1;font-size:15px;border:0;padding:7px 6px;cursor:pointer;background:#fff;color:#555">50%</button><button type="button" data-v="67" style="flex:1;font-size:15px;border:0;border-left:1px solid #e6e6e0;padding:7px 6px;cursor:pointer;background:#fff;color:#555">67%</button><button type="button" data-v="80" style="flex:1;font-size:15px;border:0;border-left:1px solid #e6e6e0;padding:7px 6px;cursor:pointer;background:#fff;color:#555">80%</button><button type="button" data-v="90" style="flex:1;font-size:15px;border:0;border-left:1px solid #e6e6e0;padding:7px 6px;cursor:pointer;background:#fff;color:#555">90%</button></div></div>
+      <div class="row" id="rowRun"><button class="primary" id="playBtn">\(\text{Play}\)</button><button id="stepBtn">\(\text{Step}\)</button><button id="resetBtn">\(\text{Reset}\)</button></div>
+    </div>
+  </div>
+</div>
+<script src="pg_engine.js?v=5"></script>
+<script src="split_luts.js?v=2"></script>
+<script>
+const C={train:'#5B8FB9',test:'#E07A5F',fit:'#5B8FB9',truth:'#6BA38C',resub:'#334155',hold:'#E07A5F',cv:'#6B5B95'};
+// WCAG AA text variants: pastels fail 4.5:1 on white as text, so darken (same hue) wherever a colour
+// is drawn as TEXT (labels, titles, table cells). Fills (dots/bands/regions) keep the pastel.
+const TXMAP={'#E07A5F':'#B0503A','#6BA38C':'#3F7D63','#5B8FB9':'#3F6E99','#B07AAE':'#7E5A93','#E3B23C':'#8A6510'};
+const tx=c=>TXMAP[c]||c;C.testTx=tx(C.hold);C.truthTx=tx(C.truth);
+const GC=80,REF_T=1200;
+function K(t,el,d){if(!el)return;if(window.katex){try{katex.render(String(t),el,{throwOnError:false,displayMode:!!d});return;}catch(e){}}el.textContent=t;}
+const TF={sin:x=>Math.sin(Math.PI*x),quad:x=>x*x,cubic:x=>x*x*x};
+const targetSel=document.getElementById('target'),modelSel=document.getElementById('model'),n=document.getElementById('n'),frac=document.getElementById('frac'),kSel=document.getElementById('k'),noise=document.getElementById('noise'),playBtn=document.getElementById('playBtn'),viewSel=document.getElementById('view');
+viewSel.addEventListener('change',()=>{if(mode==='one')render();});
+const dataC=document.getElementById('dataC'),estC=document.getElementById('estC');
+let mode='one',baseSeed=1,trial=0,acc={resub:[],hold:[],cv:[]},trueE=0,playing=false,timer=null,lastTr=[],lastTe=[],one=null,lastPts=[],lastFull=null,split=null;
+const xc=Array.from({length:GC},(_,i)=>-1+2*i/(GC-1));
+function cfg(){return {f:TF[targetSel.value]||TF.sin,M:+modelSel.value,nn:+n.value,sigma:+noise.value/100,fr:+frac.value/100,k:+kSel.value};}
+function rng(s){return PG.rng(s);}
+function sampleDS(f,nn,sigma,seed){const r=rng(seed),g=()=>(r.next()+r.next()+r.next()+r.next()-2)/2,SC=sigma*Math.sqrt(12),pts=[];for(let i=0;i<nn;i++){const x=-1+2*r.next();pts.push({x,y:f(x)+(sigma>0?g()*SC:0)});}return pts;}
+function shuffle(a,seed){const r=rng(seed),b=a.slice();for(let i=b.length-1;i>0;i--){const j=Math.floor(r.next()*(i+1));[b[i],b[j]]=[b[j],b[i]];}return b;}
+function rmse(pts,pred){if(!pts.length)return 0;let s=0;for(const p of pts){const e=pred(p.x)-p.y;s+=e*e;}return s/pts.length;}
+function fitD(pts,M){return PG.fit.poly(pts,{degree:M}).predict;}
+function holdout(pts,M,fr,seed){const s=shuffle(pts,seed),nt=Math.max(M+1,Math.min(pts.length-1,Math.round(pts.length*fr))),tr=s.slice(0,nt),te=s.slice(nt);if(te.length<1||tr.length<M+1)return null;return {rmse:rmse(te,fitD(tr,M)),tr,te};}
+function cvRMSE(pts,M,k,seed){const s=shuffle(pts,seed),m=Math.min(k,pts.length);let sum=0,cnt=0;for(let i=0;i<m;i++){const te=s.filter((_,j)=>j%m===i),tr=s.filter((_,j)=>j%m!==i);if(te.length<1||tr.length<M+1)continue;sum+=rmse(te,fitD(tr,M));cnt++;}return cnt?sum/cnt:null;}
+function trueEout(f,pts,M,sigma){const pred=fitD(pts,M);let s=0;for(let i=0;i<GC;i++){const e=pred(xc[i])-f(xc[i]);s+=e*e;}return s/GC+sigma*sigma;}
+const NL=[3,4,5,6,7,8,10,12,15,20,25,30,40,50,65,80,100];
+const LUT={"sin":{"0":{"b":[0.6597,0.6164,0.5924,0.5743,0.5635,0.5541,0.542,0.5334,0.5262,0.5164,0.5128,0.5091,0.5048,0.5025,0.4999,0.4984,0.4971],"s":[1.3427,1.2808,1.1844,1.173,1.1405,1.1324,1.1026,1.0889,1.0672,1.0541,1.0376,1.0331,1.0234,1.0196,1.0168,1.0127,1.0107]},"1":{"b":[0.9431,0.5542,0.4203,0.3494,0.3194,0.2955,0.2718,0.2571,0.2458,0.2341,0.229,0.225,0.2205,0.2175,0.2152,0.2139,0.2129],"s":[7.2832,2.5501,1.8616,1.5425,1.4024,1.3483,1.2432,1.1952,1.1469,1.1132,1.0884,1.072,1.0555,1.0422,1.0334,1.0263,1.02]},"2":{"b":[3.2474,2.3586,1.7004,1.2647,1.0126,0.8303,0.5879,0.4581,0.3601,0.304,0.2658,0.2535,0.2368,0.2291,0.2236,0.2204,0.2173],"s":[1258029.9627,1154.084,19.456,9.5296,4.4429,2.3719,1.7385,1.5413,1.3072,1.1706,1.1613,1.1193,1.0868,1.07,1.0498,1.0375,1.0316]},"3":{"b":[2.3209,2.5277,1.2063,0.5122,0.2848,0.1562,0.0687,0.0253,0.0138,0.0086,0.0077,0.007,0.0063,0.006,0.0057,0.0056,0.0054],"s":[884271794.9367,188828609.2912,287190.8093,966.2817,994.5107,33.4195,5.4662,3.1133,1.7335,1.3684,1.2375,1.1816,1.1266,1.0933,1.071,1.0561,1.0445]}},"quad":{"0":{"b":[0.1238,0.1161,0.1121,0.1097,0.1075,0.1061,0.1034,0.1021,0.1007,0.099,0.0982,0.0976,0.0969,0.0965,0.0961,0.0958,0.0956],"s":[1.3282,1.246,1.2058,1.1614,1.1402,1.1266,1.1008,1.0855,1.0661,1.0492,1.0414,1.0343,1.0259,1.0206,1.0151,1.0126,1.0105]},"1":{"b":[0.3501,0.2632,0.2121,0.1795,0.1583,0.1476,0.1333,0.1248,0.1165,0.1091,0.1063,0.104,0.1013,0.0997,0.0985,0.0978,0.0972],"s":[6.7087,2.9069,1.8397,1.5346,1.4093,1.3261,1.2351,1.1991,1.1545,1.1112,1.0879,1.0702,1.0519,1.043,1.0307,1.0256,1.02]},"2":{"b":[0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0],"s":[5399830.0484,69611.8429,51.8645,9.2345,3.4747,2.3519,1.7087,1.4312,1.3062,1.1911,1.1451,1.1161,1.0838,1.0665,1.05,1.0413,1.0324]},"3":{"b":[0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0],"s":[281682550.9127,147011917.191,76219.6398,1107.1015,194.0676,281.9858,8.0723,2.8009,1.8467,1.427,1.2425,1.1861,1.1263,1.0947,1.0702,1.0561,1.0446]}},"cubic":{"0":{"b":[0.2037,0.1924,0.185,0.1802,0.1777,0.174,0.1713,0.1686,0.1663,0.1639,0.1624,0.1613,0.1603,0.1596,0.159,0.1586,0.1582],"s":[1.3284,1.254,1.2094,1.164,1.1366,1.1238,1.0952,1.0837,1.0611,1.0485,1.0413,1.0329,1.0248,1.0198,1.0159,1.0126,1.0099]},"1":{"b":[0.1207,0.0677,0.0488,0.0417,0.0377,0.035,0.0328,0.0313,0.0299,0.0285,0.0278,0.0274,0.0268,0.0264,0.0261,0.0259,0.0258],"s":[11.0748,2.459,1.7604,1.5107,1.3995,1.3311,1.2413,1.1966,1.1485,1.1084,1.0872,1.0704,1.0522,1.0428,1.0319,1.0258,1.0203]},"2":{"b":[0.5589,0.3083,0.2016,0.1476,0.1086,0.0925,0.0665,0.0536,0.0443,0.0362,0.0325,0.031,0.029,0.028,0.0272,0.0267,0.0264],"s":[2088935.8921,464.683,42.8524,13.636,7.3196,2.7821,1.6606,1.4534,1.297,1.1977,1.1482,1.1133,1.0831,1.066,1.0505,1.0417,1.0316]},"3":{"b":[0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0],"s":[19057099272.9146,4357824767.8387,55937.6026,2592.047,545.2045,32.8939,8.8256,3.3323,1.7896,1.3962,1.2406,1.1793,1.1226,1.0954,1.0691,1.0559,1.045]}}};
+function lerpAt(arr,nn){if(nn<=NL[0])return arr[0];if(nn>=NL[NL.length-1])return arr[arr.length-1];let i=0;while(i<NL.length-1&&NL[i+1]<nn)i++;const a=NL[i],b=NL[i+1],t=(nn-a)/(b-a);return arr[i]*(1-t)+arr[i+1]*t;}
+function mcEoutAt(nn){const{f,M,sigma}=cfg();let s=0;for(let t=0;t<2500;t++){const pr=fitD(sampleDS(f,nn,sigma,50000+t),M);let e=0;for(let i=0;i<GC;i++){const d=pr(xc[i])-f(xc[i]);e+=d*d;}s+=e/GC;}return s/2500+sigma*sigma;}
+function refEout(){return mcEoutAt(+n.value);}
+// canvas is border-box with a 1px border: sizing the backing store from the PARENT's width squeezes
+// it into a 2px-smaller content box → fractional rescale → blurry text. Measure the canvas's own
+// content box instead and keep it an integer, then let PG.Plot apply devicePixelRatio.
+function P(cv2,margin,coords){cv2.style.width='100%';cv2.style.height='100%';
+  const w=Math.max(80,Math.round(cv2.clientWidth)),h=Math.max(80,Math.round(cv2.clientHeight));
+  cv2.width=w;cv2.height=h;
+  return PG.Plot(cv2,Object.assign({X0:-1,X1:1,Y0:-2,Y1:2,margin:margin},coords));}
+function axX(p){const c=p.ctx,F=t=>Number.isInteger(t)?(''+t):t.toFixed(2);c.strokeStyle='#94a3b8';c.lineWidth=1.1;c.beginPath();c.moveTo(p.px(p.X0),p.py(p.Y1));c.lineTo(p.px(p.X0),p.py(p.Y0));c.lineTo(p.px(p.X1),p.py(p.Y0));c.stroke();c.fillStyle='#64748b';c.font='14px KaTeX_Main';c.textAlign='center';c.textBaseline='top';for(const t of [-1,-0.5,0,0.5,1]){c.beginPath();c.moveTo(p.px(t),p.py(p.Y0));c.lineTo(p.px(t),p.py(p.Y0)+3);c.stroke();c.fillText(F(t),p.px(t),p.py(p.Y0)+4);}c.textAlign='right';c.textBaseline='middle';for(const t of [-2,-1,0,1,2]){c.beginPath();c.moveTo(p.px(p.X0),p.py(t));c.lineTo(p.px(p.X0)-3,p.py(t));c.stroke();c.fillText(F(t),p.px(p.X0)-5,p.py(t));}if(p.Y0<0&&p.Y1>0){c.strokeStyle='#eceff3';c.beginPath();c.moveTo(p.px(p.X0),p.py(0));c.lineTo(p.px(p.X1),p.py(0));c.stroke();}c.fillStyle='#64748b';c.font='italic 14px KaTeX_Math';c.textAlign='center';c.textBaseline='bottom';c.fillText('x',(p.px(p.X0)+p.px(p.X1))/2,p.H-1);c.textAlign='left';c.fillText('y',p.px(p.X0)+3,p.py(p.Y1)-2);}
+function drawData(){const {f,M}=cfg();const p=P(dataC,36);p.clear();axX(p);PG.draw.curve(p,f,{color:C.truth,width:2});const c=p.ctx;
+  if(lastFull){c.save();c.beginPath();c.rect(p.px(-1),p.py(2),p.px(1)-p.px(-1),p.py(-2)-p.py(2));c.clip();PG.draw.curve(p,lastFull,{color:C.fit,width:2.6});c.restore();}
+  for(const q of (lastPts||[])){c.fillStyle=C.test;c.beginPath();c.arc(p.px(q.x),p.py(Math.max(-2,Math.min(2,q.y))),5,0,7);c.fill();c.strokeStyle=C.testTx;c.lineWidth=1.4;c.stroke();}}
+// E_out is shown the SAME way in every tab: a sage band on TOP of the table — label left, value centred, no "="
+function EOUTROW(val,labSpan,valSpan,col){const cG=col||C.truthTx;
+  return '<tr style="border-bottom:2px solid #e6e6e0;font-weight:700;background:rgba(107,163,140,0.13)">'+
+    '<td colspan="'+labSpan+'" style="text-align:left;padding:5px 14px;color:'+cG+'">\\(E_\\text{out}\\)</td>'+
+    '<td colspan="'+valSpan+'" style="text-align:center;padding:5px 14px;color:'+cG+'">\\('+val.toFixed(2)+'\\)</td></tr>';}
+function renderTable(){const T=document.getElementById('estTable');const wrap=s=>'\\('+s+'\\)';
+  const done=()=>{if(window.renderMathInElement)try{renderMathInElement(T,{delimiters:[{left:'\\(',right:'\\)',display:false}],throwOnError:false});}catch(e){}};
+  if(mode==='one'){const ein=acc.einTr,et=acc.hold,N=Math.min(ein.length,et.length),show=3,start=Math.max(0,N-show),c1=C.resub,c2=C.testTx,c3=C.truthTx;
+    const td=(v,col)=>'<td style="text-align:right;padding:2px 16px;'+(col?'color:'+col:'')+'">'+(v===''?'':wrap(v))+'</td>';
+    const th=(t,col)=>'<th style="text-align:right;padding:3px 16px;color:'+(col||'#64748b')+';font-weight:600">'+wrap(t)+'</th>';
+    let h='<tr>'+th('\\text{step}')+th('E_\\text{in}',c1)+th('E_\\text{test}',c2)+th('E_\\text{out}',c3)+'</tr>';
+    for(let i=start;i<N;i++){const op=(N-start>1)?(0.3+0.7*(i-start)/(N-start-1)):1;h+='<tr style="opacity:'+op.toFixed(2)+'">'+td(i+1,'#94a3b8')+td(ein[i].toFixed(2),c1)+td(et[i].toFixed(2),c2)+td('','')+'</tr>';}
+    if(N){const mi=meanSD(ein),mt=meanSD(et);
+      h+='<tr style="border-top:2px solid #e6e6e0;font-weight:700">'+td('\\text{avg}','#334155')+td(mi[0].toFixed(2),c1)+td(mt[0].toFixed(2),c2)+td(trueE.toFixed(2),c3)+'</tr>';
+      h+='<tr style="color:#94a3b8">'+td('\\pm\\,\\text{SD}','#94a3b8')+td(mi[1].toFixed(2),c1)+td(mt[1].toFixed(2),c2)+td('','')+'</tr>';}
+    T.innerHTML=h;done();return;}
+  const R=acc.resub,H=acc.hold,V=acc.cv,N=Math.min(R.length,H.length,V.length),cR=C.resub,cH=C.testTx,cV=C.cv,cG=C.truthTx;
+  const td=(v,col)=>'<td style="text-align:right;padding:2px 14px;'+(col?'color:'+col:'')+'">'+(v===''?'':wrap(v))+'</td>';
+  const lb=(t,col)=>'<td style="text-align:left;padding:2px 14px;color:'+(col||'#334155')+';font-weight:600">'+(t===''?'':wrap(t))+'</td>';
+  const th=(t,col)=>'<th style="text-align:right;padding:2px 14px;color:'+(col||'#64748b')+';font-weight:600">'+wrap(t)+'</th>';
+  const kf=Math.max(2,Math.min(+n.value,Math.round(1/(1-(+frac.value/100)))));
+  let h=EOUTROW(trueE,2,3,cG);
+  h+='<tr>'+th('\\text{trial}')+'<th style="text-align:left;padding:2px 14px;color:#64748b;font-weight:600">'+wrap('\\text{measure}')+'</th>'+th('\\text{resubstitution}',cR)+th('\\text{holdout }'+frac.value+'\\%',cH)+th('\\text{CV }'+kf+'\\text{-fold}',cV)+'</tr>';
+  if(N){const i=N-1,mR=meanSD(R),mH=meanSD(H),mV=meanSD(V),sgn=x=>(x>=0?'+':'-')+Math.abs(x).toFixed(2);
+    h+='<tr>'+td(i+1,'#94a3b8')+lb('E_\\text{test}')+td(R[i].toFixed(2),cR)+td(H[i].toFixed(2),cH)+td(V[i].toFixed(2),cV)+'</tr>';
+    const srow=(lab,fn,top)=>'<tr'+(top?' style="border-top:2px solid #e6e6e0"':'')+'>'+td('')+lb(lab)+td(fn(mR),cR)+td(fn(mH),cH)+td(fn(mV),cV)+'</tr>';
+    h+=srow('\\bar E_\\text{test}',m=>m[0].toFixed(2),true);
+    h+=srow('\\text{bias}=\\bar E_\\text{test}-E_\\text{out}',m=>sgn(m[0]-trueE));
+    h+=srow('\\text{variance}=\\text{Var}(E_\\text{test})',m=>(m[1]*m[1]).toFixed(3));
+    h+=srow('\\text{MSE}=\\text{bias}^2+\\text{variance}',m=>{const b=m[0]-trueE;return (b*b+m[1]*m[1]).toFixed(3);});}
+  T.innerHTML=h;done();}
+function subLbl(c,x,y,base,sub,color,align,size){size=size||15;const ss=Math.round(size*0.74);c.fillStyle=color;c.font='italic '+size+'px KaTeX_Math';const bw=c.measureText(base).width;c.font=ss+'px KaTeX_Main';const sw=sub?c.measureText(sub).width:0;const tot=bw+sw;let sx=align==='right'?x-tot:align==='center'?x-tot/2:x;c.textAlign='left';c.textBaseline='middle';c.font='italic '+size+'px KaTeX_Math';c.fillText(base,sx,y);if(sub){c.font=ss+'px KaTeX_Main';c.fillText(sub,sx+bw,y+size*0.28);}}
+function drawEst(){const rows=(mode==='one')?[['einTr',C.resub,['E','in']],['hold',C.hold,['E','test']]]:[['resub',C.resub,'resub'],['hold',C.hold,'holdout'],['cv',C.cv,'CV']];
+  const ymax=Math.max(0.5,Math.min(4,trueE*2.4)),p=P(estC,36,{X0:0,X1:1,Y0:0,Y1:ymax}),c=p.ctx;p.clear();
+  c.strokeStyle='#94a3b8';c.lineWidth=1.1;c.beginPath();c.moveTo(p.px(0),p.py(ymax));c.lineTo(p.px(0),p.py(0));c.lineTo(p.px(1),p.py(0));c.stroke();
+  c.fillStyle='#64748b';c.font='14px KaTeX_Main';c.textAlign='right';c.textBaseline='middle';for(let t=0,st=(ymax>2.5?1:ymax>1?0.5:0.2);t<=ymax+1e-9;t+=st){c.beginPath();c.moveTo(p.px(0),p.py(t));c.lineTo(p.px(0)-3,p.py(t));c.stroke();c.fillText(t.toFixed(1),p.px(0)-5,p.py(t));}
+  subLbl(c,p.px(0),p.py(ymax)-10,'E','test','#64748b','left',14);
+  if(trueE<ymax){c.strokeStyle=C.truth;c.lineWidth=2;c.setLineDash([5,4]);c.beginPath();c.moveTo(p.px(0),p.py(trueE));c.lineTo(p.px(1),p.py(trueE));c.stroke();c.setLineDash([]);subLbl(c,p.px(1)+5,p.py(trueE),'E','out',C.truthTx,'left',13);}
+  const ncol=rows.length,x0=p.px(0),W=p.px(1)-x0;
+  rows.forEach(([key,col,nm],i)=>{const ec=tx(col),cx=x0+W*(i+0.5)/ncol,vals=acc[key]||[],jr=rng(701+i);
+    for(const v of vals){const yy=Math.min(v,ymax),xx=cx+(jr.next()-0.5)*(W/ncol)*0.55;c.fillStyle=col+'59';c.beginPath();c.arc(xx,p.py(yy),2.7,0,7);c.fill();}
+    if(vals.length){const m=vals.reduce((a,b)=>a+b,0)/vals.length,sd=Math.sqrt(vals.reduce((a,b)=>a+(b-m)*(b-m),0)/vals.length);c.strokeStyle=ec;c.lineWidth=2.2;c.beginPath();c.moveTo(cx,p.py(Math.min(ymax,m+sd)));c.lineTo(cx,p.py(Math.max(0,m-sd)));c.stroke();c.fillStyle=ec;c.beginPath();c.arc(cx,p.py(Math.min(ymax,m)),4.6,0,7);c.fill();c.strokeStyle='#fff';c.lineWidth=1.4;c.stroke();}
+    if(Array.isArray(nm))subLbl(c,cx,p.py(0)+15,nm[0],nm[1],ec,'center',15);else{c.fillStyle=ec;c.font='14px KaTeX_Main';c.textAlign='center';c.textBaseline='top';c.fillText(nm,cx,p.py(0)+5);}});}
+function addTrial(){const {f,M,nn,sigma,fr}=cfg(),k=Math.max(2,Math.min(nn,Math.round(1/(1-fr)))),CAP=6,cl=v=>Math.min(CAP,v);trial++;const pts=sampleDS(f,nn,sigma,baseSeed*100000+trial);lastPts=pts;lastFull=fitD(pts,M);acc.resub.push(cl(rmse(pts,fitD(pts,M))));const h=holdout(pts,M,fr,baseSeed*100000+trial+7);if(h){acc.hold.push(cl(h.rmse));acc.einTr.push(cl(rmse(h.tr,fitD(h.tr,M))));lastTr=h.tr;lastTe=h.te;}const cc=cvRMSE(pts,M,k,baseSeed*100000+trial+11);if(cc!=null)acc.cv.push(cl(cc));}
+function resetAcc(newSeed){stopPlay();if(newSeed)baseSeed++;trial=0;acc={resub:[],hold:[],cv:[],einTr:[]};lastTr=[];lastTe=[];lastPts=[];lastFull=null;trueE=refEout();}
+function meanSD(a){if(!a.length)return[0,0];const m=a.reduce((x,y)=>x+y,0)/a.length;return[m,Math.sqrt(a.reduce((x,y)=>x+(y-m)*(y-m),0)/a.length)];}
+function renderSummary(){const T=document.getElementById('sumTable');
+  if(mode==='one'){const mi=meanSD(acc.einTr),mt=meanSD(acc.hold),row=(lab,col,v)=>'<tr><td style="text-align:left;padding:5px 18px;color:'+col+';font-weight:600">\\('+lab+'\\)</td><td style="text-align:right;padding:5px 18px;color:'+col+'">\\('+v+'\\)</td></tr>';
+    T.innerHTML=row('\\text{avg }E_\\text{in}',C.resub,mi[0].toFixed(2))+row('\\text{avg }E_\\text{test}',C.hold,mt[0].toFixed(2))+'<tr style="border-top:2px solid #e6e6e0"><td style="text-align:left;padding:5px 18px;color:'+C.truth+';font-weight:700">\\(\\text{true }E_\\text{out}\\)</td><td style="text-align:right;padding:5px 18px;color:'+C.truth+';font-weight:700">\\('+trueE.toFixed(2)+'\\)</td></tr>';if(window.renderMathInElement)try{renderMathInElement(T,{delimiters:[{left:'\\(',right:'\\)',display:false}],throwOnError:false});}catch(e){}return;}
+  const sgn=x=>(x>=0?'+':'-')+Math.abs(x).toFixed(2),cel=(v,col)=>'<td style="text-align:right;padding:3px 12px;color:'+col+'">\\('+v+'\\)</td>',th=t=>'<th style="padding:3px 12px;color:#64748b;font-weight:600">\\('+t+'\\)</th>',rowh=(nm,col,a)=>{const m=meanSD(a),b=m[0]-trueE,v=m[1]*m[1];return '<tr><td style="text-align:left;padding:3px 12px;color:'+col+';font-weight:600">\\(\\text{'+nm+'}\\)</td>'+cel(m[0].toFixed(2),col)+cel(sgn(b),col)+cel(v.toFixed(3),col)+cel((b*b+v).toFixed(3),col)+'</tr>';};
+  T.innerHTML='<tr>'+th('\\text{method}')+th('\\text{mean}')+th('\\text{bias}')+th('\\text{variance}')+th('\\text{MSE}')+'</tr>'+rowh('resub',C.resub,acc.resub)+rowh('holdout',C.hold,acc.hold)+rowh('CV',C.cv,acc.cv)+'<tr style="border-top:2px solid #e6e6e0"><td style="text-align:left;padding:3px 12px;color:'+C.truth+';font-weight:700">\\(\\text{true }E_\\text{out}\\)</td>'+cel(trueE.toFixed(2),C.truth)+'<td colspan="3"></td></tr>';if(window.renderMathInElement)try{renderMathInElement(T,{delimiters:[{left:'\\(',right:'\\)',display:false}],throwOnError:false});}catch(e){}}
+const SUP=['','','²','³','⁴'];const FCOL=['#5B8FB9','#B07AAE','#E3B23C'];
+function gEq(w){let t=[];for(let i=0;i<w.length;i++){const c=w[i];if(i>0&&Math.abs(c)<5e-3)continue;const a=Math.abs(c).toFixed(2),s=c<0?'−':(i>0?'+':''),xp=i===0?'':(i===1?'x':'x'+SUP[i]);t.push(s+a+xp);}if(!t.length)t=['0.00'];return 'g(x) = '+t.join('');}
+function fmt(v){return v>=100?v.toFixed(1):v.toFixed(2);}
+function minSep(p){let m=9;for(let i=0;i<p.length;i++)for(let j=i+1;j<p.length;j++)m=Math.min(m,Math.abs(p[i].x-p[j].x));return m;}
+function computeOne(){const {f,M,nn,sigma,fr,k}=cfg();let pts,ti=0;
+  // resample until the points are well separated AND clear of the panel edge (so the d-labels stay visible)
+  do{pts=sampleDS(f,nn,sigma,baseSeed*99991+1+ti*7);ti++;}while(ti<14&&nn<=6&&(minSep(pts)<0.35||pts.some(q=>Math.abs(q.x)>0.82)));
+  const kk=Math.max(2,Math.min(3,nn));
+  pts.sort((a,b)=>a.x-b.x);                        // d1, d2, d3 numbered LEFT to RIGHT
+  pts.forEach((q,i)=>q.id=i+1);
+  const rf=PG.fit.poly(pts,{degree:M}),resub={pred:rf.predict,w:rf.weights,ein:rmse(pts,rf.predict)};
+  const s=pts,folds=[];for(let i=0;i<kk;i++){const te=s.filter((_,j)=>j%kk===i),tr=s.filter((_,j)=>j%kk!==i);if(te.length<1||tr.length<M+1)continue;const ff=PG.fit.poly(tr,{degree:M});folds.push({tr,te,pred:ff.predict,w:ff.weights,ein:rmse(tr,ff.predict),ete:rmse(te,ff.predict)});}
+  // holdout IS the first fold — one split, no separate picture (CV = doing this for every fold and averaging)
+  let hold=folds.length?folds[0]:null;
+  if(!hold){const hs=shuffle(pts,baseSeed*179+9),nt=Math.max(M+1,Math.min(nn-1,Math.round(nn*fr))),htr=hs.slice(0,nt),hte=hs.slice(nt),hf=PG.fit.poly(htr,{degree:M});
+    hold={tr:htr,te:hte,pred:hf.predict,w:hf.weights,ein:rmse(htr,hf.predict),ete:rmse(hte,hf.predict)};}
+  const ci=folds.length?folds.reduce((a,b)=>a+b.ein,0)/folds.length:0,ce=folds.length?folds.reduce((a,b)=>a+b.ete,0)/folds.length:0;
+  one={pts,f,M,resub,folds,hold,cv:{ein:ci,ete:ce},eout:refEout()};}
+function drawEq(c,cx,cy,str,color){const isV=ch=>/[a-zA-Z]/.test(ch),F=ch=>(isV(ch)?'italic 15px KaTeX_Math':'15px KaTeX_Main');c.textBaseline='top';let w=0;for(const ch of str){c.font=F(ch);w+=c.measureText(ch).width;}let x=cx-w/2;c.textAlign='left';c.fillStyle=color;for(const ch of str){c.font=F(ch);c.fillText(ch,x,cy);x+=c.measureText(ch).width;}}
+function wrapEq(c,str,maxw){const isV=ch=>/[a-zA-Z]/.test(ch),F=ch=>(isV(ch)?'italic 15px KaTeX_Math':'15px KaTeX_Main');const toks=[];let cur='';for(const ch of str){if((ch==='+'||ch==='−')&&cur){toks.push(cur);cur=ch;}else cur+=ch;}if(cur)toks.push(cur);const meas=t=>{let w=0;for(const ch of t){c.font=F(ch);w+=c.measureText(ch).width;}return w;};const lines=[];let line='';for(const t of toks){if(line&&meas(line+t)>maxw){lines.push(line);line=t;}else line+=t;}if(line)lines.push(line);return lines;}
+function panelPlot(c,rx,ry,rw,rh,o){const X0=-1,X1=1,Y0=-2.4,Y1=2.4,L=rx+12,R=rx+rw-12,col=o.col||'#334155',T=ry+8,B=ry+rh-6-20-(o.eq?18:0);
+  const px=x=>L+(x-X0)/(X1-X0)*(R-L),py=y=>B+(y-Y0)/(Y1-Y0)*(T-B);
+  c.save();c.beginPath();c.rect(L,T,R-L,B-T);c.clip();
+  c.strokeStyle='#eceff3';c.lineWidth=1;c.beginPath();c.moveTo(L,py(0));c.lineTo(R,py(0));c.stroke();
+  c.strokeStyle=C.truth+'59';c.lineWidth=1.6;c.beginPath();for(let i=0;i<=48;i++){const x=X0+(X1-X0)*i/48;i?c.lineTo(px(x),py(o.f(x))):c.moveTo(px(x),py(o.f(x)));}c.stroke();
+  c.strokeStyle=C.fit;c.lineWidth=2.4;c.beginPath();for(let i=0;i<=48;i++){const x=X0+(X1-X0)*i/48;i?c.lineTo(px(x),py(o.pred(x))):c.moveTo(px(x),py(o.pred(x)));}c.stroke();
+  for(const q of o.tr){c.strokeStyle=C.test;c.globalAlpha=.4;c.lineWidth=1.2;c.setLineDash([3,3]);c.beginPath();c.moveTo(px(q.x),py(q.y));c.lineTo(px(q.x),py(o.pred(q.x)));c.stroke();c.setLineDash([]);c.globalAlpha=1;c.fillStyle=C.test;c.beginPath();c.arc(px(q.x),py(q.y),4.8,0,7);c.fill();c.strokeStyle=C.testTx;c.lineWidth=1.4;c.stroke();
+    if(o.ids&&q.id){// numerals, not "d" — a lowercase d next to the set name D is one glyph away from confusion.
+      // Sit the label on the side away from the fit line (which rises to the right) and clamp inside the panel.
+      c.font='bold 14px KaTeX_Main';const lw=c.measureText(String(q.id)).width;
+      const above=py(q.y)>py(o.pred(q.x));                 // point below the line → label goes below it
+      let lx=px(q.x)+9,ly=py(q.y)+(above?15:-15);
+      lx=Math.max(L+2,Math.min(R-lw-2,lx));ly=Math.max(T+9,Math.min(B-6,ly));
+      c.fillStyle=C.testTx;c.textAlign='left';c.textBaseline='middle';c.fillText(String(q.id),lx,ly);}}
+  for(const q of (o.te||[])){const yq=py(q.y);c.strokeStyle=C.test;c.lineWidth=1.4;c.setLineDash([3,3]);c.beginPath();c.moveTo(px(q.x),yq);c.lineTo(px(q.x),py(o.pred(q.x)));c.stroke();c.setLineDash([]);c.beginPath();c.arc(px(q.x),yq,5,0,7);c.fillStyle='#fff';c.fill();c.strokeStyle=C.testTx;c.lineWidth=2.4;c.stroke();
+    if(o.ids&&q.id)subLbl(c,px(q.x)+8,yq-12,'d',String(q.id),C.testTx,'left',14);}
+  c.restore();
+  const tc=tx(col),cx2=(L+R)/2,ty=B+14;
+  if(o.sub!==undefined){c.fillStyle=tc;c.font='italic 17px KaTeX_Math';const bw2=c.measureText('D').width;
+    c.font='12px KaTeX_Main';const aw2=c.measureText(o.sub).width;
+    let sx=cx2-(bw2+aw2)/2;c.textAlign='left';c.textBaseline='middle';
+    c.font='italic 17px KaTeX_Math';c.fillText('D',sx,ty);c.font='12px KaTeX_Main';   /* sub: ตัวห้อยเล็กกว่าฐานได้ (typography) */
+    c.fillText(o.sub,sx+bw2,ty+5);}
+  else{c.fillStyle=tc;c.font='16px KaTeX_Main';c.textAlign='center';c.textBaseline='top';c.fillText(o.title,cx2,B+6);}
+  // Compare has no diagram to carry the model → each panel states the fitted g(x) itself
+  if(o.eq&&o.w)drawEq(c,cx2,B+24,gEq(o.w),tc);}
+function drawSegs(c,cx,cy,segs){let w=0;segs.forEach(s=>{c.font=(s.s||15)+'px KaTeX_Main';w+=c.measureText(s.t).width;});let x=cx-w/2;c.textAlign='left';c.textBaseline='middle';segs.forEach(s=>{c.font=(s.s||15)+'px KaTeX_Main';c.fillStyle=s.c||'#334155';c.fillText(s.t,x,cy+(s.dy||0));x+=c.measureText(s.t).width;});}
+function drawLegend(c,cx,cy){c.font='14px KaTeX_Main';c.textBaseline='middle';const items=[['dot',C.test,'train'],['ring',C.test,'test'],['line',C.truth,'target'],['line',C.fit,'model']];let w=0;items.forEach(it=>{w+=22+c.measureText(it[2]).width+20;});w-=20;let x=cx-w;items.forEach(it=>{const t=it[0],col=it[1],lab=it[2];if(t==='dot'){c.fillStyle=col;c.beginPath();c.arc(x+6,cy,5,0,7);c.fill();c.strokeStyle=C.testTx;c.lineWidth=1.5;c.stroke();}else if(t==='ring'){c.beginPath();c.arc(x+6,cy,5,0,7);c.fillStyle='#fff';c.fill();c.strokeStyle=C.testTx;c.lineWidth=2;c.stroke();}else{c.strokeStyle=col;c.lineWidth=2.6;c.beginPath();c.moveTo(x-2,cy);c.lineTo(x+14,cy);c.stroke();}c.fillStyle='#475569';c.textAlign='left';c.fillText(lab,x+22,cy);x+=22+c.measureText(lab).width+20;});}
+function drawStrip(){if(!one)computeOne();const p=P(dataC,0),c=p.ctx;p.clear();const W=dataC.clientWidth,H=dataC.clientHeight,view=viewSel?viewSel.value:'all';
+  const all=(view==='all');
+  // point numerals only in Estimators (n = 3). Everywhere else they would just clutter the plot.
+  const panels=[{title:'D',col:C.resub,ids:!all,eq:all,tr:one.pts,te:[],pred:one.resub.pred,w:one.resub.w,ein:one.resub.ein}];
+  if(one.hold&&view==='holdout')panels.push(Object.assign({sub:'1',col:C.hold},one.hold));
+  if(view==='cv'||all)one.folds.slice(0,3).forEach((f,i)=>panels.push(Object.assign({title:'D',sub:String(i+1),col:FCOL[i],eq:all},f)));
+  const pw=W/Math.max(4,panels.length),fh=H-26;drawLegend(c,W-12,13);panels.forEach((o,i)=>{o.f=one.f;panelPlot(c,i*pw,26,pw,fh,o);});}
+function renderTableOne(){const T=document.getElementById('estTable');const wrap=s=>'\\('+s+'\\)',cG=C.truthTx,dk='#334155',view=viewSel?viewSel.value:'all';
+  const cols=[{h:'\\text{resubstitution}',ein:one.resub.ein,ete:one.resub.ein,c:dk}];
+  if(one.hold)cols.push({h:'\\text{holdout}',ein:one.hold.ein,ete:one.hold.ete,c:C.hold});
+  // ค่าเฉลี่ยของ fold แสดงเป็นตัวเลขเดียว — การบวกทีละ fold อยู่ใน diagram (tab Estimators) แล้ว
+  if(one.folds.length)cols.push({h:'\\text{cross-validation}',ein:one.cv.ein,ete:one.cv.ete,c:C.cv});
+  const th=(t,col)=>'<th style="text-align:right;padding:4px 14px;color:'+(col||'#64748b')+';font-weight:600">'+wrap(t)+'</th>';
+  const rl=t=>'<td style="text-align:left;padding:4px 14px;color:#64748b;font-weight:600">'+wrap(t)+'</td>';
+  let h=EOUTROW(one.eout,1,cols.length,cG);
+  h+='<tr><th style="text-align:left;padding:4px 14px;color:#64748b;font-weight:600">'+wrap('\\text{measure}')+'</th>'+cols.map(c=>th(c.h,tx(c.c))).join('')+'</tr>';
+  h+='<tr>'+rl('E_\\text{in}')+cols.map(c=>'<td style="text-align:right;padding:4px 14px;color:'+tx(c.c)+(c.frac?';font-size:13px':'')+'">'+wrap(c.frac?c.ein:fmt(c.ein))+'</td>').join('')+'</tr>';
+  h+='<tr>'+rl('E_\\text{test}')+cols.map(c=>'<td style="text-align:right;padding:4px 14px;color:'+tx(c.c)+(c.frac?';font-size:13px':'')+'">'+wrap(c.frac?c.ete:fmt(c.ete))+'</td>').join('')+'</tr>';
+  T.innerHTML=h;if(window.renderMathInElement)try{renderMathInElement(T,{delimiters:[{left:'\\(',right:'\\)',display:false}],throwOnError:false});}catch(e){}}
+const _SPLIT_OLD={
+"0":{"tk":[{"x":19,"mean":0.5685,"sd":0.5205},{"x":18,"mean":0.5689,"sd":0.3708},{"x":17,"mean":0.5716,"sd":0.3085},{"x":16,"mean":0.5749,"sd":0.271},{"x":15,"mean":0.5745,"sd":0.2451},{"x":14,"mean":0.5823,"sd":0.2269},{"x":13,"mean":0.5805,"sd":0.2151},{"x":12,"mean":0.5845,"sd":0.2049},{"x":11,"mean":0.5883,"sd":0.1978},{"x":10,"mean":0.5946,"sd":0.1943},{"x":9,"mean":0.6008,"sd":0.1927},{"x":8,"mean":0.607,"sd":0.1938},{"x":7,"mean":0.6156,"sd":0.1974},{"x":6,"mean":0.6293,"sd":0.2061},{"x":5,"mean":0.6501,"sd":0.2269},{"x":4,"mean":0.6739,"sd":0.2485},{"x":3,"mean":0.718,"sd":0.2918},{"x":2,"mean":0.813,"sd":0.3808},{"x":1,"mean":1.0836,"sd":0.5309}],"cvk":[{"x":2,"mean":0.5937,"sd":0.1658},{"x":3,"mean":0.5806,"sd":0.1343},{"x":4,"mean":0.5783,"sd":0.1261},{"x":5,"mean":0.574,"sd":0.1222},{"x":6,"mean":0.5732,"sd":0.1214},{"x":7,"mean":0.571,"sd":0.1199},{"x":8,"mean":0.5709,"sd":0.1206},{"x":9,"mean":0.5706,"sd":0.1179},{"x":10,"mean":0.5701,"sd":0.1176},{"x":11,"mean":0.5698,"sd":0.1212},{"x":12,"mean":0.5692,"sd":0.1213}],"eoutN":0.5563},
+"1":{"tk":[{"x":19,"mean":0.2654,"sd":0.3275},{"x":18,"mean":0.2725,"sd":0.2438},{"x":17,"mean":0.2754,"sd":0.2055},{"x":16,"mean":0.2739,"sd":0.1804},{"x":15,"mean":0.2772,"sd":0.1663},{"x":14,"mean":0.2802,"sd":0.1568},{"x":13,"mean":0.2854,"sd":0.1543},{"x":12,"mean":0.2917,"sd":0.1536},{"x":11,"mean":0.2975,"sd":0.1557},{"x":10,"mean":0.3054,"sd":0.1707},{"x":9,"mean":0.3165,"sd":0.1762},{"x":8,"mean":0.3317,"sd":0.2221},{"x":7,"mean":0.3582,"sd":0.285},{"x":6,"mean":0.3927,"sd":0.366},{"x":5,"mean":0.4653,"sd":0.5488},{"x":4,"mean":0.6087,"sd":0.8215},{"x":3,"mean":0.9211,"sd":1.2753},{"x":2,"mean":1.7519,"sd":2.0032}],"cvk":[{"x":2,"mean":0.3056,"sd":0.1359},{"x":3,"mean":0.2838,"sd":0.0966},{"x":4,"mean":0.2779,"sd":0.0876},{"x":5,"mean":0.2743,"sd":0.0818},{"x":6,"mean":0.2729,"sd":0.0807},{"x":7,"mean":0.2725,"sd":0.0789},{"x":8,"mean":0.2714,"sd":0.0787},{"x":9,"mean":0.2699,"sd":0.0773},{"x":10,"mean":0.2699,"sd":0.0758},{"x":11,"mean":0.2697,"sd":0.0781},{"x":12,"mean":0.2691,"sd":0.0787}],"eoutN":0.2838},
+"2":{"tk":[{"x":19,"mean":0.3247,"sd":0.6196},{"x":18,"mean":0.3379,"sd":0.5373},{"x":17,"mean":0.3568,"sd":0.5217},{"x":16,"mean":0.3743,"sd":0.5232},{"x":15,"mean":0.3889,"sd":0.5393},{"x":14,"mean":0.4069,"sd":0.54},{"x":13,"mean":0.4431,"sd":0.6206},{"x":12,"mean":0.4822,"sd":0.6772},{"x":11,"mean":0.5295,"sd":0.7712},{"x":10,"mean":0.5909,"sd":0.8646},{"x":9,"mean":0.6654,"sd":0.9608},{"x":8,"mean":0.776,"sd":1.11},{"x":7,"mean":0.922,"sd":1.2725},{"x":6,"mean":1.1391,"sd":1.5069},{"x":5,"mean":1.4498,"sd":1.75},{"x":4,"mean":1.9026,"sd":2.0216},{"x":3,"mean":2.8934,"sd":2.3741}],"cvk":[{"x":2,"mean":0.6104,"sd":0.7418},{"x":3,"mean":0.4424,"sd":0.4091},{"x":4,"mean":0.3933,"sd":0.3059},{"x":5,"mean":0.3744,"sd":0.2629},{"x":6,"mean":0.3669,"sd":0.245},{"x":7,"mean":0.3598,"sd":0.2207},{"x":8,"mean":0.3541,"sd":0.2132},{"x":9,"mean":0.3502,"sd":0.204},{"x":10,"mean":0.3457,"sd":0.197},{"x":11,"mean":0.3444,"sd":0.1912},{"x":12,"mean":0.344,"sd":0.1966}],"eoutN":0.3532},
+"3":{"tk":[{"x":19,"mean":0.0642,"sd":0.1545},{"x":18,"mean":0.0655,"sd":0.1205},{"x":17,"mean":0.0671,"sd":0.1191},{"x":16,"mean":0.0731,"sd":0.151},{"x":15,"mean":0.0795,"sd":0.1878},{"x":14,"mean":0.0884,"sd":0.2409},{"x":13,"mean":0.1005,"sd":0.2901},{"x":12,"mean":0.1194,"sd":0.3715},{"x":11,"mean":0.1442,"sd":0.4576},{"x":10,"mean":0.1889,"sd":0.6002},{"x":9,"mean":0.2637,"sd":0.8053},{"x":8,"mean":0.3777,"sd":1.0266},{"x":7,"mean":0.5652,"sd":1.3408},{"x":6,"mean":0.9306,"sd":1.775},{"x":5,"mean":1.609,"sd":2.283},{"x":4,"mean":3.0281,"sd":2.6874}],"cvk":[{"x":2,"mean":0.2129,"sd":0.6261},{"x":3,"mean":0.1013,"sd":0.2461},{"x":4,"mean":0.0815,"sd":0.1531},{"x":5,"mean":0.0743,"sd":0.1134},{"x":6,"mean":0.0719,"sd":0.1116},{"x":7,"mean":0.0696,"sd":0.0905},{"x":8,"mean":0.0675,"sd":0.0734},{"x":9,"mean":0.0672,"sd":0.0804},{"x":10,"mean":0.0662,"sd":0.0617},{"x":11,"mean":0.066,"sd":0.0662},{"x":12,"mean":0.0654,"sd":0.0734}],"eoutN":0.0661}};
+function computeSplit(){const M=+modelSel.value,near=(opts,v)=>opts.reduce((a,b)=>Math.abs(b-v)<Math.abs(a-v)?b:a,opts[0]);
+  const nn=near([10,20,40],+n.value),sg=near([0,0.2],+noise.value/100);
+  if(+n.value!==nn){n.value=nn;} if(Math.abs(+noise.value-sg*100)>0.5){noise.value=sg*100;} syncReadouts();
+  const TG=targetSel.value,mMin=M+1,kmax=Math.min(nn,12),LT=(typeof SPLIT_LUTS!=='undefined'?SPLIT_LUTS:{}),D=LT[TG+'_'+M+'_'+nn+'_'+sg]||{tk:[],cvk:[],eoutN:0.3},tk=D.tk,cvk=D.cvk,eoutN=D.eoutN;
+  const mx=arr=>arr.length?arr.reduce((a,d)=>Math.max(a,d.mean+d.sd),0):0,stab=(arr,lo)=>arr.filter(d=>d.x>=lo);
+  // fixed y-axis per model: max over ALL n,sigma so the axis stays put when varying n/sigma
+  let fy=0;for(const nn2 of [10,20,40])for(const sg2 of [0,0.2]){const D2=LT[TG+'_'+M+'_'+nn2+'_'+sg2];if(!D2)continue;fy=Math.max(fy,mx(stab(D2.cvk,3)),mx(stab(D2.tk,mMin+3).length?stab(D2.tk,mMin+3):D2.tk));}
+  const ymax=Math.max(0.4,Math.min(1.6,fy*1.15)),tkShown=tk.filter(d=>d.mean<=ymax),cvkShown=cvk.filter(d=>d.mean<=ymax);
+  split={tk,tkShown,cvk,cvkShown,mMin,nn,kmax,ymax,eoutN,XH:40,XCV:12};}
+function axLC(p,xlab,hideLast){const c=p.ctx;c.strokeStyle='#94a3b8';c.lineWidth=1.1;c.beginPath();c.moveTo(p.px(p.X0),p.py(p.Y1));c.lineTo(p.px(p.X0),p.py(p.Y0));c.lineTo(p.px(p.X1),p.py(p.Y0));c.stroke();
+  c.fillStyle='#64748b';c.font='14px KaTeX_Main';c.textAlign='right';c.textBaseline='middle';const ys=p.Y1>1.5?0.5:p.Y1>0.8?0.2:0.1;for(let t=0;t<=p.Y1+1e-9;t+=ys){c.beginPath();c.moveTo(p.px(p.X0),p.py(t));c.lineTo(p.px(p.X0)-3,p.py(t));c.stroke();c.fillText(t.toFixed(1),p.px(p.X0)-5,p.py(t));}
+  c.textAlign='center';c.textBaseline='top';const xr=p.X1-p.X0,xs=xr>30?10:xr>12?5:xr>6?2:1;for(let t=Math.ceil(p.X0);t<=p.X1;t+=xs){c.beginPath();c.moveTo(p.px(t),p.py(p.Y0));c.lineTo(p.px(t),p.py(p.Y0)+3);c.stroke();if(!(hideLast&&t>p.X1-1e-9))c.fillText(''+t,p.px(t),p.py(p.Y0)+5);}
+  c.fillStyle='#64748b';c.font='italic 14px KaTeX_Math';c.textAlign='center';c.textBaseline='bottom';c.fillText(xlab,(p.px(p.X0)+p.px(p.X1))/2,p.H-1);}
+function drawBand(p,arr,col){const c=p.ctx;c.fillStyle=col+'30';c.beginPath();arr.forEach((d,i)=>{const x=p.px(d.x),y=p.py(Math.min(p.Y1,d.mean+d.sd));i?c.lineTo(x,y):c.moveTo(x,y);});for(let i=arr.length-1;i>=0;i--){const d=arr[i];c.lineTo(p.px(d.x),p.py(Math.max(0,d.mean-d.sd)));}c.closePath();c.fill();c.strokeStyle=col;c.lineWidth=2.4;c.beginPath();arr.forEach((d,i)=>{const x=p.px(d.x),y=p.py(Math.min(p.Y1,d.mean));i?c.lineTo(x,y):c.moveTo(x,y);});c.stroke();}
+function eoutLine(p){const c=p.ctx;if(split.eoutN<p.Y1){c.strokeStyle=C.truth;c.lineWidth=1.6;c.setLineDash([5,4]);c.beginPath();c.moveTo(p.px(p.X0),p.py(split.eoutN));c.lineTo(p.px(p.X1),p.py(split.eoutN));c.stroke();c.setLineDash([]);subLbl(c,p.px(p.X1)+5,p.py(split.eoutN),'E','out',C.truthTx,'left',14);}}
+function xPctRow(c,p,nn){const xr=p.X1-p.X0,xs=xr>30?10:xr>12?5:xr>6?2:1;c.fillStyle='#94a3b8';c.font='14px KaTeX_Main';   /* UD: ตัวหนังสือในรูป ≥14px */c.textAlign='center';c.textBaseline='top';for(let m=Math.ceil(p.X0);m<=p.X1;m+=xs)c.fillText(Math.round(100*m/nn)+'%',p.px(m),p.py(0)+19);}
+function drawHoldout(){if(!split)computeSplit();const tk=split.tkShown&&split.tkShown.length?split.tkShown:split.tk;
+  const p=P(dataC,36,{X0:split.mMin,X1:split.nn,Y0:0,Y1:split.ymax}),c=p.ctx;p.clear();axLC(p,'',true);
+  xPctRow(c,p,split.nn);c.fillStyle='#64748b';c.font='14px KaTeX_Main';c.textAlign='left';c.textBaseline='middle';c.fillText('train',p.px(p.X1)+3,p.py(0)+6);
+  eoutLine(p);drawBand(p,tk,C.hold);
+  subLbl(c,p.px(split.mMin),p.py(split.ymax)-10,'E','test','#64748b','left',14);
+  c.fillStyle=C.testTx;c.font='15px KaTeX_Main';c.textAlign='center';c.textBaseline='top';c.fillText('holdout',(p.px(split.mMin)+p.px(split.nn))/2,3);}
+function drawCV(){if(!split)computeSplit();const raw=split.cvkShown&&split.cvkShown.length?split.cvkShown:split.cvk,cvk=raw.map(d=>({x:(d.x-1)/d.x*split.nn,mean:d.mean,sd:d.sd}));
+  const p=P(estC,36,{X0:split.mMin,X1:split.nn,Y0:0,Y1:split.ymax}),c=p.ctx;p.clear();axLC(p,'',true);
+  xPctRow(c,p,split.nn);c.fillStyle='#64748b';c.font='14px KaTeX_Main';c.textAlign='left';c.textBaseline='middle';c.fillText('train',p.px(p.X1)+3,p.py(0)+6);
+  eoutLine(p);drawBand(p,cvk,C.cv);
+  subLbl(c,p.px(split.mMin),p.py(split.ymax)-10,'E','cv','#64748b','left',14);
+  c.fillStyle=C.cv;c.font='15px KaTeX_Main';c.textAlign='center';c.textBaseline='top';c.fillText('cross-validation',(p.px(split.mMin)+p.px(split.nn))/2,3);}
+function renderSplitTable(){const T=document.getElementById('estTable');if(!split){T.innerHTML='';return;}const wrap=s=>'\\('+s+'\\)';
+  const near=(arr,v)=>arr.reduce((a,d)=>Math.abs(d.x-v)<Math.abs(a.x-v)?d:a,arr[0]);
+  const rows=[[20,0],[33,0],[50,2],[67,3],[80,5],[90,10]];
+  const th=t=>'<th style="padding:4px 12px;color:#64748b;font-weight:600">'+wrap(t)+'</th>';
+  const rl=(t,col)=>'<td style="text-align:left;padding:4px 12px;color:'+(col||'#64748b')+';font-weight:600">'+wrap(t)+'</td>';
+  const cell=(v,col)=>'<td style="text-align:right;padding:4px 12px;color:'+col+'">'+(v===''?'':wrap(v))+'</td>';
+  let html=EOUTROW(split.eoutN,1,3,C.truthTx);
+  html+='<tr>'+th('\\text{train}')+th('\\text{holdout}')+th('\\text{folds}')+th('\\text{cross-validation}')+'</tr>';
+  for(const kv of rows){const pct=kv[0],k=kv[1],htr=Math.round(pct/100*split.nn);if(htr<split.mMin)continue;
+    const hd=near(split.tk,htr),hv=hd.mean.toFixed(2)+'\\pm'+hd.sd.toFixed(2);
+    let ks='\\text{—}',cvv='\\text{—}';
+    if(k>=2&&k<=split.nn){const cv=near(split.cvk,k);ks=k+'\\text{-fold}';cvv=cv.mean.toFixed(2)+'\\pm'+cv.sd.toFixed(2);}
+    html+='<tr>'+rl(pct+'\\%',C.testTx)+cell(hv,C.testTx)+rl(ks,C.cv)+cell(cvv,C.cv)+'</tr>';}
+  T.innerHTML=html;if(window.renderMathInElement)try{renderMathInElement(T,{delimiters:[{left:'\\(',right:'\\)',display:false}],throwOnError:false});}catch(e){}}
+// Module diagram after Abu-Mostafa (LFD) Fig 4.14 "Using cross validation to estimate Eout"
+// (and Fig 4.9 "Using a validation set to estimate Eout" = a single row of it):
+//   D -> D_i (leave fold i out) -> g_i -> e_i (error on the held-out fold) -> average = E_cv
+function drawModules(){if(!one)computeOne();const view=viewSel?viewSel.value:'all';
+  const p=P(estC,6),c=p.ctx,W=Math.max(320,p.W),H=Math.max(200,p.H);p.clear();
+  if(view==='all')return;
+  const F=one.folds,k=F.length,m=view==='resub'?'resub':view==='holdout'?'hold':'cv';
+  if((m==='cv'&&!k)||(m==='hold'&&!one.hold))return;
+  const cl=m==='resub'?C.resub:m==='hold'?C.testTx:C.cv;
+  const nC=4,LAST=m==='cv'?k:1,pad=12,cw=(W-2*pad)/nC,CX=j=>pad+cw*(j+0.5);
+  const bh=26,R0=40,dR=44,R=i=>R0+i*dR,rail=R0-14;   // rows: 0 data · 1 model · 2 Ein · 3 E_test · 4 E_out (ใต้ E_test เสมอ)
+  const rr=(x,y,w,h,f,s)=>{c.beginPath();if(c.roundRect)c.roundRect(x,y,Math.max(6,w),h,6);else c.rect(x,y,Math.max(6,w),h);c.fillStyle=f;c.fill();c.strokeStyle=s;c.lineWidth=1.4;c.stroke();};
+  const arw=(pts)=>{c.strokeStyle='#9aa3b2';c.lineWidth=1.3;c.beginPath();pts.forEach((q,i)=>i?c.lineTo(q[0],q[1]):c.moveTo(q[0],q[1]));c.stroke();
+    const n2=pts.length,a=Math.atan2(pts[n2-1][1]-pts[n2-2][1],pts[n2-1][0]-pts[n2-2][0]);
+    c.beginPath();c.moveTo(pts[n2-1][0],pts[n2-1][1]);c.lineTo(pts[n2-1][0]-7*Math.cos(a-0.4),pts[n2-1][1]-7*Math.sin(a-0.4));c.lineTo(pts[n2-1][0]-7*Math.cos(a+0.4),pts[n2-1][1]-7*Math.sin(a+0.4));c.closePath();c.fillStyle='#9aa3b2';c.fill();};
+  // token renderer. {t,it,mn,sb} = text · {mks:['f','h',...]} = the actual point markers from the graph
+  const MR=5,MG=6;
+  const TK=(cx2,cy,toks,co,fs)=>{fs=fs||16;const ss=Math.round(fs*0.62);let w=0;
+    toks.forEach(t=>{if(t.mks){w+=t.mks.length*2*MR+(t.mks.length-1)*MG+4;return;}
+      c.font=(t.it?'italic ':'')+fs+'px '+(t.it?'KaTeX_Math':'KaTeX_Main');w+=c.measureText(t.t).width;
+      c.font=ss+'px KaTeX_Main';w+=Math.max(t.mn?c.measureText('-').width:0,t.sp?c.measureText(t.sp).width:0,t.sb?c.measureText(t.sb).width:0);});
+    if(cy<-500)return w;
+    let x=cx2-w/2;c.textAlign='left';c.textBaseline='middle';
+    toks.forEach(t=>{
+      if(t.mks){x+=2;t.mks.forEach((k,j)=>{const mx=x+MR+j*(2*MR+MG);c.beginPath();c.arc(mx,cy,MR,0,7);
+        c.fillStyle=(k==='f')?C.test:'#fff';c.fill();c.strokeStyle=C.testTx;c.lineWidth=(k==='f')?1.3:2;c.stroke();});
+        x+=t.mks.length*2*MR+(t.mks.length-1)*MG+2;return;}
+      c.fillStyle=t.co||co;c.font=(t.it?'italic ':'')+fs+'px '+(t.it?'KaTeX_Math':'KaTeX_Main');c.fillText(t.t,x,cy);x+=c.measureText(t.t).width;
+      c.font=ss+'px KaTeX_Main';let a=0;
+      if(t.mn){c.fillText('-',x,cy-fs*0.38);a=Math.max(a,c.measureText('-').width);}
+      if(t.sp){c.fillText(t.sp,x,cy-fs*0.38);a=Math.max(a,c.measureText(t.sp).width);}
+      if(t.sb){c.fillText(t.sb,x,cy+fs*0.34);a=Math.max(a,c.measureText(t.sb).width);}
+      x+=a;});
+    return w;};
+  const BX=(cx2,y,toks,co,fill,fs0,maxw)=>{const MX=maxw||(cw-8);let fs=fs0||16,w=TK(cx2,-999,toks,co,fs)+22;
+    while(w>MX&&fs>13){fs--;w=TK(cx2,-999,toks,co,fs)+22;}
+    w=Math.min(MX,w);rr(cx2-w/2,y,w,bh,fill||'#fff',co);TK(cx2,y+bh/2,toks,co,fs);return w;};
+  // the shipped model, written out as its equation
+  const eqToks=(ws)=>{const T=[{t:'g',it:true},{t:'('},{t:'x',it:true},{t:') = '}];
+    ws.forEach((v,j)=>{const a=Math.abs(v).toFixed(2);
+      if(j===0)T.push({t:(v<0?'−':'')+a});
+      else{T.push({t:(v<0?' − ':' + ')+a});T.push(j===1?{t:'x',it:true}:{t:'x',it:true,sp:String(j)});}});
+    return T;};
+  const D=(i,mn)=>({t:'D',it:true,mn:mn,sb:i?String(i):''});
+  const N=one.pts.length,ALL=Array(N).fill('f');
+  const OUT=i=>ALL.map((_,j)=>j===i-1?'h':'f');            // fold i: point d-i is hollow (held out)
+  const TRN=i=>ALL.slice(0,N-1);                            // the points g-i was fitted on (all filled)
+  // E_out ไม่กินแถบเต็มความกว้างอีกแล้ว (เกะกะ + ดัน diagram ตกจอ) → วางเป็นป้ายเล็กมุมขวาบน แถวเดียวกับชื่อวิธี
+  c.fillStyle=cl;c.font='17px KaTeX_Main';c.textAlign='center';c.textBaseline='top';
+  c.fillText(m==='resub'?'resubstitution':m==='hold'?'holdout':'cross-validation',W/2,6);
+  const c0=CX(0),ONE=['f'],HOL=['h'];
+  // ---- column 0 : the model you ship (no error here — it just outputs the model)
+  BX(c0,R(0),[D(),{t:' '},{mks:ALL}],'#334155');
+  arw([[c0,R(0)+bh],[c0,R(1)-6]]);
+  const gw=BX(c0,R(1),[{t:'g',it:true},{t:'('},{mks:ONE},{t:')'}],'#334155');
+  arw([[c0,R(1)+bh],[c0,R(3)-6]]);
+  BX(c0,R(3),eqToks(one.resub.w),'#334155','#eff1f4',15);
+  if(m==='resub'){
+    // resubstitution builds NO new model — both errors branch straight off g
+    const x1=CX(1),gt={t:'g',it:true,sb:''};
+    arw([[c0+gw/2,R(1)+bh/2],[x1,R(1)+bh/2],[x1,R(2)-6]]);
+    BX(x1,R(2),[{t:'E',it:true,sb:'in'},{t:'('},gt,{t:', '},{mks:ONE},{t:') = '+fmt(one.resub.ein)}],cl,cl+'1e');
+    arw([[x1,R(2)+bh],[x1,R(3)-6]]);
+    BX(x1,R(3),[{t:'E',it:true,sb:'test'},{t:'('},gt,{t:', '},{mks:ONE},{t:') = '+fmt(one.resub.ein)}],cl,cl+'1e');
+  }else{
+  // ---- rail into the estimation lanes (all lanes have the SAME shape and the SAME variables)
+  c.strokeStyle='#9aa3b2';c.lineWidth=1.3;c.beginPath();c.moveTo(c0,R(0));c.lineTo(c0,rail);c.lineTo(CX(LAST),rail);c.stroke();
+  for(let j=1;j<=LAST;j++)arw([[CX(j),rail],[CX(j),R(0)-5]]);
+  const LN=[];
+  if(m==='hold'){const hid=(one.hold.te[0]&&one.hold.te[0].id)||1;
+    LN.push({pat:ALL.map((_,j)=>j===hid-1?'h':'f'),gi:'1',ein:one.hold.ein,ete:one.hold.ete,te:HOL,co:cl});}
+  else for(let i=0;i<k;i++)LN.push({pat:OUT(i+1),gi:String(i+1),ein:F[i].ein,ete:F[i].ete,te:HOL,co:tx(FCOL[i])});
+  LN.forEach((L,i)=>{const x=CX(i+1),co=L.co,gt={t:'g',it:true,sb:L.gi};
+    BX(x,R(0),[D(L.gi||''),{t:' '},{mks:L.pat}],co);
+    arw([[x,R(0)+bh],[x,R(1)-6]]);
+    BX(x,R(1),[{t:'g',it:true,sb:L.gi},{t:'('},{mks:ONE},{t:')'}],co);
+    arw([[x,R(1)+bh],[x,R(2)-6]]);
+    BX(x,R(2),[{t:'E',it:true,sb:'in'},{t:'('},gt,{t:', '},{mks:ONE},{t:') = '+fmt(L.ein)}],co,co+'1e');
+    arw([[x,R(2)+bh],[x,R(3)-6]]);
+    BX(x,R(3),[{t:'E',it:true,sb:'test'},{t:'('},gt,{t:', '},{mks:L.te},{t:') = '+fmt(L.ete)}],co,co+'1e');});
+  }
+  if(m==='cv'){
+    // ค่าเฉลี่ยของ CV วางเยื้องขวา (ไม่ใช่กึ่งกลาง) เพื่อไม่ทับกล่อง E_out ที่อยู่ใต้ E_test ของหลักแรก
+    const avY=R(3)+bh+14;
+    // show the averaging itself: E_test = (e1 + e2 + e3)/k = value
+    const av=[{t:'E',it:true,sb:'test'},{t:' = ('}];
+    F.forEach((f,i)=>{if(i)av.push({t:' + '});av.push({t:fmt(f.ete),co:tx(FCOL[i])});});
+    av.push({t:') / '+k+' = '+fmt(one.cv.ete)});
+    const aw=TK(0,-999,av,tx(C.cv),16)+22;
+    // ต้องอยู่ขวาพอที่จะไม่ทับกล่อง E_out (ใต้ E_test หลักแรก) และไม่ตกขอบขวา
+    const eoW=TK(0,-999,[{t:'E',it:true,sb:'out'},{t:' = '+fmt(one.eout)}],C.truthTx,16)+22;
+    const lo=CX(1)+eoW/2+12+aw/2, hi=W-pad-aw/2-2, drop=Math.max(Math.min(Math.max(lo,(CX(2)+CX(k))/2),hi),lo);
+    c.strokeStyle='#9aa3b2';c.lineWidth=1.3;
+    for(let i=0;i<k;i++){c.beginPath();c.moveTo(CX(i+1),R(3)+bh);c.lineTo(CX(i+1),avY);c.stroke();}
+    c.beginPath();c.moveTo(CX(1),avY);c.lineTo(CX(k),avY);c.stroke();
+    arw([[drop,avY],[drop,avY+16]]);
+    BX(drop,avY+20,av,tx(C.cv),'rgba(91,143,185,0.12)',16,aw);
+  }
+  /* E_out = ค่าจริง วางใต้ E_test ของหลักแรกเสมอ (ตำแหน่งเดียวกันทุกมุมมอง) → เทียบ "ค่าที่ประมาณ" กับ "ค่าจริง" ตรง ๆ */
+  BX(CX(1),R(4),[{t:'E',it:true,sb:'out'},{t:' = '+fmt(one.eout)}],C.truthTx,'rgba(107,163,140,0.13)',16);
+}
+/* self-heal: ถ้ากล่องรูปเปลี่ยนขนาดหลังวาด (สลับ tab/สลับมุมมอง) backing store จะไม่ตรง → ภาพยืด/เบลอ
+   วาดเสร็จแล้วเช็คเฟรมถัดไป ถ้าไม่ตรงให้วาดซ้ำครั้งเดียว */
+function render(){render_();requestAnimationFrame(()=>{
+  const dpr=window.devicePixelRatio||1;   // backing store = ขนาด CSS × dpr (ห้ามลืม dpr ไม่งั้นเช็คผิดตลอด)
+  const bad=[dataC,estC].some(c=>c.offsetParent&&(Math.abs(c.width/dpr-c.clientWidth)>2||Math.abs(c.height/dpr-c.clientHeight)>2));
+  if(bad)render_();});}
+function render_(){if(mode==='one'){drawStrip();const v=viewSel?viewSel.value:'all',isAll=(v==='all');
+    document.getElementById('boxEst').style.display=isAll?'none':'';
+    document.getElementById('tblBox').style.display=isAll?'':'none';
+    document.getElementById('stage').classList.toggle('cmp',isAll);
+    if(isAll)renderTableOne();else drawModules();}
+  else if(mode==='split'){drawHoldout();drawCV();renderSplitTable();}else{drawData();drawEst();renderTable();}}
+function stopPlay(){playing=false;if(timer){clearTimeout(timer);timer=null;}K('\\text{Play}',playBtn);}
+function tick(){if(!playing)return;const cap=100;if((mode==='accuracy'?acc.resub.length:acc.hold.length)>=cap){stopPlay();render();return;}addTrial();render();timer=setTimeout(tick,mode==='one'?220:35);}
+function startPlay(){if(playing)return;playing=true;K('\\text{Pause}',playBtn);tick();}
+const TABS=[
+  {n:'\\text{Estimators}',mode:'one',en:['view'],pre:{model:'1',n:3,frac:67,k:5,noise:0,view:'resub'}},
+  {n:'\\text{Compare}',mode:'one',en:['target','model','n','noise'],pre:{model:'1',n:3,frac:67,k:5,noise:0,view:'all'}},
+  {n:'\\text{Bias and variance}',mode:'accuracy',en:['target','model','n','noise','fracseg'],pre:{model:'1',n:10,frac:80,k:5,noise:20}},
+  {n:'\\text{Choosing the split}',mode:'split',en:['target','model','nseg','sigseg'],pre:{model:'1',n:20,frac:67,k:5,noise:20}},
+];
+const CTRLS=['target','model','view','n','frac','k','noise','nseg','sigseg','fracseg'];
+function syncReadouts(){K(n.value,document.getElementById('nV'));K(frac.value,document.getElementById('fracV'));K(kSel.value,document.getElementById('kV'));K((+noise.value/100).toFixed(2),document.getElementById('noiseV'));}
+function applyTab(i){const T=TABS[i];mode=T.mode;document.querySelectorAll('.tabbtn').forEach((b,j)=>b.className='tabbtn'+(j===i?' on':''));modelSel.value=T.pre.model;modelSel.dispatchEvent(new Event('change'));n.value=T.pre.n;frac.value=T.pre.frac;kSel.value=T.pre.k;noise.value=T.pre.noise;
+  if(T.pre.view&&viewSel){viewSel.value=T.pre.view;const sg=document.querySelector('.seg[data-for="view"]');if(sg)sg.querySelectorAll('button').forEach(b=>{const on=b.getAttribute('data-val')===T.pre.view;b.style.background=on?'#1e3a8a':'#fff';b.style.color=on?'#fff':'#555';});}
+  CTRLS.forEach(id=>document.getElementById('c-'+id).className='drow'+(T.en.indexOf(id)>=0?'':' off'));
+  const one1=mode==='one',split1=mode==='split';document.getElementById('stage').className='stage grid4 '+(one1?'one':split1?'split':'two');
+  document.getElementById('boxEst').style.display='';document.getElementById('tblBox').style.display='';
+  const noRun=one1||split1,rb=document.getElementById('resetBtn');
+  playBtn.style.display=noRun?'none':'';document.getElementById('stepBtn').style.display=noRun?'none':'';
+  rb.className=noRun?'primary':'';   // UD: Resample is the primary action whenever there is no Play
+  K(split1?'\\text{Resample}':one1?'\\text{New data}':'\\text{Reset}',rb);
+  document.getElementById('rowRun').style.display=split1?'none':'flex';setNMin();syncReadouts();syncSegNS();if(typeof syncSeg==='function')syncSeg();
+  if(one1){computeOne();render();}else if(split1){split=null;computeSplit();render();}else{resetAcc(false);addTrial();render();}}
+const tb=document.getElementById('tabs');
+TABS.forEach((T,i)=>{const b=document.createElement('button');b.className='tabbtn';(window.katex?katex.render(T.n,b,{throwOnError:false}):(b.textContent=T.n));b.onclick=()=>applyTab(i);tb.appendChild(b);});
+function setNMin(){const M=+modelSel.value,lo=mode==='one'?Math.max(3,Math.ceil((M+1)*3/2)):mode==='split'?(M+3):M+2;n.min=lo;if(+n.value<lo){n.value=lo;syncReadouts();}}
+function fillRun(){if(mode==='accuracy'){for(let z=0;z<100;z++)addTrial();}else addTrial();}
+function reReset(){setNMin();if(mode==='one'){computeOne();render();}else if(mode==='split'){split=null;computeSplit();render();}else{resetAcc(false);addTrial();render();}}
+n.addEventListener('input',syncReadouts);n.addEventListener('change',reReset);
+frac.addEventListener('input',syncReadouts);frac.addEventListener('change',reReset);
+kSel.addEventListener('input',syncReadouts);kSel.addEventListener('change',reReset);
+noise.addEventListener('input',syncReadouts);noise.addEventListener('change',reReset);
+targetSel.addEventListener('change',reReset);modelSel.addEventListener('change',reReset);
+playBtn.addEventListener('click',()=>{playing?stopPlay():startPlay();});
+document.getElementById('stepBtn').addEventListener('click',()=>{addTrial();render();});
+document.getElementById('resetBtn').addEventListener('click',()=>{if(mode==='one'){baseSeed++;computeOne();render();}else if(mode==='split'){baseSeed++;split=null;computeSplit();render();}else{resetAcc(true);addTrial();render();}});
+window.addEventListener('resize',render);
+function syncSegNS(){document.querySelectorAll('.segd').forEach(seg=>{const cur=document.getElementById(seg.getAttribute('data-set')).value;seg.querySelectorAll('button').forEach(b=>{const on=b.getAttribute('data-v')===cur;b.style.background=on?'#1e3a8a':'#fff';b.style.color=on?'#fff':'#555';});});}
+document.querySelectorAll('.segd button').forEach(b=>b.addEventListener('click',()=>{const seg=b.parentElement;document.getElementById(seg.getAttribute('data-set')).value=b.getAttribute('data-v');reReset();syncSegNS();}));
+function syncSeg(){document.querySelectorAll('.seg').forEach(seg=>{const el=document.getElementById(seg.getAttribute('data-for'));if(!el)return;seg.querySelectorAll('button').forEach(b=>{const on=b.getAttribute('data-val')===el.value;b.style.background=on?'#1e3a8a':'#fff';b.style.color=on?'#fff':'#555';});});}
+document.querySelectorAll('.seg button').forEach(b=>b.addEventListener('click',()=>{const seg=b.parentElement,el=document.getElementById(seg.getAttribute('data-for'));if(!el)return;el.value=b.getAttribute('data-val');el.dispatchEvent(new Event('change'));syncSeg();}));
+applyTab(0);syncSeg();
+// วาดซ้ำหลัง layout นิ่ง — ไม่งั้น canvas ถูกวัดก่อน grid คำนวณความสูงเสร็จ (ภาพเบลอ/ถูกตัด)
+requestAnimationFrame(()=>requestAnimationFrame(render));
+/* ฟอนต์/KaTeX โหลดเสร็จทีหลัง → ความสูงแถวเปลี่ยน → ต้องวาดใหม่ ไม่งั้น backing store ค้างขนาดเดิม = ภาพเบลอ */
+window.addEventListener('load',()=>render());
+if(document.fonts&&document.fonts.ready)document.fonts.ready.then(()=>render());
+setTimeout(render,300);setTimeout(render,900);
+/* กล่องรูปอาจเปลี่ยนขนาดทีหลัง (KaTeX โหลดเสร็จ / สลับ tab / resize) → เฝ้าดูแล้ววาดใหม่ ไม่งั้นภาพยืด-เบลอ */
+if(window.ResizeObserver){const ro=new ResizeObserver(()=>{const dpr=window.devicePixelRatio||1;
+  const bad=[dataC,estC].some(c=>c.offsetParent&&c.clientHeight>0&&(Math.abs(c.width/dpr-c.clientWidth)>2||Math.abs(c.height/dpr-c.clientHeight)>2));
+  if(bad)render_();});
+  ro.observe(dataC);ro.observe(estC);}
+// หัวเรื่องต้องเป็น KaTeX เหมือนทุกหน้า (สคริปต์นี้เคยตกไปตอนกู้ไฟล์ → หัวเรื่องกลายเป็นฟอนต์ HTML)
+(function(){if(!window.katex)return;const t=document.getElementById('__pgt');if(t)try{katex.render(t.getAttribute('data-tex'),t,{throwOnError:false});}catch(e){}})();
+if(window.renderMathInElement)try{renderMathInElement(document.body,{delimiters:[{left:'\\(',right:'\\)',display:false},{left:'$$',right:'$$',display:true}],ignoredTags:['script','noscript','style','textarea','option'],throwOnError:false});}catch(e){}
+</script>
+</body>
+</html>

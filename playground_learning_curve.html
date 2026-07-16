@@ -1,0 +1,178 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Learning Curve</title>
+<link rel="stylesheet" href="pg_style.css?v=24">
+<link rel="stylesheet" href="vendor/katex/katex.min.css">
+<script src="vendor/katex/katex.min.js"></script>
+<script src="vendor/katex/auto-render.min.js"></script>
+<style>
+  /* file-unique only — shell comes from pg_style */
+  :root{--panel-h:338px}   /* UD §1.2: ตรึงความสูง Control = tab ที่ยาวสุด */
+  .pcap{display:flex;gap:14px;margin-top:2px}
+  .pcap>span{flex:1 1 0;min-width:0;text-align:center;font-size:12.5px;color:var(--muted)}
+  .eqbox{background:#fff;border:1px solid var(--line);border-radius:12px;padding:8px 14px;box-shadow:0 1px 3px rgba(0,0,0,.04);margin-top:2px;text-align:center;overflow:visible}   /* UD §1: no-scroll — ห้ามมี scrollbar */
+  .runinfo{text-align:center;font-size:13px;color:#334155;font-weight:600;margin-top:6px}
+  /* รูปคู่ = จัตุรัส ขนาดเท่ากัน และเท่ากับรูปคู่ของ generalization (ความกว้างครึ่ง stage เท่ากันทั้งสองหน้า) */
+  .pg .plots .canvasbox{aspect-ratio:1/1;width:100%;height:auto;max-height:52vh}
+  /* U1: goal bar (เดิม .hint ถูกซ่อน) — โจทย์ 1 บรรทัดใต้ Head */
+  .goal{background:var(--sec);border:1px solid var(--line);border-radius:8px;padding:5px 12px;font-size:15px;color:var(--ink);line-height:1.5;margin:0 0 2px}
+  .goal .katex{font-size:1em}
+  @media(max-width:820px){
+    .pg .plots{flex-direction:column}.pcap{flex-direction:column}
+    .eqbox .katex{font-size:.92em}   /* กันสมการ decomposition ล้นขอบจอแคบ */
+    /* U34b: ทุก tab มีคันโยก → control ปักล่างจอ (bottom-sheet) เห็นรูปพร้อมลากได้ */
+    .pg .panel{position:fixed;left:0;right:0;bottom:0;margin:0;max-height:44vh;overflow-y:auto;
+      border:1px solid var(--line);border-bottom:0;border-radius:14px 14px 0 0;box-shadow:0 -3px 14px rgba(0,0,0,.10);z-index:50}
+  }
+</style>
+</head>
+<body class="pg">
+<h2 class="sr-only" style="position:absolute;width:1px;height:1px;overflow:hidden">Learning-curve playground on the shared template. Press Play on the first tab to keep running more datasets: the measured curves refine and converge onto the dashed theoretical curves. In-sample error rises and out-of-sample error falls, both approaching bias squared plus noise. A compare mode overlays a simple and a complex model.</h2>
+<div class="wrap">
+  <div class="hdr">
+    <h1 id="__pgt" data-tex="\text{Learning Curve}">Learning Curve</h1>
+    <div class="tabs" id="tabs"></div>
+  </div>
+  <div class="goal" id="hint"></div>
+  <div class="layout">
+    <div class="stage">
+      <div class="plots">
+        <div class="canvasbox"><canvas id="dataC"></canvas></div>
+        <div class="canvasbox"><canvas id="curveC"></canvas></div>
+      </div>
+      <div class="pcap"><span id="capA"></span><span id="capB"></span></div>
+      <div class="eqbox" id="eqBox"></div>
+      <div class="runinfo" id="runinfo"></div>
+    </div>
+    <div class="panel">
+      <div class="drow" id="c-target" style="display:flex;align-items:center;gap:10px;margin:9px 0">
+        <span class="dlab" style="flex:0 0 auto;color:#475569;font-size:15px;font-weight:600">\(\text{Target function}\)</span>
+        <div class="seg" data-for="target" style="flex:1 1 auto;display:flex;border:1px solid #e6e6e0;border-radius:8px;overflow:hidden"><button type="button" data-val="sin" style="flex:1;font-size:15px;border:0;padding:7px 8px;cursor:pointer">\(\sin(\pi x)\)</button><button type="button" data-val="quad" style="flex:1;font-size:15px;border:0;border-left:1px solid #e6e6e0;padding:7px 8px;cursor:pointer">\(x^2\)</button><button type="button" data-val="cubic" style="flex:1;font-size:15px;border:0;border-left:1px solid #e6e6e0;padding:7px 8px;cursor:pointer">\(x^3\)</button></div>
+        <select id="target" style="display:none"><option value="sin">sin</option><option value="quad">quad</option><option value="cubic">cubic</option></select>
+      </div>
+      <div class="drow" id="c-model" style="display:flex;align-items:center;gap:10px;margin:9px 0">
+        <span class="dlab" style="flex:0 0 auto;color:#475569;font-size:15px;font-weight:600">\(\text{Model}\)</span>
+        <div class="seg" data-for="model" style="flex:1 1 auto;display:flex;flex-wrap:wrap;border:1px solid #e6e6e0;border-radius:8px;overflow:hidden"><button type="button" data-val="0" style="flex:1;font-size:15px;border:0;padding:7px 6px;cursor:pointer;white-space:nowrap">\(\text{Constant}\)</button><button type="button" data-val="1" style="flex:1;font-size:15px;border:0;border-left:1px solid #e6e6e0;padding:7px 6px;cursor:pointer;white-space:nowrap">\(\text{Linear}\)</button><button type="button" data-val="2" style="flex:1;font-size:15px;border:0;border-left:1px solid #e6e6e0;padding:7px 6px;cursor:pointer;white-space:nowrap">\(\text{Quad.}\)</button><button type="button" data-val="3" style="flex:1;font-size:15px;border:0;border-left:1px solid #e6e6e0;padding:7px 6px;cursor:pointer;white-space:nowrap">\(\text{Cubic}\)</button></div>
+        <select id="model" style="display:none"><option value="0">constant</option><option value="1" selected>linear</option><option value="2">quadratic</option><option value="3">cubic</option></select>
+      </div>
+      <div class="drow" id="c-mA" style="display:flex;align-items:center;gap:10px;margin:9px 0">
+        <span class="dlab" style="flex:0 0 auto;color:#3F6E99;font-size:15px;font-weight:600">\(\text{Model A}\)</span>
+        <div class="seg" data-for="mA" style="flex:1 1 auto;display:flex;flex-wrap:wrap;border:1px solid #e6e6e0;border-radius:8px;overflow:hidden"><button type="button" data-val="0" style="flex:1;font-size:15px;border:0;padding:7px 6px;cursor:pointer;white-space:nowrap">\(\text{Constant}\)</button><button type="button" data-val="1" style="flex:1;font-size:15px;border:0;border-left:1px solid #e6e6e0;padding:7px 6px;cursor:pointer;white-space:nowrap">\(\text{Linear}\)</button><button type="button" data-val="2" style="flex:1;font-size:15px;border:0;border-left:1px solid #e6e6e0;padding:7px 6px;cursor:pointer;white-space:nowrap">\(\text{Quad.}\)</button><button type="button" data-val="3" style="flex:1;font-size:15px;border:0;border-left:1px solid #e6e6e0;padding:7px 6px;cursor:pointer;white-space:nowrap">\(\text{Cubic}\)</button></div>
+        <select id="mA" style="display:none"><option value="0">constant</option><option value="1" selected>linear</option><option value="2">quadratic</option><option value="3">cubic</option></select>
+      </div>
+      <div class="drow" id="c-mB" style="display:flex;align-items:center;gap:10px;margin:9px 0">
+        <span class="dlab" style="flex:0 0 auto;color:#7E5A93;font-size:15px;font-weight:600">\(\text{Model B}\)</span>
+        <div class="seg" data-for="mB" style="flex:1 1 auto;display:flex;flex-wrap:wrap;border:1px solid #e6e6e0;border-radius:8px;overflow:hidden"><button type="button" data-val="0" style="flex:1;font-size:15px;border:0;padding:7px 6px;cursor:pointer;white-space:nowrap">\(\text{Constant}\)</button><button type="button" data-val="1" style="flex:1;font-size:15px;border:0;border-left:1px solid #e6e6e0;padding:7px 6px;cursor:pointer;white-space:nowrap">\(\text{Linear}\)</button><button type="button" data-val="2" style="flex:1;font-size:15px;border:0;border-left:1px solid #e6e6e0;padding:7px 6px;cursor:pointer;white-space:nowrap">\(\text{Quad.}\)</button><button type="button" data-val="3" style="flex:1;font-size:15px;border:0;border-left:1px solid #e6e6e0;padding:7px 6px;cursor:pointer;white-space:nowrap">\(\text{Cubic}\)</button></div>
+        <select id="mB" style="display:none"><option value="0">constant</option><option value="1">linear</option><option value="2">quadratic</option><option value="3" selected>cubic</option></select>
+      </div>
+      <div class="drow" id="c-n" style="display:flex;align-items:center;gap:10px;margin:9px 0">
+        <span class="dlab" style="flex:0 0 28px;text-align:center;color:#475569;font-size:15px">\(n\)</span>
+        <input type="range" id="n" min="2" max="60" value="8" step="1" style="flex:1 1 auto;width:auto;min-width:0;margin:0">
+        <span class="num" id="nV" style="flex:0 0 62px;text-align:right;font-size:15px;padding:4px 7px;border:1px solid #e6e6e0;border-radius:7px;background:#fff;color:#185fa5;font-weight:600;font-variant-numeric:tabular-nums">8</span>
+      </div>
+      <div class="drow" id="c-noise" style="display:flex;align-items:center;gap:10px;margin:9px 0">
+        <span class="dlab" style="flex:0 0 28px;text-align:center;color:#475569;font-size:15px">\(\sigma\)</span>
+        <input type="range" id="noise" min="0" max="50" value="0" step="1" style="flex:1 1 auto;width:auto;min-width:0;margin:0">
+        <span class="num" id="noiseV" style="flex:0 0 62px;text-align:right;font-size:15px;padding:4px 7px;border:1px solid #e6e6e0;border-radius:7px;background:#fff;color:#185fa5;font-weight:600;font-variant-numeric:tabular-nums">0.00</span>
+      </div>
+      <div class="row" id="rowRun"><button class="primary" id="playBtn">\(\text{Play}\)</button><button id="resetBtn">\(\text{Reset}\)</button></div>
+    </div>
+  </div>
+</div>
+<script src="pg_engine.js?v=5"></script>
+<script src="lc_luts.js?v=1"></script>
+<script>
+const C={tgt:'#6BA38C',fit:'#5B8FB9',data:'#E07A5F',ein:'#5B8FB9',eout:'#E07A5F',simple:'#5B8FB9',complex:'#B07AAE',asym:'#6BA38C',ref:'#c7cdd6'};
+// WCAG AA text variants: pastels fail 4.5:1 on white as text, so darken (same hue) wherever a colour
+// is drawn as TEXT (labels, titles, KaTeX textcolor). Fills (dots/bands/lines) keep the pastel.
+const TXMAP={'#E07A5F':'#B0503A','#5B8FB9':'#3F6E99','#6BA38C':'#3F7D63','#B07AAE':'#7E5A93'};const tx=c=>TXMAP[c]||c;
+function K(t,el,d){if(!el)return;if(window.katex){try{katex.render(String(t),el,{throwOnError:false,displayMode:!!d});return;}catch(e){}}el.textContent=t;}
+const TARGETS={sin:x=>Math.sin(Math.PI*x),quad:x=>x*x,cubic:x=>x*x*x};
+const targetSel=document.getElementById('target'),modelSel=document.getElementById('model'),n=document.getElementById('n'),noise=document.getElementById('noise'),playBtn=document.getElementById('playBtn');
+const dataC=document.getElementById('dataC'),curveC=document.getElementById('curveC'),eqBox=document.getElementById('eqBox'),capA=document.getElementById('capA'),capB=document.getElementById('capB'),runinfo=document.getElementById('runinfo');
+const N_MIN=1,N_MAX=60,N_STEP=3,GC=28,REF_T=2000,RUN_LIMIT=3000;
+const YBASE={sin:1.2,quad:0.9,cubic:1.2};
+const xc=Array.from({length:GC},(_,i)=>-1+2*i/(GC-1));
+function buildNN(M){const lo=Math.max(1,(+M)+1),a=[];for(let nn=lo;nn<=N_MAX;nn+=N_STEP)a.push(nn);if(a[a.length-1]<N_MAX)a.push(N_MAX);return a;}
+let NN=buildNN(1);
+let baseSeed=1,mode='one'; const SIMPLE=1,COMPLEX=3;
+const mAsel=document.getElementById('mA'),mBsel=document.getElementById('mB'),MODELNAMES=['constant','linear','quadratic','cubic'];
+function MA(){return +mAsel.value;}function MB(){return +mBsel.value;}
+let refA=[],refB=[],accS=[],accS2=[],accEin=[],accT=0,playing=false,timer=null;
+function sampleDS(f,nn,sigma,seed){const r=PG.rng(seed),g=()=>(r.next()+r.next()+r.next()+r.next()-2)/2,SC=sigma*Math.sqrt(12),pts=[];for(let i=0;i<nn;i++){const x=-1+2*r.next();pts.push({x,y:f(x)+(sigma>0?g()*SC:0)});}pts.sort((a,b)=>a.x-b.x);return pts;}
+function seedFor(nn,t){return baseSeed*1000000+nn*7919+t*101;}
+// ⚠️ วัดจาก canvas เอง ไม่ใช่ parent (border-box + border 1px → ภาพถูกบีบ 2px → เบลอ) · PG.Plot คูณ dpr ให้เอง
+function P(cv,margin,coords){cv.style.width='100%';cv.style.height='100%';
+  const w=Math.max(80,Math.round(cv.clientWidth)),h=Math.max(80,Math.round(cv.clientHeight));cv.width=w;cv.height=h;
+  return PG.Plot(cv,Object.assign({X0:-1,X1:1,Y0:-2,Y1:2,margin:margin},coords));}
+function cfg(){return {f:TARGETS[targetSel.value]||TARGETS.sin,M:+modelSel.value,sigma:+noise.value/100};}
+function setNMin(){const lo=(mode==='compare')?(Math.min(MA(),MB())+1):((+modelSel.value)+1);n.min=lo;if(+n.value<lo)n.value=lo;}
+function syncReadouts(){K(n.value,document.getElementById('nV'));K((+noise.value/100).toFixed(2),document.getElementById('noiseV'));}
+function axesX(p,yt,lab){const c=p.ctx,F=t=>Number.isInteger(t)?(''+t):t.toFixed(2);c.strokeStyle='#94a3b8';c.lineWidth=1.1;c.beginPath();c.moveTo(p.px(p.X0),p.py(p.Y1));c.lineTo(p.px(p.X0),p.py(p.Y0));c.lineTo(p.px(p.X1),p.py(p.Y0));c.stroke();c.fillStyle='#64748b';c.font='14px KaTeX_Main';c.textAlign='center';c.textBaseline='top';for(const t of [-1,-0.5,0,0.5,1]){c.beginPath();c.moveTo(p.px(t),p.py(p.Y0));c.lineTo(p.px(t),p.py(p.Y0)+3);c.stroke();c.fillText(F(t),p.px(t),p.py(p.Y0)+4);}c.textAlign='right';c.textBaseline='middle';for(const t of yt){c.beginPath();c.moveTo(p.px(p.X0),p.py(t));c.lineTo(p.px(p.X0)-3,p.py(t));c.stroke();c.fillText(F(t),p.px(p.X0)-5,p.py(t));}if(p.Y0<0&&p.Y1>0){c.strokeStyle='#eceff3';c.lineWidth=1;c.beginPath();c.moveTo(p.px(p.X0),p.py(0));c.lineTo(p.px(p.X1),p.py(0));c.stroke();}if(lab){c.fillStyle='#64748b';c.font='italic 14px KaTeX_Math';c.textAlign='center';c.textBaseline='bottom';c.fillText('x',(p.px(p.X0)+p.px(p.X1))/2,p.H-1);c.textAlign='left';c.fillText('y',p.px(p.X0)+3,p.py(p.Y1)-2);}}
+function axesN(p,ymax){const c=p.ctx;c.strokeStyle='#94a3b8';c.lineWidth=1.1;c.beginPath();c.moveTo(p.px(p.X0),p.py(p.Y1));c.lineTo(p.px(p.X0),p.py(p.Y0));c.lineTo(p.px(p.X1),p.py(p.Y0));c.stroke();c.fillStyle='#64748b';c.font='14px KaTeX_Main';c.textAlign='center';c.textBaseline='top';for(const t of [10,20,30,40,50,60]){c.beginPath();c.moveTo(p.px(t),p.py(0));c.lineTo(p.px(t),p.py(0)+3);c.stroke();c.fillText(''+t,p.px(t),p.py(0)+4);}c.textAlign='right';c.textBaseline='middle';for(const t of [0,ymax/2,ymax]){c.beginPath();c.moveTo(p.px(p.X0),p.py(t));c.lineTo(p.px(p.X0)-3,p.py(t));c.stroke();c.fillText(t.toFixed(2),p.px(p.X0)-5,p.py(t));}c.fillStyle='#64748b';c.font='italic 14px KaTeX_Math';c.textAlign='center';c.textBaseline='bottom';c.fillText('n',(p.px(p.X0)+p.px(p.X1))/2,p.H-1);c.textAlign='left';c.textBaseline='bottom';c.fillText('error',p.px(p.X0)+2,p.py(p.Y1)-3);}
+// high-trial theoretical (reference) curve
+// reference curve from precomputed LUT (T=12000). E_out and E_in are exactly linear in σ² for OLS,
+// so interpolate the σ=0 and σ=1 anchors; bias² is σ-independent. No live Monte-Carlo → smooth + stable.
+function curveFor(M,T){const {sigma}=cfg(),s2=sigma*sigma,D=(typeof LC_LUT!=='undefined')?LC_LUT[targetSel.value+'_'+M]:null;
+  if(!D)return buildNN(M).map(nn=>({N:nn,ein:0,eout:0,bias2:0}));
+  return D.ns.map((nn,i)=>({N:nn,ein:D.ein0[i]+s2*(D.ein1[i]-D.ein0[i]),eout:D.eout0[i]+s2*(D.eout1[i]-D.eout0[i]),bias2:D.b2[i]}));}
+function resetAcc(newSeed){stopPlay();if(newSeed)baseSeed++;accT=0;accS=NN.map(()=>new Float64Array(GC));accS2=NN.map(()=>new Float64Array(GC));accEin=NN.map(()=>0);}
+function addTrials(k){const {f,M,sigma}=cfg();for(let j=0;j<NN.length;j++){const nn=NN[j],s=accS[j],s2=accS2[j];let e=0;for(let t=0;t<k;t++){const pts=sampleDS(f,nn,sigma,seedFor(nn,accT+t)+555),m=PG.fit.poly(pts,{degree:M});let ee=0;for(const p of pts){const r=m.predict(p.x)-p.y;ee+=r*r;}e+=ee/(pts.length||1);for(let i=0;i<GC;i++){const yp=m.predict(xc[i]);s[i]+=yp;s2[i]+=yp*yp;}}accEin[j]+=e;}accT+=k;}
+function runningCurve(){const {f,sigma}=cfg(),nv=sigma*sigma,out=[];for(let j=0;j<NN.length;j++){const s=accS[j],s2=accS2[j];let b=0,v=0;for(let i=0;i<GC;i++){const mu=s[i]/accT,vv=Math.max(0,s2[i]/accT-mu*mu);b+=(mu-f(xc[i]))**2;v+=vv;}b/=GC;v/=GC;out.push({N:NN[j],ein:accEin[j]/accT,eout:b+v+nv,bias2:b});}return out;}
+function nearest(cv,nn){let best=cv[0],bd=1/0;for(const r of cv){const d=Math.abs(r.N-nn);if(d<bd){bd=d;best=r;}}return best;}
+/* margin ต้องเท่ากับรูปขวา (34) → เส้นแกน x ของสองรูปที่อยู่ข้างกันอยู่ระดับเดียวกันเป๊ะ */
+function drawData(){const {f,M,sigma}=cfg(),nn=+n.value;const p=P(dataC,34),c=p.ctx;p.clear();axesX(p,[-2,-1,0,1,2],true);PG.draw.curve(p,f,{color:C.tgt,width:2});
+  if(mode==='compare'){const pts=sampleDS(f,nn,sigma,seedFor(nn,accT)+9);c.save();c.beginPath();c.rect(p.px(-1),p.py(p.Y1),p.px(1)-p.px(-1),p.py(p.Y0)-p.py(p.Y1));c.clip();PG.draw.curve(p,PG.fit.poly(pts,{degree:MA()}).predict,{color:C.simple,width:2.5});PG.draw.curve(p,PG.fit.poly(pts,{degree:MB()}).predict,{color:C.complex,width:2.5});c.restore();PG.draw.points(p,pts,{color:C.data,r:4.5});}
+  else if(mode==='theory'){const K=16,gs=new Float64Array(GC);c.save();c.beginPath();c.rect(p.px(-1),p.py(2),p.px(1)-p.px(-1),p.py(-2)-p.py(2));c.clip();for(let t=0;t<K;t++){const m=PG.fit.poly(sampleDS(f,nn,sigma,seedFor(nn,t)+9),{degree:M});PG.draw.curve(p,m.predict,{color:'rgba(91,143,185,0.16)',width:1.3});for(let i=0;i<GC;i++)gs[i]+=m.predict(xc[i]);}c.restore();PG.draw.curve(p,x=>{const u=(x+1)/2*(GC-1);let i=Math.floor(u);if(i<0)i=0;if(i>=GC-1)i=GC-2;const w=u-i;return (gs[i]*(1-w)+gs[i+1]*w)/K;},{color:C.fit,width:3});}
+  else{const pts=sampleDS(f,nn,sigma,seedFor(nn,accT)+9);c.save();c.beginPath();c.rect(p.px(-1),p.py(p.Y1),p.px(1)-p.px(-1),p.py(p.Y0)-p.py(p.Y1));c.clip();PG.draw.curve(p,PG.fit.poly(pts,{degree:M}).predict,{color:C.fit,width:2.5});c.restore();PG.draw.points(p,pts,{color:C.data,r:4.5});}}
+function drawCurve(){const ymax=(YBASE[targetSel.value]||1.2);const X0=(mode==='compare')?(Math.min(MA(),MB())+1):((+modelSel.value)+1);const p=P(curveC,34,{X0:X0,X1:N_MAX,Y0:0,Y1:ymax}),c=p.ctx;p.clear();axesN(p,ymax);
+  const nsel=+n.value;c.strokeStyle='#9aa3b2';c.lineWidth=1.3;c.setLineDash([5,4]);c.beginPath();c.moveTo(p.px(nsel),p.py(0));c.lineTo(p.px(nsel),p.py(ymax));c.stroke();c.setLineDash([]);
+  const valueAt=(cv,nn,key)=>{if(!cv.length)return null;if(nn<=cv[0].N)return cv[0][key];if(nn>=cv[cv.length-1].N)return cv[cv.length-1][key];for(let i=1;i<cv.length;i++){if(cv[i].N>=nn){const a=cv[i-1],bb=cv[i],t=(nn-a.N)/(bb.N-a.N);return a[key]*(1-t)+bb[key]*t;}}return cv[cv.length-1][key];};
+  const line=(cv,key,col,w,dash)=>{c.save();c.beginPath();c.rect(p.px(X0),p.py(ymax),p.px(N_MAX)-p.px(X0),p.py(0)-p.py(ymax));c.clip();c.strokeStyle=col;c.lineWidth=w;c.setLineDash(dash||[]);c.beginPath();let pen=false;cv.forEach(r=>{const v=r[key];if(v==null||!isFinite(v)){pen=false;return;}const X=p.px(r.N),Y=p.py(v);pen?c.lineTo(X,Y):c.moveTo(X,Y);pen=true;});c.stroke();c.setLineDash([]);c.restore();};
+  const dot=(cv,key,col)=>{const v=valueAt(cv,nsel,key);if(v==null||!isFinite(v)||v>ymax)return;c.fillStyle=col;c.beginPath();c.arc(p.px(nsel),p.py(v),4.5,0,7);c.fill();c.strokeStyle='#fff';c.lineWidth=1.5;c.stroke();};
+  if(mode==='compare'){const oA=MA(),oB=MB(),simpleRef=(oA<=oB)?refA:refB,complexRef=(oA<=oB)?refB:refA;let cx=null,prev=null;for(let nn=X0;nn<=N_MAX;nn++){const d=valueAt(complexRef,nn,'eout')-valueAt(simpleRef,nn,'eout');if(prev!=null&&d!==0&&prev!==0&&Math.sign(d)!==Math.sign(prev)){cx=nn;break;}prev=d;}const dStart=valueAt(complexRef,X0,'eout')-valueAt(simpleRef,X0,'eout');const xL=p.px(X0),xE=p.px(N_MAX),yT=p.py(ymax),yB=p.py(0),xC=(cx!=null)?p.px(cx):((dStart>0)?xE:xL);c.save();c.globalCompositeOperation='destination-over';c.fillStyle='rgba(224,122,95,0.12)';c.fillRect(xL,yT,xC-xL,yB-yT);c.fillStyle='rgba(91,143,185,0.12)';c.fillRect(xC,yT,xE-xC,yB-yT);c.restore();c.font='14px KaTeX_Main';c.textBaseline='top';c.textAlign='center';if(xC-xL>54){c.fillStyle='#B0503A';c.fillText('overfit',(xL+xC)/2,yT+5);}if(xE-xC>54){c.fillStyle='#3F6E99';c.fillText('underfit',(xC+xE)/2,yT+5);}line(refA,'eout',C.simple,2.6);line(refB,'eout',C.complex,2.6);dot(refA,'eout',C.simple);dot(refB,'eout',C.complex);}
+  else{const nv=(+noise.value/100)**2,b2=refA[refA.length-1].bias2,x0=p.px(X0),x1=p.px(N_MAX),floor=nv+b2;
+    if(nv>0.005){const topn=Math.min(nv,ymax);c.fillStyle='rgba(154,163,178,0.30)';c.fillRect(x0,p.py(topn),x1-x0,p.py(0)-p.py(topn));c.fillStyle='#6b7280';c.font='14px KaTeX_Main';c.textAlign='right';c.textBaseline='middle';c.fillText('σ²',x1-5,(p.py(0)+p.py(topn))/2);}
+    if(b2>0.005&&nv<ymax){const topb=Math.min(floor,ymax);c.fillStyle='rgba(107,163,140,0.26)';c.fillRect(x0,p.py(topb),x1-x0,p.py(Math.min(nv,ymax))-p.py(topb));c.fillStyle=tx(C.asym);c.font='14px KaTeX_Main';c.textAlign='right';c.textBaseline='middle';c.fillText('bias²',x1-5,(p.py(Math.min(nv,ymax))+p.py(topb))/2);}
+    {c.save();c.beginPath();c.rect(x0,p.py(ymax),x1-x0,p.py(0)-p.py(ymax));c.clip();c.fillStyle='rgba(176,122,174,0.20)';c.beginPath();let vst=false;refA.forEach(r=>{const X=p.px(r.N),Y=p.py(r.eout);vst?c.lineTo(X,Y):c.moveTo(X,Y);vst=true;});for(let i=refA.length-1;i>=0;i--)c.lineTo(p.px(refA[i].N),p.py(Math.min(floor,ymax)));c.closePath();c.fill();c.restore();const vp=refA[Math.min(1,refA.length-1)];if(valueAt(refA,vp.N,'eout')>floor+0.04){c.fillStyle='#7E5A93';c.font='14px KaTeX_Main';c.textAlign='left';c.textBaseline='middle';c.fillText('variance',p.px(vp.N)+4,(p.py(Math.min(vp.eout,ymax))+p.py(floor))/2);}}
+    if(floor<ymax){c.strokeStyle=C.asym;c.lineWidth=1.4;c.setLineDash([6,4]);c.beginPath();c.moveTo(x0,p.py(floor));c.lineTo(x1,p.py(floor));c.stroke();c.setLineDash([]);}
+    if(mode==='practice'){line(refA,'ein',C.ref,1.6,[4,3]);line(refA,'eout',C.ref,1.6,[4,3]);const run=accT>0?runningCurve():refA;line(run,'eout',C.eout,2.6);line(run,'ein',C.ein,2.6);dot(run,'eout',C.eout);dot(run,'ein',C.ein);}
+    else{line(refA,'eout',C.eout,2.6);line(refA,'ein',C.ein,2.6);dot(refA,'eout',C.eout);dot(refA,'ein',C.ein);}}}
+function updateEq(){const nsel=+n.value;if(mode==='compare'){const a=nearest(refA,nsel),bb=nearest(refB,nsel),NA=MODELNAMES[MA()],NB=MODELNAMES[MB()];K('\\text{two fits: }\\textcolor{'+tx(C.simple)+'}{\\text{'+NA+'}}\\text{ vs }\\textcolor{'+tx(C.complex)+'}{\\text{'+NB+'}}',capA);K('E_\\text{out}(n)\\text{ for each model}',capB);K('\\textcolor{'+tx(C.simple)+'}{E_\\text{out}^{\\text{'+NA+'}}}='+a.eout.toFixed(2)+'\\qquad\\textcolor{'+tx(C.complex)+'}{E_\\text{out}^{\\text{'+NB+'}}}='+bb.eout.toFixed(2),eqBox,true);runinfo.textContent='';}
+  else{const th=nearest(refA,nsel),nv=(+noise.value/100)**2;const eqTex=(pt)=>{const b=Math.max(0,pt.bias2),vv=Math.max(0,pt.eout-b-nv);return '\\begin{aligned}\\textcolor{'+tx(C.eout)+'}{E_\\text{out}}&=\\textcolor{'+tx(C.asym)+'}{\\text{bias}^2}+\\textcolor{#7E5A93}{\\text{variance}}+\\textcolor{#6b7280}{\\sigma^2}\\\\[2pt]&=\\textcolor{'+tx(C.asym)+'}{'+b.toFixed(2)+'}+\\textcolor{#7E5A93}{'+vv.toFixed(2)+'}+\\textcolor{#6b7280}{'+nv.toFixed(2)+'}='+pt.eout.toFixed(2)+'\\quad(\\textcolor{'+tx(C.ein)+'}{E_\\text{in}}='+pt.ein.toFixed(2)+')\\end{aligned}';};if(mode==='practice'){const run=accT>0?runningCurve():refA,s=nearest(run,nsel);K('\\text{one fit at the current }n',capA);K('\\text{solid = measured},\\ \\text{dashed = theory}',capB);K(eqTex(s),eqBox,true);K('\\text{runs }\\ d = '+accT+(accT>=RUN_LIMIT?'\\ \\text{(converged)}':''),runinfo);}else{K('\\text{average fit }\\bar g(x)\\text{ + individual fits}',capA);K('\\text{expected }E_\\text{in}\\text{, }E_\\text{out}\\text{ vs }n',capB);K(eqTex(th),eqBox,true);runinfo.textContent='';}}}
+function recompute(){setNMin();syncReadouts();NN=buildNN(+modelSel.value);if(mode==='compare'){refA=curveFor(MA(),REF_T);refB=curveFor(MB(),REF_T);}else{refA=curveFor(+modelSel.value,REF_T);refB=[];resetAcc(false);if(mode==='practice')addTrials(3);}render();}
+function render(){drawData();drawCurve();updateEq();
+  // U34b มือถือ: จองที่ล่าง = ความสูงแถบ control จริง (กันเนื้อหาท้ายถูกแถบทับ)
+  const narrow=window.matchMedia('(max-width:820px)').matches,wrap=document.querySelector('.wrap'),pnl=document.querySelector('.panel');
+  if(wrap&&pnl)wrap.style.paddingBottom=narrow?(Math.ceil(pnl.getBoundingClientRect().height)+14)+'px':'';}
+function stopPlay(){playing=false;if(timer){clearTimeout(timer);timer=null;}K('\\text{Play}',playBtn);}
+function tick(){if(!playing)return;if(accT>=RUN_LIMIT){stopPlay();render();return;}addTrials(Math.max(1,Math.floor(accT/10)));render();timer=setTimeout(tick,55);}
+function startPlay(){if(playing||mode!=='practice'||accT>=RUN_LIMIT)return;playing=true;K('\\text{Pause}',playBtn);tick();}
+const TABS=[
+  {n:'\\text{Theory}',mode:'theory',en:['target','model','noise','n'],pre:{model:'1',noise:0,n:8},
+   goal:'\\text{Drag } n\\text{: }\\allowbreak\\textcolor{#3F6E99}{E_{\\text{in}}}\\text{ rises, }\\allowbreak\\textcolor{#B0503A}{E_{\\text{out}}}\\text{ falls — }\\allowbreak\\text{where do they settle, and why there?}'},
+  {n:'\\text{Practice}',mode:'practice',en:['target','model','noise','n'],pre:{model:'1',noise:12,n:8},
+   goal:'\\text{Press Play — }\\allowbreak\\text{do the solid measured curves }\\allowbreak\\text{land on the dashed theory? }\\allowbreak\\text{That is what \\emph{expected} means.}'},
+  {n:'\\text{Simple vs complex}',mode:'compare',en:['target','mA','mB','noise','n'],pre:{model:'3',noise:0,n:8},
+   goal:'\\text{Drag } n\\text{ to find the crossing: }\\allowbreak\\text{which model wins with little data, }\\allowbreak\\text{which with lots?}'},
+];
+const CTRLS=['target','model','mA','mB','noise','n'];
+function applyTab(k){const T=TABS[k];mode=T.mode;document.querySelectorAll('.tabbtn').forEach((b,i)=>b.className='tabbtn'+(i===k?' on':''));modelSel.value=T.pre.model;modelSel.dispatchEvent(new Event('change'));noise.value=T.pre.noise;n.value=T.pre.n;CTRLS.forEach(id=>document.getElementById('c-'+id).className='drow'+(T.en.indexOf(id)>=0?'':' off'));document.getElementById('rowRun').style.display=(mode==='practice')?'flex':'none';K('\\textbf{Goal.}\\ \\allowbreak'+T.goal,document.getElementById('hint'),false);syncReadouts();recompute();}
+const tb=document.getElementById('tabs');
+TABS.forEach((T,i)=>{const b=document.createElement('button');b.className='tabbtn';(window.katex?katex.render(T.n,b,{throwOnError:false}):(b.textContent=T.n));b.onclick=()=>applyTab(i);tb.appendChild(b);});
+n.addEventListener('input',()=>{syncReadouts();render();});
+noise.addEventListener('change',recompute);noise.addEventListener('input',syncReadouts);
+targetSel.addEventListener('change',recompute);
+modelSel.addEventListener('change',recompute);mAsel.addEventListener('change',recompute);mBsel.addEventListener('change',recompute);
+playBtn.addEventListener('click',()=>{playing?stopPlay():startPlay();});
+document.getElementById('resetBtn').addEventListener('click',()=>{resetAcc(true);addTrials(3);render();});
+window.addEventListener('resize',()=>{render();});
+applyTab(0);
+</script>
+<script>(function(){if(!window.katex)return;var t=document.getElementById("__pgt");if(t)try{katex.render(t.getAttribute("data-tex"),t,{throwOnError:false});}catch(e){}})();</script>
+<script>document.addEventListener("DOMContentLoaded",function(){if(window.renderMathInElement)renderMathInElement(document.body,{delimiters:[{left:"\\(",right:"\\)",display:false},{left:"$$",right:"$$",display:true}],throwOnError:false});});</script>
+</body>
+</html>

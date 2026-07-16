@@ -1,0 +1,425 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>1-D Bayes Classifier</title>
+<link rel="stylesheet" href="pg_style.css?v=24">
+<link rel="stylesheet" href="vendor/katex/katex.min.css">
+<script src="vendor/katex/katex.min.js"></script>
+<style>
+  /* bayes-only (โครง/ขนาด/bar ใช้ .distcls กลางใน pg_style) — เหลือเฉพาะ: คอลัมน์สมการ · toggles · summary/tree */
+  :root{--panel-h:393px}   /* UD §1.2: ตรึงความสูง Control = tab ที่ยาวสุด */
+  .lcol .estep{font-size:14px;overflow:visible;min-height:0}   /* UD §1: no-scroll — ห้ามมี scrollbar */
+  .tgls{display:flex;flex-direction:column;gap:9px;margin-top:10px}
+  .tgl{display:flex;align-items:center;justify-content:space-between;gap:8px;font-size:var(--fs-label);color:#444}
+  /* summary tab */
+  .summary{display:none;flex-direction:column;gap:16px;min-height:0;overflow:visible}   /* UD §1: no-scroll — ห้ามมี scrollbar */
+  .summary.on{display:flex;flex:1}
+  .stab{border-collapse:separate;border-spacing:8px;width:100%}
+  .stab th{font-size:var(--fs-sec);color:var(--muted);font-weight:600;padding:4px}
+  .stab td{background:#fff;border:1px solid var(--line);border-radius:10px;padding:12px;vertical-align:top;width:50%}
+  .stab td .tag{font-size:13px;font-weight:700;letter-spacing:.04em;padding:2px 8px;border-radius:999px;display:inline-block;margin-bottom:8px}
+  .stab td.lda .tag{background:#E9F0F8;color:#3F6E99}
+  .stab td.qda .tag{background:#FBE9E4;color:#8A3B2C}
+  .stab td .eq{font-size:15px;margin:6px 0}
+  .stab td .note{font-size:13px;color:var(--muted);margin-top:6px}
+  .secttl{font-size:16px;font-weight:600;color:var(--navy)}
+  .tree{display:flex;flex-direction:column;align-items:center;background:#fff;border:1px solid var(--line);border-radius:12px;padding:16px 10px}
+  .node{border:1px solid var(--line);border-radius:9px;padding:7px 11px;background:#fff;font-size:15px;text-align:center;max-width:560px}
+  .node.root{background:var(--navy);color:#fff;border-color:var(--navy)}
+  .node.lda{background:#E9F0F8}.node.qda{background:#FBE9E4}
+  .conn{width:2px;height:16px;background:#cfd3da}
+  .brow{display:flex;gap:26px;justify-content:center;flex-wrap:wrap}
+  .bcol{display:flex;flex-direction:column;align-items:center}
+  .blab{font-size:13px;color:var(--muted);margin:2px 0}
+  .ref{font-size:13px;color:#9ca3af}
+</style>
+</head>
+<body class="pg distcls">
+<div class="wrap">
+  <div class="hdr"><h1 id="h1">1-D Bayes Classifier</h1><div class="tabs" id="tabs"></div></div>
+
+  <!-- ===== interactive (tabs 1-4) ===== -->
+  <div class="layout" id="mainPanel">
+    <!-- BODY -->
+    <div class="stage">
+      <div class="canvasbox"><canvas id="cv"></canvas></div>
+      <div class="errbox" id="errbox" style="display:none"><canvas id="cverr"></canvas></div>
+      <div class="classleg" id="classleg"></div>
+      <div class="below">
+        <div class="lcol" id="eqcol">
+          <div class="lhd" id="eqhd"></div>
+          <div class="estep"><span id="eq3b"></span></div>
+          <div class="estep"><span id="eq4"></span></div>
+        </div>
+        <div class="mcol" id="mcolA"></div>
+        <div class="mcol" id="mcolB"></div>
+      </div>
+    </div>
+
+    <!-- CONTROL -->
+    <div class="panel">
+      <div class="dhd" id="hd-pos">Positive class</div>
+      <div class="dgrid">
+        <div class="drow" id="row-mu1"><span class="dlab" id="lbl-mu1"></span><input type="range" id="Rmu1" min="1" max="7" step="0.1" value="6.0"><input class="num" type="number" id="Nmu1" min="1" max="7" step="0.1" value="6.0"></div>
+        <div class="drow" id="row-s1"><span class="dlab" id="lbl-s1"></span><input type="range" id="Rs1" min="0.4" max="2.5" step="0.1" value="1.0"><input class="num" type="number" id="Ns1" min="0.4" max="2.5" step="0.1" value="1.0"></div>
+      </div>
+      <div class="dhd" id="hd-neg">Negative class</div>
+      <div class="dgrid">
+        <div class="drow" id="row-mu0"><span class="dlab" id="lbl-mu0"></span><input type="range" id="Rmu0" min="1" max="7" step="0.1" value="3.0"><input class="num" type="number" id="Nmu0" min="1" max="7" step="0.1" value="3.0"></div>
+        <div class="drow" id="row-s0"><span class="dlab" id="lbl-s0"></span><input type="range" id="Rs0" min="0.4" max="2.5" step="0.1" value="1.0"><input class="num" type="number" id="Ns0" min="0.4" max="2.5" step="0.1" value="1.0"></div>
+      </div>
+      <div class="dhd" id="hd-share">Class balance &amp; size</div>
+      <div class="dgrid">
+        <div class="drow" id="row-p1"><span class="dlab" id="lbl-p1"></span><input type="range" id="Rp1" min="0.05" max="0.95" step="0.01" value="0.50"><input class="num" type="number" id="Np1" min="0.05" max="0.95" step="0.01" value="0.50"></div>
+        <div class="drow" id="row-n"><span class="dlab" id="lbl-n"></span><input type="range" id="Rn" min="20" max="400" step="10" value="120"><input class="num" type="number" id="Nn" min="20" max="400" step="10" value="120"></div>
+        <div class="drow" id="row-T" style="display:none"><span class="dlab" id="lbl-T"></span><input type="range" id="RT" min="0" max="12" step="0.1" value="4.5"><input class="num" type="number" id="NT" min="0" max="12" step="0.1" value="4.5"></div>
+      </div>
+      <div class="tgls" id="tgls">
+        <button class="primary" id="resample" style="width:100%"></button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ===== summary (tab 5) ===== -->
+  <div class="summary" id="summaryPanel">
+    <div class="secttl">The four cases &mdash; one root, two branches each</div>
+    <table class="stab">
+      <tr><th></th><th id="th-pe"></th><th id="th-pf"></th></tr>
+      <tr>
+        <th id="th-se" style="text-align:right;white-space:nowrap"></th>
+        <td class="lda"><span class="tag">LDA</span><div class="eq" id="c-ee"></div><div class="note">single boundary at the midpoint of the means.</div></td>
+        <td class="lda"><span class="tag">LDA</span><div class="eq" id="c-ef"></div><div class="note">single boundary, shifted by the log prior-ratio (base-rate).</div></td>
+      </tr>
+      <tr>
+        <th id="th-su" style="text-align:right;white-space:nowrap"></th>
+        <td class="qda"><span class="tag">QDA</span><div class="eq" id="c-ue"></div><div class="note">quadratic &rarr; two boundaries; the narrow class is "surrounded".</div></td>
+        <td class="qda"><span class="tag">QDA</span><div class="eq" id="c-uf"></div><div class="note">full quadratic &rarr; two boundaries, shifted by the prior.</div></td>
+      </tr>
+    </table>
+
+    <div class="secttl">Derivation tree &mdash; everything descends from Bayes' theorem</div>
+    <div class="tree">
+      <div class="node root" id="tr-root"></div>
+      <div class="conn"></div>
+      <div class="node" id="tr-g"></div>
+      <div class="conn"></div>
+      <div class="blab" id="tr-q1">is the quadratic term A = 1/2&sigma;&#8320;&sup2; &minus; 1/2&sigma;&#8321;&sup2; zero?</div>
+      <div class="brow">
+        <div class="bcol">
+          <div class="node lda" id="tr-lda"></div>
+          <div class="conn"></div>
+          <div class="blab" id="tr-q2a">prior equal?</div>
+          <div class="brow">
+            <div class="bcol"><div class="node leaf lda" id="tr-lda-e"></div></div>
+            <div class="bcol"><div class="node leaf lda" id="tr-lda-f"></div></div>
+          </div>
+        </div>
+        <div class="bcol">
+          <div class="node qda" id="tr-qda"></div>
+          <div class="conn"></div>
+          <div class="blab" id="tr-q2b">prior equal?</div>
+          <div class="brow">
+            <div class="bcol"><div class="node leaf qda" id="tr-qda-e"></div></div>
+            <div class="bcol"><div class="node leaf qda" id="tr-qda-f"></div></div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <p class="ref">Reference: R. O. Duda, P. E. Hart &amp; D. G. Stork, <i>Pattern Classification</i>, Ch. 2 (Bayesian Decision Theory). Gaussian class-conditionals &rarr; linear (equal &Sigma;) or quadratic (unequal &Sigma;) discriminants.</p>
+  </div>
+</div>
+
+<script>
+(function(){
+  "use strict";
+  // ---------- math ----------
+  var SQ2PI=Math.sqrt(2*Math.PI);
+  function pdf(x,m,s){return Math.exp(-0.5*((x-m)/s)*((x-m)/s))/(s*SQ2PI);}
+  function disc(x,m0,s0,m1,s1,p1){var p0=1-p1;
+    return Math.log(p1/p0)+Math.log(s0/s1)-(x-m1)*(x-m1)/(2*s1*s1)+(x-m0)*(x-m0)/(2*s0*s0);}
+  function coeffs(m0,s0,m1,s1,p1){var p0=1-p1;
+    return {A:1/(2*s0*s0)-1/(2*s1*s1),
+            B:-m0/(s0*s0)+m1/(s1*s1),
+            C:Math.log(p1/p0)+Math.log(s0/s1)+m0*m0/(2*s0*s0)-m1*m1/(2*s1*s1)};}
+  function roots(A,B,C){
+    if(Math.abs(A)<1e-7){ if(Math.abs(B)<1e-12) return []; return [-C/B]; }
+    var D=B*B-4*A*C; if(D<0) return []; var s=Math.sqrt(D);
+    var r=[(-B-s)/(2*A),(-B+s)/(2*A)]; r.sort(function(a,b){return a-b;}); return r;}
+  function bayesErr(m0,s0,m1,s1,p1){var p0=1-p1;
+    var lo=Math.min(m0-6*s0,m1-6*s1),hi=Math.max(m0+6*s0,m1+6*s1),N=3000,dx=(hi-lo)/N,sum=0;
+    for(var i=0;i<=N;i++){var x=lo+i*dx,a=p0*pdf(x,m0,s0),b=p1*pdf(x,m1,s1),m=Math.min(a,b);
+      sum+=m*dx*((i===0||i===N)?0.5:1);} return sum;}
+  function erf(x){var s=x<0?-1:1;x=Math.abs(x);var t=1/(1+0.3275911*x);var y=1-(((((1.061405429*t-1.453152027)*t)+1.421413741)*t-0.284496736)*t+0.254829592)*t*Math.exp(-x*x);return s*y;}
+  function Phi(z){return 0.5*(1+erf(z/Math.SQRT2));}
+  function errAt(T,m0,s0,m1,s1,p1){var p0=1-p1;return p1*Phi((T-m1)/s1)+p0*(1-Phi((T-m0)/s0));}
+  // seeded RNG + cached standard-normal draws (stable while sliding; resample reseeds)
+  function mulberry32(a){return function(){a|=0;a=a+0x6D2B79F5|0;var t=Math.imul(a^a>>>15,1|a);
+    t=t+Math.imul(t^t>>>7,61|t)^t;return((t^t>>>14)>>>0)/4294967296;};}
+  var MAXN=400, Z0=[],Z1=[],J=[];
+  function regen(seed){var rng=mulberry32(seed),i,u,v;Z0=[];Z1=[];J=[];
+    for(i=0;i<MAXN;i++){u=rng()||1e-9;v=rng();Z0.push(Math.sqrt(-2*Math.log(u))*Math.cos(2*Math.PI*v));
+      u=rng()||1e-9;v=rng();Z1.push(Math.sqrt(-2*Math.log(u))*Math.cos(2*Math.PI*v));J.push(rng());}}
+  var seed=12345; regen(seed);
+
+  // ---------- state ----------
+  var bases=['mu0','mu1','s0','s1','p1','n'];
+  var BASE={mu0:3.0,mu1:6.0,s0:1.0,s1:1.0,p1:0.50,n:120};
+  var eqSigma=true, eqPrior=true, curTab=0;
+  var TABS=[
+    {n:'Single threshold (LDA)', en:['mu0','mu1','s0','p1','n'],      pre:{mu0:3.0,mu1:6.0,s0:1.0,s1:1.0,p1:0.50,n:120}, eqS:true,  eqP:false, tg:false},
+    {n:'Double threshold (QDA)', en:['mu0','mu1','s0','s1','p1','n'], pre:{mu0:3.0,mu1:6.0,s0:1.0,s1:1.6,p1:0.50,n:120}, eqS:false, eqP:false, tg:false},
+    {n:'Manual threshold', en:['mu0','mu1','s0','p1','n'], pre:{mu0:3.0,mu1:6.0,s0:1.0,s1:1.0,p1:0.50,n:120}, eqS:true, eqP:false, tg:false, manualT:true},
+    {n:'Summary', en:[], summary:true}
+  ];
+  function gv(b){return parseFloat(document.getElementById('R'+b).value);}
+  function sv(b,v){document.getElementById('R'+b).value=v;document.getElementById('N'+b).value=v;}
+
+  // ---------- KaTeX static labels ----------
+  var MT={'h1':'\\text{1-D Bayes Classifier}','resample':'\\text{Resample points}',
+    'hd-pos':'\\textcolor{#B0503A}{\\text{Positive class}}','hd-neg':'\\textcolor{#3F6E99}{\\text{Negative class}}','hd-share':'\\text{Class balance \\& size}',
+    'lbl-mu0':'\\mu_-','lbl-mu1':'\\mu_+','lbl-s0':'\\sigma_-','lbl-s1':'\\sigma_+','lbl-p1':'\\pi_+','lbl-n':'n','lbl-T':'\\textcolor{#111}{T}',
+    'ch-pp':'\\hat y=1','ch-pn':'\\hat y=0','ch-ap':'\\text{actual }1','ch-an':'\\text{actual }0',
+    'cs-tp':'\\mathrm{TP}','cs-fn':'\\mathrm{FN}','cs-fp':'\\mathrm{FP}','cs-tn':'\\mathrm{TN}',   /* UD §2.4: ตัวย่อ upright */
+    'lab-be':'\\text{Bayes error (theory)}','lab-ee':'\\text{error (samples)}','lab-acc':'\\text{accuracy}',
+    'lab-rec':'\\text{recall}','lab-prec':'\\text{precision}','lab-nb':'\\text{boundaries}','lab-sens':'\\text{sensitivity}','lab-spec':'\\text{specificity}',
+    'th-met':'\\text{metric}','th-frm':'\\text{formula}','th-val':'\\text{value}','th-met2':'\\text{metric}','th-frm2':'\\text{formula}','th-val2':'\\text{value}',
+    'f-ee':'\\tfrac{\\textcolor{#2E7D70}{\\mathrm{FP}}+\\textcolor{#8A6510}{\\mathrm{FN}}}{n}','f-acc':'\\tfrac{\\textcolor{#B0503A}{\\mathrm{TP}}+\\textcolor{#3F6E99}{\\mathrm{TN}}}{n}','f-rec':'\\tfrac{\\textcolor{#B0503A}{\\mathrm{TP}}}{\\textcolor{#B0503A}{\\mathrm{TP}}+\\textcolor{#8A6510}{\\mathrm{FN}}}','f-prec':'\\tfrac{\\textcolor{#B0503A}{\\mathrm{TP}}}{\\textcolor{#B0503A}{\\mathrm{TP}}+\\textcolor{#2E7D70}{\\mathrm{FP}}}','f-sens':'\\tfrac{\\textcolor{#B0503A}{\\mathrm{TP}}}{\\textcolor{#B0503A}{\\mathrm{TP}}+\\textcolor{#8A6510}{\\mathrm{FN}}}','f-spec':'\\tfrac{\\textcolor{#3F6E99}{\\mathrm{TN}}}{\\textcolor{#3F6E99}{\\mathrm{TN}}+\\textcolor{#2E7D70}{\\mathrm{FP}}}',
+    't-sig':'\\sigma','t-pri':'\\text{prior}',
+    'th-pe':'\\pi_+=\\tfrac12\\ \\text{(equal prior)}','th-pf':'\\pi_+\\neq\\tfrac12\\ \\text{(free prior)}',
+    'th-se':'\\sigma_-=\\sigma_+','th-su':'\\sigma_-\\neq\\sigma_+',
+    'c-ee':'x^{*}=\\tfrac{\\mu_-+\\mu_+}{2}',
+    'c-ef':'x^{*}=\\tfrac{\\mu_-+\\mu_+}{2}-\\tfrac{\\sigma^2\\ln(\\pi_+/\\pi_-)}{\\mu_+-\\mu_-}',
+    'c-ue':'Ax^2+Bx+C=0,\\quad C=\\ln\\tfrac{\\sigma_-}{\\sigma_+}+\\tfrac{\\mu_-^2}{2\\sigma_-^2}-\\tfrac{\\mu_+^2}{2\\sigma_+^2}',
+    'c-uf':'Ax^2+Bx+C=0,\\quad C=\\ln\\tfrac{\\pi_+}{\\pi_-}+\\ln\\tfrac{\\sigma_-}{\\sigma_+}+\\tfrac{\\mu_-^2}{2\\sigma_-^2}-\\tfrac{\\mu_+^2}{2\\sigma_+^2}',
+    'tr-root':'\\textstyle \\text{Bayes: } P(c\\mid x)\\propto \\pi_c\\,p(x\\mid c)',
+    'tr-g':'g(x)=\\ln\\tfrac{\\pi_+}{\\pi_-}+\\ln\\tfrac{\\sigma_-}{\\sigma_+}-\\tfrac{(x-\\mu_+)^2}{2\\sigma_+^2}+\\tfrac{(x-\\mu_-)^2}{2\\sigma_-^2}',
+    'tr-lda':'A=0\\ \\Rightarrow\\ \\text{linear (LDA)}','tr-qda':'A\\neq0\\ \\Rightarrow\\ \\text{quadratic (QDA)}',
+    'tr-lda-e':'\\pi=\\tfrac12:\\ x^{*}=\\tfrac{\\mu_-+\\mu_+}{2}',
+    'tr-lda-f':'\\pi\\neq\\tfrac12:\\ \\text{shifted } x^{*}',
+    'tr-qda-e':'\\pi=\\tfrac12:\\ \\text{2 boundaries}',
+    'tr-qda-f':'\\pi\\neq\\tfrac12:\\ \\text{2 shifted boundaries}'};
+  function K(tex,el){try{katex.render(tex,el,{throwOnError:false});}catch(e){el.textContent=tex;}}
+  function kxc(el,t){if(!el)return;if(window.katex){try{katex.render(t,el,{throwOnError:false});return;}catch(e){}}el.textContent=t;}
+  function renderTexts(){if(!window.katex)return;for(var id in MT){var el=document.getElementById(id);if(el)K(MT[id],el);}}
+
+  // ---------- metric bars + legend (เหมือน drift) ----------
+  function kx(t){try{return window.katex?katex.renderToString(t,{throwOnError:false}):t;}catch(e){return t;}}
+  function tcc(t,c){return '\\textcolor{'+c+'}{\\mathrm{'+t+'}}';}
+  var G='#15803d',Rd='#B0503A',Bl='#3F6E99',Pu='#a21caf',Navy='#1e3a8a',FNt='#8A6510',FPt='#2E7D70';
+  // classification 4-colour (CB-verified): TP red, FN gold, TN blue, FP teal (text = dark; letters are the non-colour cue)
+  var FM={Sensitivity:tcc('TP',Rd)+'/('+tcc('TP',Rd)+'+'+tcc('FN',FNt)+')',
+          Specificity:tcc('TN',Bl)+'/('+tcc('TN',Bl)+'+'+tcc('FP',FPt)+')',
+          Precision:tcc('TP',Rd)+'/('+tcc('TP',Rd)+'+'+tcc('FP',FPt)+')',
+          Accuracy:'('+tcc('TP',Rd)+'+'+tcc('TN',Bl)+')/n',
+          F1:'2'+tcc('TP',Rd)+'/(2'+tcc('TP',Rd)+'+'+tcc('FP',FPt)+'+'+tcc('FN',FNt)+')',
+          AUC:'P(\\hat p_+\\!>\\!\\hat p_-)'};
+  function bar(name,v){v=Math.max(0,Math.min(1,v));
+    return '<div class="mbar"><div class="nm"><span class="lab">'+kx('\\text{'+name+'}\\;'+FM[name])+'</span><span class="v" style="color:'+Navy+'">'+kx(Math.round(v*100)+'\\%')+'</span></div>'
+      +'<div class="track"><span class="fill" style="width:'+(v*100)+'%;background:'+Navy+'"></span></div></div>';}
+  function clLine(name,lc,tc){return '<span class="cli"><i class="ln" style="background:'+lc+'"></i><span>'+kx('\\textcolor{'+tc+'}{\\text{'+name+'}}')+'</span></span>';}
+  function fillLegend(){var el=document.getElementById('classleg');if(el)el.innerHTML=clLine('Positive class','#E07A5F',Rd)+clLine('Negative class','#5B8FB9',Bl);}
+
+  // ---------- live equation panel ----------
+  function fade(t,on){return on?'\\textcolor{#c4c4c4}{'+t+'}':t;}
+  function sgn(v){return (v>=0?'+\\,':'-\\,')+Math.abs(v).toFixed(2);}
+  function liveEq(m0,s0,m1,s1,p1,co,rts){
+    if(!window.katex)return;
+    var linA=Math.abs(co.A)<1e-7, pe=Math.abs(p1-0.5)<1e-6;  // fade by the ACTUAL vanishing terms
+    // eq1/eq2/eq3 (posterior, decide-rule, expansion) removed — keep only the decision boundary
+    K('g(x)='+fade(co.A.toFixed(2)+'\\,x^2',linA)+'\\;'+sgn(co.B)+'\\,x\\;'+sgn(co.C),document.getElementById('eq3b'));
+    var t4;
+    if(linA){
+      var xs=-co.C/co.B;
+      t4=pe?'x^{*}=\\tfrac{\\mu_-+\\mu_+}{2}='+xs.toFixed(2):'x^{*}='+xs.toFixed(2);
+    } else if(rts.length===2){
+      t4='x^{*}\\in\\{'+rts[0].toFixed(2)+',\\;'+rts[1].toFixed(2)+'\\}';
+    } else if(rts.length===1){
+      t4='x^{*}='+rts[0].toFixed(2);
+    } else {
+      t4='g(x)\\neq 0\\ \\forall x';
+    }
+    K(t4,document.getElementById('eq4'));
+  }
+
+  // ---------- canvas ----------
+  var cv=document.getElementById('cv'),ctx=cv.getContext('2d');
+  var SC=2,W=640,H=286;
+  var cve=document.getElementById('cverr'),ctxe=cve?cve.getContext('2d'):null;
+  var SCe=2,We=640,He=150;
+  // ⚠️ วัดจาก canvas เอง ไม่ใช่ parent: canvas เป็น border-box + border 1px → parent กว้างกว่าพื้นที่วาดจริง 2px
+  //    ถ้าเอาขนาด parent ไปทำ backing store ภาพจะถูกบีบด้วยอัตราส่วนเศษ → เบลอทั้งแคนวาส
+  function sizeCanvas(){if(!cv)return;
+    var w=Math.round(cv.clientWidth)||640,h=Math.round(cv.clientHeight)||322,dpr=window.devicePixelRatio||1;
+    W=w;H=h;SC=dpr;cv.width=Math.round(w*dpr);cv.height=Math.round(h*dpr);
+    if(cve){var we=Math.round(cve.clientWidth)||640,he=Math.round(cve.clientHeight)||150;We=we;He=he;SCe=dpr;cve.width=Math.round(we*dpr);cve.height=Math.round(he*dpr);}
+  }
+
+  function draw(P){
+    try{
+      var m0=P.m0,s0=P.s0,m1=P.m1,s1=P.s1,p1=P.p1,p0=1-p1,rts=P.rts;
+      ctx.setTransform(SC,0,0,SC,0,0); ctx.clearRect(0,0,W,H);
+      var L=44,Rm=16,pw=W-L-Rm;
+      // เว้นแถบ TOPB(FN/TP) · BOTB(TN/FP) · THS(threshold) → label ไม่ทับเส้น (เหมือน drift)
+      var TOPB=22,BOTB=22,THS=16, cyTop=TOPB, cyBot=H-BOTB-THS, cy=Math.round((cyTop+cyBot)/2);
+      var xmin=P.xmin,xmax=P.xmax;
+      function px(x){return L+(x-xmin)/(xmax-xmin)*pw;}
+      var topA=cy-cyTop, botA=cyBot-cy, i,x,N=200,dx=(xmax-xmin)/N;
+      var d1=function(x){return p1*pdf(x,m1,s1);}, d0=function(x){return p0*pdf(x,m0,s0);};
+      var sc1=topA/(d1(m1)*1.12), sc0=botA/(d0(m0)*1.12);
+      function y1(d){return cy-d*sc1;} function y0(d){return cy+d*sc0;}
+      var dec=P.manual?function(x){return x>P.T;}:function(x){return disc(x,m0,s0,m1,s1,p1)>0;};
+      function fillArea(fn,ymap,color){ctx.fillStyle=color;ctx.beginPath();ctx.moveTo(px(xmin),cy);
+        for(i=0;i<=N;i++){x=xmin+i*dx;ctx.lineTo(px(x),ymap(fn(x)));}ctx.lineTo(px(xmax),cy);ctx.closePath();ctx.fill();}
+      function shade(fn,ymap,test,color,hatch){var seg=false;
+        function close(){ctx.closePath();ctx.fillStyle=color;ctx.fill();
+          if(hatch){ctx.save();ctx.clip();ctx.strokeStyle=hatch;ctx.lineWidth=1;for(var hx=-H;hx<W+H;hx+=7){ctx.beginPath();ctx.moveTo(hx,0);ctx.lineTo(hx+H,H);ctx.stroke();}ctx.restore();}}
+        for(i=0;i<=N;i++){x=xmin+i*dx;
+          if(test(x)){if(!seg){ctx.beginPath();ctx.moveTo(px(x),cy);seg=true;}ctx.lineTo(px(x),ymap(fn(x)));}
+          else if(seg){ctx.lineTo(px(xmin+(i-1)*dx),cy);close();seg=false;}}
+        if(seg){ctx.lineTo(px(xmax),cy);close();}}
+      shade(d1,y1,function(x){return dec(x);},'rgba(224,122,95,0.34)');     // TP = แดง
+      shade(d1,y1,function(x){return !dec(x);},'rgba(227,178,60,0.42)');    // FN = ทอง
+      shade(d0,y0,function(x){return !dec(x);},'rgba(91,143,185,0.26)');    // TN = น้ำเงิน
+      shade(d0,y0,function(x){return dec(x);},'rgba(91,168,160,0.50)');    // FP = ฟ้า
+      var line=function(fn,ymap,color){ctx.strokeStyle=color;ctx.lineWidth=1.7;ctx.beginPath();
+        for(i=0;i<=N;i++){x=xmin+i*dx;var Y=ymap(fn(x));i===0?ctx.moveTo(px(x),Y):ctx.lineTo(px(x),Y);}ctx.stroke();};
+      line(d1,y1,'#E07A5F'); line(d0,y0,'#5B8FB9');
+      ctx.strokeStyle='rgba(128,128,128,0.5)';ctx.lineWidth=1;ctx.beginPath();ctx.moveTo(L,cy);ctx.lineTo(L+pw,cy);ctx.stroke();
+      ctx.fillStyle='rgba(128,128,128,0.9)';ctx.font='15px KaTeX_Main,serif';ctx.textAlign='center';
+      var stp=(xmax-xmin>12?2:1);for(var a=Math.ceil(xmin);a<=xmax;a+=stp)ctx.fillText(a,px(a),cy+14);
+      var bcol='#111';ctx.strokeStyle=bcol;ctx.lineWidth=1.8;ctx.fillStyle=bcol;ctx.font='15px KaTeX_Main,serif';  // threshold = ดำ (LDA/QDA เหมือนกัน)
+      rts.forEach(function(r){if(r>=xmin&&r<=xmax){ctx.setLineDash([5,4]);ctx.beginPath();ctx.moveTo(px(r),cyTop-8);ctx.lineTo(px(r),H-THS+2);ctx.stroke();ctx.setLineDash([]);
+        ctx.textAlign='center';ctx.fillText('threshold '+r.toFixed(1),px(r),H-4);}
+        else if(isFinite(r)){var ex=r<xmin?L+4:L+pw-4;ctx.textAlign=r<xmin?'left':'right';ctx.fillText((r<xmin?'\u25c4 ':'')+'threshold '+r.toFixed(1)+(r>xmax?' \u25ba':''),ex,H-6);}});
+      var n1=P.n1,n0=P.n0,k;
+      for(k=0;k<n1;k++){var xv1=m1+s1*Z1[k];var xp=px(xv1);if(xp<L-4||xp>L+pw+4)continue;var pr=dec(xv1)?1:0;
+        ctx.fillStyle='rgba(224,122,95,0.9)';ctx.beginPath();ctx.arc(xp,cy-8-(k%3)*7,4,0,7);ctx.fill();   // positive = แดงเสมอ
+        if(pr!==1){ctx.strokeStyle='#5B8FB9';ctx.lineWidth=2;ctx.beginPath();ctx.arc(xp,cy-8-(k%3)*7,6,0,7);ctx.stroke();}}  // FN วงขอบ = ทายเป็น negative
+      for(k=0;k<n0;k++){var xv0=m0+s0*Z0[k];var xp0=px(xv0);if(xp0<L-4||xp0>L+pw+4)continue;var pr0=dec(xv0)?1:0;
+        ctx.fillStyle='rgba(91,143,185,0.84)';ctx.beginPath();ctx.arc(xp0,cy+8+(k%3)*7,4,0,7);ctx.fill();  // negative = น้ำเงินเสมอ
+        if(pr0!==0){ctx.strokeStyle='#E07A5F';ctx.lineWidth=2;ctx.beginPath();ctx.arc(xp0,cy+8+(k%3)*7,6,0,7);ctx.stroke();}}  // FP วงขอบ = ทายเป็น positive
+      var mid=(m0+m1)/2, Tmain=mid;
+      if(P.rts&&P.rts.length){Tmain=P.rts[0];for(var ti=1;ti<P.rts.length;ti++){if(Math.abs(P.rts[ti]-mid)<Math.abs(Tmain-mid))Tmain=P.rts[ti];}}
+      var xT=px(Tmain), yTop=16, yBot=H-THS-6;
+      ctx.font='15px KaTeX_Main,serif';
+      ctx.textAlign='left'; ctx.fillStyle='#B0503A'; ctx.fillText('TP '+P.TP, xT+12, yTop);
+      ctx.textAlign='right';ctx.fillStyle='#8A6510'; ctx.fillText('FN '+P.FN, xT-12, yTop);
+      ctx.textAlign='left'; ctx.fillStyle='#2E7D70'; ctx.fillText('FP '+P.FP, xT+12, yBot);
+      ctx.textAlign='right';ctx.fillStyle='#3F6E99'; ctx.fillText('TN '+P.TN, xT-12, yBot);
+      ctx.textAlign='left';
+    }catch(e){ctx.setTransform(SC,0,0,SC,0,0);ctx.fillStyle='#c0392b';ctx.font='15px KaTeX_Main,serif';ctx.textAlign='left';ctx.fillText('draw err: '+e.message,10,20);}
+  }
+
+
+  function drawErr(P){
+    if(!ctxe)return;
+    ctxe.setTransform(SCe,0,0,SCe,0,0); ctxe.clearRect(0,0,We,He);
+    if(!P.manual)return;
+    try{
+      var L=46,Rm=150,pw=We-L-Rm, top=16, bot=He-22, h=bot-top, xmin=P.xmin,xmax=P.xmax,i,x;
+      function px(x){return L+(x-xmin)/(xmax-xmin)*pw;}
+      var N=160, dx=(xmax-xmin)/N, vals=[], maxE=0;
+      for(i=0;i<=N;i++){x=xmin+i*dx; var e=errAt(x,P.m0,P.s0,P.m1,P.s1,P.p1); vals.push(e); if(e>maxE)maxE=e;}
+      maxE=Math.max(maxE,0.02);
+      function py(e){return bot-(e/maxE)*h;}
+      ctxe.strokeStyle='rgba(128,128,128,0.5)';ctxe.lineWidth=1;ctxe.beginPath();ctxe.moveTo(L,top);ctxe.lineTo(L,bot);ctxe.lineTo(L+pw,bot);ctxe.stroke();
+      var bayes=P.be, yF=py(bayes);
+      ctxe.strokeStyle='rgba(21,128,61,0.75)';ctxe.setLineDash([5,4]);ctxe.beginPath();ctxe.moveTo(L,yF);ctxe.lineTo(L+pw,yF);ctxe.stroke();ctxe.setLineDash([]);
+      ctxe.strokeStyle='#1e3a8a';ctxe.lineWidth=2;ctxe.beginPath();
+      for(i=0;i<=N;i++){var Y=py(vals[i]); i===0?ctxe.moveTo(px(xmin+i*dx),Y):ctxe.lineTo(px(xmin+i*dx),Y);}ctxe.stroke();
+      var xT=px(P.T), yT=py(P.errT);
+      ctxe.strokeStyle='#E07A5F';ctxe.lineWidth=3;ctxe.beginPath();ctxe.moveTo(xT,yT);ctxe.lineTo(xT,yF);ctxe.stroke();
+      ctxe.fillStyle='#E07A5F';ctxe.beginPath();ctxe.arc(xT,yT,4.5,0,7);ctxe.fill();
+      ctxe.font='15px KaTeX_Main,serif';ctxe.textBaseline='middle';ctxe.textAlign='left';
+      ctxe.fillStyle='#1e3a8a';ctxe.fillText('total error '+(P.errT*100).toFixed(1)+'%',L+pw+6,top+8);
+      ctxe.fillStyle='#B0503A';ctxe.fillText('reducible '+((P.errT-bayes)*100).toFixed(1)+'%',L+pw+6,(yT+yF)/2);
+      ctxe.fillStyle='#15803d';ctxe.fillText('Bayes '+(bayes*100).toFixed(1)+'%',L+pw+6,yF);
+      ctxe.textBaseline='alphabetic';ctxe.fillStyle='#94a3b8';ctxe.textAlign='center';ctxe.fillText('threshold',L+pw/2,bot+15);
+    }catch(e){}
+  }
+
+  // ---------- main update ----------
+  function upd(){
+    if(TABS[curTab].summary)return;
+    var m0=gv('mu0'),m1=gv('mu1'),p1=eqPrior?0.5:gv('p1'),n=Math.round(gv('n'));
+    var s0=gv('s0'),s1=eqSigma?s0:gv('s1');
+    if(eqSigma){sv('s1',s0);} if(eqPrior){sv('p1',0.5);}
+    var co=coeffs(m0,s0,m1,s1,p1),rts=roots(co.A,co.B,co.C),qda=Math.abs(co.A)>=1e-7;
+    var manual=!!TABS[curTab].manualT, Tman=manual?gv('T'):0;
+    var decT=manual?function(x){return x>Tman;}:function(x){return disc(x,m0,s0,m1,s1,p1)>0;};
+    if(manual)rts=[Tman];
+    var be=bayesErr(m0,s0,m1,s1,p1);
+    var n1=Math.max(1,Math.round(n*p1)),n0=Math.max(1,n-n1);
+    // confusion on the seeded samples
+    var TP=0,FN=0,FP=0,TN=0,k;
+    for(k=0;k<n0;k++){var xv=m0+s0*Z0[k];if(decT(xv))FP++;else TN++;}
+    for(k=0;k<n1;k++){var xv1=m1+s1*Z1[k];if(decT(xv1))TP++;else FN++;}
+    var tot=TP+FN+FP+TN;
+    var rec=(TP+FN)?TP/(TP+FN):0, prec=(TP+FP)?TP/(TP+FP):0, acc=tot?(TP+TN)/tot:0;
+    var spec=(TN+FP)?TN/(TN+FP):0, f1=(prec+rec)?2*prec*rec/(prec+rec):0;
+    var auc=Phi((m1-m0)/Math.sqrt(s0*s0+s1*s1));
+    document.getElementById('mcolA').innerHTML='<div class="mhd">'+kx('\\text{Classification metrics}')+'</div>'+bar('Sensitivity',rec)+bar('Specificity',spec)+bar('Precision',prec);
+    document.getElementById('mcolB').innerHTML='<div class="mhd">&nbsp;</div>'+bar('Accuracy',acc)+bar('F1',f1)+bar('AUC',auc);
+    document.getElementById('eqhd').innerHTML=kx('\\text{Decision boundary}');
+    liveEq(m0,s0,m1,s1,p1,co,rts);
+    var xmin=-2, xmax=14;
+    var errT=manual?errAt(Tman,m0,s0,m1,s1,p1):0;
+    var DP={m0:m0,s0:s0,m1:m1,s1:s1,p1:p1,co:co,rts:rts,qda:qda,be:be,n1:n1,n0:n0,xmin:xmin,xmax:xmax,TP:TP,FN:FN,FP:FP,TN:TN,manual:manual,T:Tman,errT:errT};
+    draw(DP); drawErr(DP);
+  }
+
+  // ---------- tabs / locking ----------
+  function setSeg(eqId,frId,on){document.getElementById(eqId).className=on?'on':'';document.getElementById(frId).className=on?'':'on';}
+  function syncLocks(){
+    var T=TABS[curTab];
+    bases.forEach(function(b){
+      var on=T.en.indexOf(b)>=0;
+      if(b==='s1'&&eqSigma) on=false;
+      if(b==='p1'&&eqPrior) on=false;
+      document.getElementById('R'+b).disabled=!on;
+      document.getElementById('N'+b).disabled=!on;
+      document.getElementById('row-'+b).className='drow'+(on?'':' off');
+    });
+  }
+  function applyTab(k){
+    curTab=k;var T=TABS[k];
+    var btns=document.querySelectorAll('.tabbtn');for(var i=0;i<btns.length;i++)btns[i].className='tabbtn'+(i===k?' on':'');
+    if(T.summary){document.getElementById('mainPanel').style.display='none';
+      document.getElementById('summaryPanel').className='summary on';renderTexts();return;}
+    document.getElementById('mainPanel').style.display='grid';
+    document.getElementById('summaryPanel').className='summary';
+    if(T.pre)for(var b in T.pre)sv(b,T.pre[b]);
+    if(T.eqS!==null) eqSigma=T.eqS;
+    if(T.eqP!==null) eqPrior=T.eqP;
+    var mt=!!T.manualT;
+    document.getElementById('row-T').style.display=mt?'':'none';
+    document.getElementById('errbox').style.display=mt?'':'none';
+    document.querySelector('.below').style.display=mt?'none':'';
+    syncLocks();
+    sizeCanvas();upd();
+  }
+
+  // ---------- wiring ----------
+  var tb=document.getElementById('tabs');
+  TABS.forEach(function(T,i){var el=document.createElement('button');el.className='tabbtn';K('\\text{'+T.n+'}',el);
+    el.addEventListener('click',function(){applyTab(i);});tb.appendChild(el);});
+  bases.forEach(function(b){var Re=document.getElementById('R'+b),Ne=document.getElementById('N'+b);
+    Re.addEventListener('input',function(){Ne.value=Re.value;upd();});
+    Ne.addEventListener('input',function(){Re.value=Ne.value;upd();});});
+  (function(){var Re=document.getElementById('RT'),Ne=document.getElementById('NT');
+    Re.addEventListener('input',function(){Ne.value=Re.value;upd();});
+    Ne.addEventListener('input',function(){Re.value=Ne.value;upd();});})();
+  document.getElementById('resample').addEventListener('click',function(){seed=(seed*1664525+1013904223)>>>0;regen(seed);upd();});
+  window.addEventListener('resize',function(){sizeCanvas();upd();});
+
+  function boot(){renderTexts();fillLegend();applyTab(0);}
+  boot();
+  requestAnimationFrame(function(){sizeCanvas();renderTexts();upd();});
+  setTimeout(function(){sizeCanvas();renderTexts();if(!TABS[curTab].summary)upd();},250);
+  setTimeout(function(){sizeCanvas();renderTexts();if(!TABS[curTab].summary)upd();},800);
+})();
+</script>
+</body>
+</html>

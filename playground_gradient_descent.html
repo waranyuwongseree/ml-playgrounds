@@ -1,0 +1,553 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Gradient Descent</title>
+<link rel="stylesheet" href="pg_style.css?v=24">
+<link rel="stylesheet" href="vendor/katex/katex.min.css">
+<script src="vendor/katex/katex.min.js"></script>
+<style>
+  /* UD §1.2 ตรึงความสูง Control — แต่ที่นี่ rail = การ์ด control + การ์ดสมการ ต่อกัน
+     ถ้าตรึงที่ .panel จะเกิดช่องว่างขาวเหนือสมการ → ตรึงที่ rail ทั้งใบแทน สมการชิดขึ้นมาเสมอ */
+  /* ตรึงความสูงที่ "rail" (โปร่งใส) เท่านั้น → ขอบล่างไม่เด้งตอนสลับ tab
+     ห้ามตรึงที่ .panel เพราะจะเกิดช่องขาวเปล่า ๆ ระหว่าง control กับการ์ดสมการ */
+  :root{--panel-h:0}
+  .rail{min-height:285px}
+  .rail>.panel{min-height:0}
+  /* UD §1: no-scroll — ห้ามมี scrollbar · ล็อกจอเดียว → กราฟกินพื้นที่ที่เหลือทั้งหมด (เดิม panel เลื่อนได้) */
+  html,body{height:100%;margin:0;overflow:hidden}
+  .wrap{height:100vh;display:flex;flex-direction:column;overflow:hidden}
+  .layout{flex:1;min-height:0}
+  .gbox{min-height:0;height:100%;display:flex;flex-direction:column}
+  .gbox .plots{flex:1;min-height:0}
+  h1{margin:0 0 3px;color:var(--navy);text-align:left}
+  h1 .katex-display{text-align:left;margin:0}
+  .wrap{max-width:1120px;padding:8px 16px}
+  .tabs{margin-bottom:6px}
+  .layout{display:grid;gap:10px 22px;align-items:start;   /* UD §1.1: column gap 22 */
+    grid-template-columns:minmax(0,1fr) var(--ctrl-col);   /* UD: control rail = 320px คงที่ ห้ามตั้งเอง */
+    grid-template-areas:"graph rail"}
+  .gbox{grid-area:graph;min-width:0}
+  /* align-items:stretch จำเป็น — pg_style ตั้ง .panel{align-self:start} ไว้สำหรับ grid (คุมแกนตั้ง)
+     แต่ rail นี้เป็น flex column → align-self ไปคุมแกน "กว้าง" แทน panel เลยหดเหลือ 241px (มาตรฐาน 320) */
+  /* rail = การ์ดคันโยก + การ์ดสมการ ต่อกันเป็นใบเดียว (ไม่มีช่องว่างคั่น) */
+  .rail{grid-area:rail;display:flex;flex-direction:column;min-width:0;align-items:stretch;gap:0}
+  .rail>.panel{align-self:stretch;border-radius:12px 12px 0 0;border-bottom:0;padding-bottom:6px}
+  .rail>.calc{background:#fff;border:1px solid var(--line);border-top:1px solid var(--line);border-radius:0 0 12px 12px;padding:8px 16px 12px}
+  @media(max-width:1000px){
+    .layout{grid-template-columns:1fr;grid-template-areas:"graph" "rail"}}
+  /* body.pg specificity so this grid beats pg_style's .pg .plots{display:flex} (which made the 3rd plot overflow into the rail) */
+  /* หลักกว้างเท่ารูป (max-content) + จัดกึ่งกลาง → กราฟ E–iteration ที่กินสองหลัก
+     จะกว้าง = รูปบนสองรูป + gap พอดี (ขอบซ้าย-ขวาตรงกันเป๊ะ) */
+  body.pg .plots{display:grid;grid-template-columns:repeat(2,max-content);justify-content:center;gap:12px;align-items:start}
+  body.pg .plots #lcFig{grid-column:1/-1;width:auto}   /* 3rd figure = กว้างเท่าสองรูปบนรวมกัน */
+  @media(max-width:560px){body.pg .plots{grid-template-columns:1fr}body.pg .plots #lcFig{grid-column:auto}}
+  figure{margin:0;position:relative}
+  .drow{display:flex;align-items:center;gap:10px;margin:8px 0}
+  .drow.off{opacity:.4}
+  .drow input[type=range]{flex:1;width:auto;min-width:0;margin:0}
+  .dlab{flex:none;min-width:26px;text-align:center;font-size:15px;color:#475569}
+  .num{flex:none;width:66px;font-size:15px;padding:4px 6px;border:1px solid var(--line);border-radius:7px;text-align:right;background:#fff;-moz-appearance:textfield;appearance:textfield}
+  .num::-webkit-outer-spin-button,.num::-webkit-inner-spin-button{-webkit-appearance:none;margin:0}
+  .row{display:flex;gap:8px;margin:7px 0}.row button{flex:1}
+  .row#c-regen{display:flex}.row#c-regen button{flex:1 1 100%;width:100%}   /* UD §2.2: ปุ่มหลักเต็มกว้าง */
+  /* ห้าม scroll (UD §1) — เนื้อหาต้องพอดีกล่อง ไม่ใช่ซ่อนไว้หลัง scrollbar */
+  .calc{background:#fff;border:1px solid var(--line);border-radius:8px;padding:6px 8px;margin-top:0;text-align:left;overflow:visible}
+  .calc .katex{font-size:1em;color:#1e293b}   /* UD §2.3: ข้อความ/สมการ = 15px ห้ามย่อ (เดิม .92em = 13.8px เล็กกว่ามาตรฐาน) */
+  .crow{margin:2px 0}
+  /* UD §1.2 ตรึงความสูงคอลัมน์ควบคุม — ที่นี่ panel กับ calc เป็น "การ์ดใบเดียว" (เชื่อมขอบกัน)
+     ถ้าไปตรึงที่ .panel จะเกิดแถบขาวเปล่า ๆ คั่นกลางระหว่าง control กับสมการ → ตรึงที่ .rail (โปร่งใส) แทน
+     544px = ความสูง rail ตอน tab ที่เนื้อหาเยอะสุด (Simple linear regression, สมการ 15px) */
+  .rail{min-height:544px}
+  .rail>.panel{min-height:0}
+  /* ป้ายในการ์ดสมการ = ตัวรอง 13px muted ตัวพิมพ์ปกติ (เดิม uppercase ทั้งหมด → ตะโกนกว่าสมการเอง) */
+  .crow .lbl{display:block;font-size:13px;color:var(--muted);text-transform:none;letter-spacing:0;font-weight:600;margin-bottom:1px}
+  .crow .eqn{display:block;padding-left:8px}   /* เผื่อที่ให้สมการ 15px ไม่ล้นการ์ด (UD §1 no-scroll) */
+  .calc .katex-display{text-align:left;margin:.12em 0}
+  .note2{font-size:15px;color:var(--muted);margin-top:6px}
+  .legend{position:absolute;right:6px;top:6px;display:flex;flex-wrap:wrap;gap:9px;font-size:15px;color:var(--muted);background:rgba(255,255,255,.74);padding:2px 7px;border-radius:6px;pointer-events:none;max-width:calc(100% - 12px)}
+  .legend i{display:inline-block;width:14px;height:3px;vertical-align:middle;margin-right:5px;border-radius:2px}
+  .legend i.dot{width:9px;height:9px;border-radius:50%}
+  select{width:100%}
+</style>
+</head>
+<body class="pg">
+<h2 class="sr-only" style="position:absolute;width:1px;height:1px;overflow:hidden">Gradient descent playground: pick a function, set a starting point and learning rate, and step downhill. The objective function shows the tangent (slope) at the current point; a convergence graph sits beside it. Four modes: minimise a plain function in 1D and 2D, then the same rule fitting a regression line in 1D and 2D.</h2>
+<div class="wrap">
+  <!-- UD §1.2: Title ซ้าย · Tabs ขวา แถวเดียวกัน → ต้องอยู่ใน .hdr (ของเดิมวางแยกบรรทัด) -->
+  <div class="hdr">
+    <h1 id="__pgt" data-tex="\text{Gradient Descent}">Gradient Descent</h1>
+    <div class="tabs" id="tabs"></div>
+  </div>
+
+  <div class="layout">
+    <div class="gbox">
+      <div class="plots">
+        <figure><canvas id="leftPlot"></canvas><div class="legend" id="legL"></div></figure>
+        <figure><canvas id="rightPlot"></canvas><div class="legend" id="legR"></div></figure>
+        <figure id="lcFig" style="display:none"><canvas id="lcPlot"></canvas><div class="legend" id="legLC"></div></figure>
+      </div>
+    </div>
+
+    <div class="rail">
+    <div class="panel">
+      <!-- ทุก control ต้องมีป้าย (UD §2.2) — selector นี้เคยลอยไม่มีชื่อ -->
+      <div class="ctrl" id="c-fn"><span class="dlab" id="fnLab"></span><div class="seg" id="fnSeg"></div></div>
+
+      <div class="drow" id="c-start"><span class="dlab" id="startlab"></span>
+        <input type="range" id="start" min="0" max="100" value="80" step="1">
+        <input type="text" class="num" id="startNum" inputmode="decimal"></div>
+      <div class="drow" id="c-w0" style="display:none"><span class="dlab" id="w0lab"></span>
+        <input type="range" id="w0sl" min="0" max="100" value="20" step="1">
+        <input type="text" class="num" id="w0num" inputmode="decimal"></div>
+      <div class="drow" id="c-w1" style="display:none"><span class="dlab" id="w1lab"></span>
+        <input type="range" id="w1sl" min="0" max="100" value="80" step="1">
+        <input type="text" class="num" id="w1num" inputmode="decimal"></div>
+
+      <div class="drow" id="c-lr"><span class="dlab" id="lrlab"></span>
+        <input type="range" id="lr" min="0" max="100" value="50" step="1">
+        <input type="text" class="num" id="lrNum" inputmode="decimal"></div>
+
+      <div class="row">
+        <button class="primary" id="play">Play</button>
+        <button id="step">Step</button>
+        <button id="reset">Restart</button>
+      </div>
+
+      <div class="drow" id="c-noise"><span class="dlab" id="noiselab"></span>
+        <input type="range" id="noise" min="0" max="80" value="18" step="1">
+        <input type="text" class="num" id="noiseNum" inputmode="decimal"></div>
+      <div class="drow" id="c-n"><span class="dlab" id="nlab"></span>
+        <input type="range" id="n" min="4" max="60" value="20" step="1">
+        <input type="text" class="num" id="nNum" inputmode="numeric"></div>
+      <div class="row" id="c-regen"><button class="primary" id="regen">Resample</button></div>
+    </div>
+    <div class="calc" id="calc"></div>
+    </div>
+  </div>
+</div>
+
+<script src="pg_engine.js?v=5"></script>
+<script>
+const leftC=document.getElementById('leftPlot'), rightC=document.getElementById('rightPlot');
+const lctx=leftC.getContext('2d'), rctx=rightC.getContext('2d');
+const lcC=document.getElementById('lcPlot'), lcx=lcC.getContext('2d');
+const DPR=window.devicePixelRatio||1;
+const lr=document.getElementById('lr'), noise=document.getElementById('noise'),
+      n=document.getElementById('n'), fnSeg=document.getElementById('fnSeg'), startEl=document.getElementById('start');
+const w0sl=document.getElementById('w0sl'), w1sl=document.getElementById('w1sl');
+let fnVal='bowl';
+const GN=Math.sqrt(12);   // PG rng gauss() has SD=1/√12, so ×GN makes the noise SD equal σ ⇒ E_min ≈ σ² (E = MSE, ไม่หาร 2)
+
+function K(t,e){if(!e)return;try{if(window.katex)katex.render(t,e,{throwOnError:false,displayMode:true});else e.textContent=t;}catch(x){if(e)e.textContent=t;}}
+function Kin(t,e){if(!e)return;try{if(window.katex)katex.render(t,e,{throwOnError:false,displayMode:false});else e.textContent=t;}catch(x){if(e)e.textContent=t;}}
+function kx(t){try{return window.katex?katex.renderToString(t,{throwOnError:false}):t;}catch(x){return t;}}
+
+const lrVal = ()=> Math.pow(10, -2 + 2.5*(+lr.value/100));        // η in [0.01 .. ~3.16]
+const lrInv = (eta)=> Math.round((Math.log10(Math.max(1e-3,eta))+2)/2.5*100);
+
+/* ===== verified model descriptors (unchanged math) ===== */
+const PURE1D={
+  bowl:{name:'Quadratic', ftex:'(w-1)^2', dtex:'2(w-1)', f:w=>(w-1)*(w-1), g:w=>2*(w-1), opt:1,
+        fr:{X0:-2.4,X1:4.4,Y0:-1,Y1:13,gx:1,gy:3}, lr:52},
+  well:{name:'Quartic', ftex:'\\tfrac14 w^4-w^2+0.3w', dtex:'w^3-2w+0.3', f:w=>0.25*w*w*w*w-w*w+0.3*w, g:w=>w*w*w-2*w+0.3, opt:-1.486,
+        fr:{X0:-2.6,X1:2.6,Y0:-2,Y1:4,gx:1,gy:1}, lr:40},
+};
+const PURE2D={
+  /* ชื่อสั้นพอให้ selector อยู่แถวเดียว (เดิม "Round bowl / Ill-conditioned" ยาวจนตกบรรทัด) */
+  bowl:{name:'Bowl', ftex:'w_0^2+w_1^2', gtex:'(2w_0,\\,2w_1)', f:w=>w[0]*w[0]+w[1]*w[1], g:w=>[2*w[0],2*w[1]], opt:[0,0],
+        fr:{X0:-2.5,X1:2.5,Y0:-2.5,Y1:2.5}, log:false, lr:50, crit:'minimum'},
+  valley:{name:'Valley', ftex:'w_0^2+18w_1^2', gtex:'(2w_0,\\,36w_1)', f:w=>w[0]*w[0]+18*w[1]*w[1], g:w=>[2*w[0],36*w[1]], opt:[0,0],
+        fr:{X0:-2.5,X1:2.5,Y0:-2.5,Y1:2.5}, log:false, lr:22, crit:'minimum'},
+  saddle:{name:'Saddle', ftex:'w_0^2-w_1^2', gtex:'(2w_0,\\,-2w_1)', f:w=>w[0]*w[0]-w[1]*w[1], g:w=>[2*w[0],-2*w[1]], opt:[0,0],
+        fr:{X0:-2.5,X1:2.5,Y0:-2.5,Y1:2.5}, log:false, lr:35, crit:'saddle (not a minimum)'},
+};
+
+let M=null, w=[0,0], path=[], steps=0, playing=false, diverged=false, converged=false;
+let startW=[0,0], startSeed=7, dataSeed=1, pts=[], heatImg=null, convY1=1;
+let lsPlot=null, otherPlot=null;     // ls = objective/cost landscape · other = convergence (pure) or data (reg)
+
+/* ls canvas = LEFT for pure (objective), RIGHT for reg (cost); other canvas holds convergence/data */
+function lsCanvas(){ return M.kind==='pure'?leftC:rightC; }
+function lsCtx(){ return M.kind==='pure'?lctx:rctx; }
+function otherCanvas(){ return M.kind==='pure'?rightC:leftC; }
+function otherCtx(){ return M.kind==='pure'?rctx:lctx; }
+
+function buildModel(){
+  const kind=MODE.kind, dim=MODE.dim;
+  if(kind==='pure'){
+    const tbl=(dim===1?PURE1D:PURE2D)[fnVal]||(dim===1?PURE1D.bowl:PURE2D.bowl);
+    M={dim,kind, cost:w=>tbl.f(dim===1?w[0]:w), grad:w=>dim===1?[tbl.g(w[0])]:tbl.g(w),
+       opt:dim===1?[tbl.opt]:tbl.opt.slice(), fr:tbl.fr, log:!!tbl.log, crit:tbl.crit||'minimum', ftex:tbl.ftex, dtex:tbl.dtex, gtex:tbl.gtex};
+  } else {
+    if(!dataSeed) dataSeed=1;
+    if(dim===1){
+      let cost,grad,w1,dataFr;
+      if(MODE.samples2){                       // worked example: 2 points (0,0),(2,2) → E=(w−1)²
+        pts=[{x:0,y:0},{x:2,y:2}]; const N2=pts.length;
+        // E = MSE (ไม่หาร 2) ให้ตรงกับ playground อื่น · ∇E = (2/n)Σ(wx−y)x
+        cost=W=>{let s=0;for(const p of pts){const e=W[0]*p.x-p.y;s+=e*e;}return s/N2;};
+        grad=W=>{let g=0;for(const p of pts){const e=W[0]*p.x-p.y;g+=e*p.x;}return [2*g/N2];};
+        let sxx=0,sxy=0;for(const p of pts){sxx+=p.x*p.x;sxy+=p.x*p.y;} w1=sxx>1e-9?sxy/sxx:1;
+        dataFr={X0:-0.3,X1:2.5,Y0:-0.5,Y1:2.7};
+      } else {
+        const sig=(+noise.value/100), r=PG.rng(dataSeed); pts=[];
+        for(let i=0;i<+n.value;i++){ const x=0.05+1.05*r.next(); pts.push({x,y:x+r.gauss()*GN*sig}); }   // noise SD = σ
+        pts.sort((a,b)=>a.x-b.x);
+        let sxx=0,sxy=0; for(const p of pts){sxx+=p.x*p.x; sxy+=p.x*p.y;} w1=sxx>1e-9?sxy/sxx:1;
+        cost=W=>{let s=0;for(const p of pts){const e=W[0]*p.x-p.y;s+=e*e;}return s/(pts.length||1);};        // E = MSE (ไม่หาร 2)
+        grad=W=>{let g=0;for(const p of pts){const e=W[0]*p.x-p.y;g+=e*p.x;}return [2*g/(pts.length||1)];};  // ∇E=(2/n)Σ(wx−y)x
+        dataFr={X0:0,X1:1.15,Y0:-0.15,Y1:1.3};
+      }
+      let X0,X1;
+      if(MODE.samples2){ X0=w1-1.6; X1=w1+1.8; }
+      else { const hw=Math.abs(w1)+0.2; X0=w1-hw; X1=w1+hw; }          // symmetric about the optimum, keeps the w=0 start in frame
+      const Y1f=Math.max(cost([X0]),cost([X1]))*1.08, Y0f=-0.05*Y1f;   // small bottom inset → E(w) uses more vertical space, x-axis low
+      M={dim:1,kind:'reg',cost,grad,opt:[w1], fr:{X0,X1,Y0:Y0f,Y1:Y1f,gx:1},
+         log:false,crit:'minimum', lineFn:W=>(x=>W[0]*x), dataFr,
+         /* E = MSE (ไม่หาร 2): worked example → E=2(w−1)² · E'=4(w−1) · ทั่วไป → ∇E=(2/n)Σ(wx−y)x */
+         ftex:MODE.samples2?'2(w-1)^2':'\\tfrac{1}{n}\\sum_i(wx_i-y_i)^2',
+         dtex:MODE.samples2?'4(w-1)':'\\tfrac2n\\sum_i(wx_i-y_i)x_i'};
+    } else {
+      const sig=(+noise.value/100);
+      pts=PG.scenario.sample(PG.targets.line,{X0:0,X1:1,N:+n.value,noise:sig*GN,seed:dataSeed});   // noise SD = σ
+      const m=PG.fit.poly(pts,{degree:1}); const o=[m.weights[0]||0,m.weights[1]||0];
+      const cost=W=>{let s=0;for(const p of pts){const e=W[0]+W[1]*p.x-p.y;s+=e*e;}return s/(pts.length||1);};       // E = MSE (ไม่หาร 2)
+      const grad=W=>{let g0=0,g1=0;for(const p of pts){const e=W[0]+W[1]*p.x-p.y;g0+=e;g1+=e*p.x;}const N=pts.length||1;return [2*g0/N,2*g1/N];};
+      M={dim:2,kind:'reg',cost,grad,opt:o, fr:{X0:o[0]-2.6,X1:o[0]+2.6,Y0:o[1]-2.6,Y1:o[1]+2.6},
+         log:true,crit:'minimum', lineFn:W=>(x=>W[0]+W[1]*x), dataFr:{X0:0,X1:1,Y0:-1.6,Y1:1.6},
+         ftex:'\\tfrac{1}{n}\\sum_i(w_0+w_1x_i-y_i)^2', gtex:'\\big(\\tfrac{\\partial E}{\\partial w_0},\\tfrac{\\partial E}{\\partial w_1}\\big)'};
+    }
+  }
+  rebuild();
+}
+
+function gH(){
+  const rows=(M&&M.kind==='reg')?2:1;                                  // reg has the learning curve on a 2nd row
+  const byH=Math.floor(Math.max(280,(window.innerHeight||700)-150)/rows)-16;
+  const byW=((leftC.parentElement&&leftC.parentElement.clientWidth)||300)*0.9;
+  return Math.max(150,Math.min(byW,byH));
+}
+/* no-scroll (UD §1): เมื่อมีกราฟแถวสอง (learning curve) กราฟคู่บนต้องย่อลงให้ทั้งสองแถวจบในจอเดียว
+   เดิม sqH คิดจากความกว้างอย่างเดียว → 2 แถวรวมกันสูงเกินจอ กราฟที่ 3 โดนตัด */
+/* UD §1: "รูปกินพื้นที่ Body ให้ใหญ่ที่สุด · N รูปแบ่งพื้นที่" + no-scroll
+   1 แถว → กราฟกินที่ว่างทั้งหมด (ไม่ต้องเหลือขาว) · 2 แถว → บน 62% / ล่าง 34%
+   กราฟคู่บนเป็นจัตุรัสเสมอ (canvas W=H) เพราะหน้า 2 มิติต้อง symmetry ไม่งั้นเข้าใจผิด */
+/* วัด "พื้นที่ที่เหลือจริง" จากกล่องกราฟ ไม่ใช่เดาจาก window (เดาแล้วเหลือขาว/ล้นทุกที) */
+function availH(){ const g=document.querySelector('.gbox');
+  const h=g?g.clientHeight:0;
+  return Math.max(260, h||((window.innerHeight||700)-104)); }
+function twoRows(){ const f=document.getElementById('lcFig'); return !!f && f.style.display!=='none'; }
+/* 1 แถว → กราฟกินพื้นที่ที่เหลือทั้งหมด (สูงสุดเท่าที่กว้างให้ = จัตุรัส)
+   2 แถว → บน 62% / ล่าง 34% ของพื้นที่ที่เหลือ (รวม gap แล้วพอดีจอ ไม่เหลือขาว ไม่ล้น) */
+/* รูปคู่บน = จัตุรัสเสมอ และ "ขนาดเดียวกันทุก tab" (คิดจากเพดานของ tab ที่มี 3 รูป = แน่นสุด)
+   → กราฟชนิดเดียวกันคนละ tab ขนาดเท่ากัน · แกน x อยู่ระดับเดียวกัน · หน้า 2 มิติ symmetry */
+function pairSide(){
+  const g=document.querySelector('.gbox'), gw=g?g.clientWidth:600;   // วัดจาก .gbox — .plots เป็น max-content (หดตามรูป → วัดแล้ววน)
+  const colW=Math.floor((gw-12)/2);                      // 2 หลัก + gap 12
+  const cap=Math.round((availH()-16)*0.62);              // เพดานเดียวกันทุก tab (เผื่อแถวกราฟที่ 3)
+  return Math.max(150,Math.min(colW,cap));
+}
+function sqH(cv){ const s=pairSide();
+  if(cv&&cv.parentElement){ cv.parentElement.style.width=s+'px'; cv.parentElement.style.margin='0 auto'; }
+  return s; }
+function lcH(cv){ return Math.max(110,Math.round((availH()-16)*0.32)); }   // ล่าง 32% → รวม 94% + gap = จบจอเดียว
+function rebuild(){
+  lsPlot=PG.fitPlot(lsCanvas(),Object.assign({margin:M.dim===2?6:22,height:sqH(lsCanvas())},M.fr));   // square → contour/curve undistorted
+  if(M.dim===2) buildHeatmap(M.cost,M.log); else heatImg=null;
+}
+function buildHeatmap(costFn,log){
+  const cvs=lsCanvas(), cx=lsCtx(), Wd=cvs.width, Hd=cvs.height;
+  const img=cx.createImageData(Wd,Hd), d=img.data;
+  const val=(sx,sy)=>{ const J=costFn([lsPlot.ux(sx/DPR), lsPlot.uy(sy/DPR)]); return log?Math.log(J+1e-3):J; };
+  let lo=Infinity,hi=-Infinity;
+  for(let sy=0;sy<Hd;sy+=4)for(let sx=0;sx<Wd;sx+=4){const v=val(sx,sy); if(v<lo)lo=v; if(v>hi)hi=v;}
+  const span=(hi-lo)||1;
+  for(let sy=0;sy<Hd;sy++)for(let sx=0;sx<Wd;sx++){
+    let t=(val(sx,sy)-lo)/span; t=t<0?0:t>1?1:t;
+    let r=34+(251-34)*t, g=52+(250-52)*t, b=120+(247-120)*t;
+    if(((t*9)%1)<0.06){ r*=0.82; g*=0.82; b*=0.82; }
+    const i=(sy*Wd+sx)*4; d[i]=r; d[i+1]=g; d[i+2]=b; d[i+3]=255;
+  }
+  heatImg=img;
+}
+
+/* ---------- one GD step (verified) ---------- */
+function gdStep(){
+  const J=M.cost(w), g=M.grad(w), gn=Math.hypot.apply(null,g);
+  if(!isFinite(J)||Math.abs(J)>1e8||Math.abs(w[0])>1e6||(M.dim===2&&Math.abs(w[1])>1e6)){ diverged=true; playing=false; return; }
+  if(gn<1e-3 && M.crit==='minimum'){ converged=true; playing=false; return; }
+  const eta=lrVal(); w=w.map((wi,i)=>wi-eta*g[i]); path.push(w.slice()); steps++;
+  if(steps>=1200) playing=false;
+}
+
+/* ---------- draw the objective/cost landscape (with tangent for 1D) ---------- */
+function clampY(p,y){ return Math.max(p.Y0,Math.min(p.Y1,y)); }
+function axisXY(p,c,xlab,ylab){
+  p.clear();
+  const y0=(p.Y0<0&&p.Y1>0)?0:p.Y0, x0=(p.X0<0&&p.X1>0)?0:p.X0;
+  c.strokeStyle='rgba(120,120,120,0.45)'; c.lineWidth=1; c.beginPath();
+  c.moveTo(p.px(p.X0),p.py(y0)); c.lineTo(p.px(p.X1),p.py(y0));
+  c.moveTo(p.px(x0),p.py(p.Y0)); c.lineTo(p.px(x0),p.py(p.Y1)); c.stroke();
+  c.fillStyle='#64748b';
+  c.font=(/[a-z]{4}/.test(xlab)?'16px KaTeX_Main,serif':'italic 16px KaTeX_Math,serif');
+  c.textAlign='right'; c.textBaseline='top'; c.fillText(xlab, p.W-5, p.py(y0)+4);
+  c.font='italic 16px KaTeX_Math,serif';
+  c.textAlign='left'; c.textBaseline='top'; c.fillText(ylab, p.px(x0)+5, 4);
+}
+function drawLandscape(){
+  const p=lsPlot, c=lsCtx();
+  if(M.dim===1){
+    axisXY(p,c,'w', M.kind==='reg'?'E':'f');
+    PG.draw.curve(p,x=>M.cost([x]),{color:'#5B8FB9',width:2.5});
+    if(path.length>1){ c.strokeStyle='rgba(91,143,185,0.45)'; c.lineWidth=1.5; c.beginPath();
+      path.forEach((q,i)=>{ const x=Math.max(p.X0,Math.min(p.X1,q[0])), Y=p.py(clampY(p,M.cost([x]))); i?c.lineTo(p.px(x),Y):c.moveTo(p.px(x),Y); }); c.stroke(); }
+    c.fillStyle='rgba(91,143,185,0.55)';
+    path.forEach(q=>{ const x=Math.max(p.X0,Math.min(p.X1,q[0])); c.beginPath(); c.arc(p.px(x),p.py(clampY(p,M.cost([x]))),3.6,0,7); c.fill(); c.strokeStyle='#fff'; c.lineWidth=1; c.stroke(); });
+    const xc=Math.max(p.X0,Math.min(p.X1,w[0])), yc=M.cost([xc]), slope=M.grad([xc])[0];
+    // draw the tangent across the full width, clipped to the plot box so it always reads as a complete line
+    c.save(); c.beginPath(); c.rect(p.px(p.X0),p.py(p.Y1),p.px(p.X1)-p.px(p.X0),p.py(p.Y0)-p.py(p.Y1)); c.clip();
+    const yA=clampY(p,yc); c.strokeStyle='#E3B23C'; c.lineWidth=2.6; c.beginPath();
+    c.moveTo(p.px(p.X0),p.py(yA+slope*(p.X0-xc))); c.lineTo(p.px(p.X1),p.py(yA+slope*(p.X1-xc))); c.stroke();
+    c.restore();
+    const ox=M.opt[0], jOpt=M.cost(M.opt), jy=clampY(p,jOpt);   // green line and min dot share the exact same E value
+    if(M.kind==='reg' && !MODE.samples2){ c.save(); c.strokeStyle='rgba(107,163,140,0.55)'; c.setLineDash([5,4]); c.lineWidth=1.4; c.beginPath(); c.moveTo(p.px(p.X0),p.py(jy)); c.lineTo(p.px(p.X1),p.py(jy)); c.stroke(); c.setLineDash([]); /* E = MSE (ไม่หาร 2) → พื้นล่างที่ลดไม่ได้ = σ² (ไม่ใช่ σ²/2) — ต้องตรงกับกราฟ learning curve และการ์ดสมการ */
+      c.fillStyle='#3F7D63'; c.font='italic 16px KaTeX_Math';c.textAlign='left'; c.textBaseline='bottom'; c.fillText('σ²', p.px(p.X0)+5, p.py(jy)-2); c.restore(); }
+    c.fillStyle=PG.colors.target; c.beginPath(); c.arc(p.px(ox),p.py(jy),5,0,7); c.fill(); c.strokeStyle='#fff'; c.lineWidth=1.5; c.stroke();
+    c.fillStyle=diverged?PG.colors.data:PG.colors.model; c.beginPath(); c.arc(p.px(xc),p.py(clampY(p,yc)),6,0,7); c.fill(); c.strokeStyle='#fff'; c.lineWidth=2; c.stroke();
+  } else {
+    c.putImageData(heatImg,0,0);
+    if(p.X0<0&&p.X1>0){ c.strokeStyle='rgba(255,255,255,0.45)'; c.lineWidth=1; c.beginPath(); c.moveTo(p.px(0),p.py(p.Y0)); c.lineTo(p.px(0),p.py(p.Y1)); c.stroke(); }
+    if(p.Y0<0&&p.Y1>0){ c.strokeStyle='rgba(255,255,255,0.45)'; c.lineWidth=1; c.beginPath(); c.moveTo(p.px(p.X0),p.py(0)); c.lineTo(p.px(p.X1),p.py(0)); c.stroke(); }
+    c.fillStyle='#475569'; c.font='italic 16px KaTeX_Math'; c.textAlign='right'; c.textBaseline='bottom'; c.fillText('w₀',p.W-4,p.H-4); c.textAlign='left'; c.textBaseline='top'; c.fillText('w₁',5,3);
+    c.strokeStyle='rgba(255,255,255,0.9)'; c.lineWidth=1.6; c.beginPath();
+    path.forEach((q,i)=> i?c.lineTo(p.px(q[0]),p.py(q[1])):c.moveTo(p.px(q[0]),p.py(q[1]))); c.stroke();
+    const o=M.opt, isSaddle=M.crit!=='minimum';
+    c.fillStyle=isSaddle?'#b45309':PG.colors.target; c.beginPath(); c.arc(p.px(o[0]),p.py(o[1]),5,0,7); c.fill(); c.strokeStyle='#fff'; c.lineWidth=1.5; c.stroke();
+    const bx=Math.max(p.X0,Math.min(p.X1,w[0])), by=Math.max(p.Y0,Math.min(p.Y1,w[1]));
+    { const gg=M.grad(w), gn=Math.hypot(gg[0],gg[1]);   // −∇E descent-direction arrow (2D analog of the tangent slope)
+      if(gn>1e-6){ const L=(p.X1-p.X0)*0.16, ex=bx-gg[0]/gn*L, ey=by-gg[1]/gn*L, pex=p.px(ex), pey=p.py(ey), pbx=p.px(bx), pby=p.py(by), ang=Math.atan2(pey-pby,pex-pbx);
+        c.save(); c.strokeStyle='#E3B23C'; c.fillStyle='#E3B23C'; c.lineWidth=2.6;
+        c.beginPath(); c.moveTo(pbx,pby); c.lineTo(pex,pey); c.stroke();
+        c.beginPath(); c.moveTo(pex,pey); c.lineTo(pex-8*Math.cos(ang-0.42),pey-8*Math.sin(ang-0.42)); c.lineTo(pex-8*Math.cos(ang+0.42),pey-8*Math.sin(ang+0.42)); c.closePath(); c.fill(); c.restore(); } }
+    c.fillStyle=diverged?PG.colors.data:PG.colors.model; c.beginPath(); c.arc(p.px(bx),p.py(by),6,0,7); c.fill(); c.strokeStyle='#fff'; c.lineWidth=2; c.stroke();
+  }
+}
+/* สัดส่วน (จากขอบบน) ที่แกน x ถูกวาดในรูปซ้าย — ใช้บังคับให้รูปขวาวางแกน x ที่ระดับเดียวกันเป๊ะ
+   (สองรูปสูงเท่ากัน + margin เท่ากัน → สัดส่วนเท่ากัน = พิกเซลเดียวกัน) */
+function axisFrac(fr){ const Y0=fr.Y0,Y1=fr.Y1,y0=(Y0<0&&Y1>0)?0:Y0; return (Y1-y0)/(Y1-Y0); }
+const CONV_Q=13/14;   // ระดับแกน x ของกราฟ convergence — คงที่ทุก tab (= ระดับแกนของ f(w) แบบ Quadratic)
+/* คืนกรอบ Y ที่ทำให้แกน x อยู่ที่สัดส่วน q พอดี และยังครอบข้อมูล [lo,hi] */
+function frameAt(q,lo,hi){
+  if(!(q>0&&q<1))return {Y0:lo,Y1:hi};
+  let Y0=lo, Y1=Y0*q/(q-1);
+  if(Y1<hi){ Y1=hi; Y0=Y1*(1-1/q); }
+  return {Y0,Y1};
+}
+/* ---------- convergence: cost vs iteration ---------- */
+function drawConvergence(){
+  const c=otherCtx(), X1=Math.max(20,steps);
+  /* กราฟ convergence ใช้ "ระดับแกน x คงที่" เท่ากันทุก tab (Pure 1D และ Pure 2D)
+     ค่า 0.9286 = ระดับแกนของกราฟ f(w) แบบ Quadratic (ค่าตั้งต้น) → ใน Pure 1D รูปซ้าย-ขวาจึงตรงกันด้วย */
+  const q=CONV_Q;
+  const fr=frameAt(q,-0.0001,convY1);
+  otherPlot=PG.fitPlot(otherCanvas(),{X0:0,X1,Y0:fr.Y0,Y1:fr.Y1,margin:22,height:sqH(otherCanvas())});
+  const p=otherPlot;
+  axisXY(p,c,'iteration','f');
+  c.strokeStyle=PG.colors.model; c.lineWidth=2.2; c.beginPath();
+  path.forEach((q,i)=>{ const J=Math.min(convY1,M.cost(q)); i?c.lineTo(p.px(i),p.py(J)):c.moveTo(p.px(i),p.py(J)); }); c.stroke();
+}
+/* ---------- data + fitted line (reg) ---------- */
+function drawData(){
+  let ylo=0,yhi=0; for(const q of pts){ if(q.y<ylo)ylo=q.y; if(q.y>yhi)yhi=q.y; }   // auto-fit to the (noisier) data
+  const pad=(yhi-ylo)*0.1+0.08, fr=Object.assign({margin:22,height:sqH(otherCanvas())},M.dataFr);
+  /* tab 1 มิติ: รูปข้อมูลอยู่คู่กับกราฟ E(w) → บังคับแกน x ระดับเดียวกัน (CONV_Q) เท่ากับทุก tab
+     tab 2 มิติ: รูปข้างกันเป็น contour (ไม่มีแกน x) → ใช้กรอบตามข้อมูลจริง ไม่ต้องบิด */
+  if(M.dim===1){ const b=frameAt(CONV_Q,ylo-pad,yhi+pad); fr.Y0=b.Y0; fr.Y1=b.Y1; }
+  else { fr.Y0=ylo-pad; fr.Y1=yhi+pad; }
+  otherPlot=PG.fitPlot(otherCanvas(),fr);
+  const p=otherPlot;
+  axisXY(p,otherCtx(),'x','y');
+  PG.draw.curve(p,M.lineFn(M.opt),{color:PG.colors.target,width:2});
+  PG.draw.curve(p,M.lineFn(w),{color:diverged?PG.colors.data:PG.colors.model,width:2.5});
+  PG.draw.points(p,pts);
+}
+/* ---------- learning curve: cost vs iteration (regression, 3rd plot) ---------- */
+function drawLearning(){
+  const X1=Math.max(20,steps), y1=Math.max(1e-6,M.cost(M.dim===1?[0]:[0,0])*1.08);   // fixed top (cost at w=0) → green line doesn't jump when w changes
+  const p=PG.fitPlot(lcC,{X0:0,X1,Y0:0,Y1:y1,margin:22,height:lcH(lcC)});   // short, full-width · axes meet at (0,0)
+  axisXY(p,lcx,'iteration','E');
+  lcx.strokeStyle=PG.colors.model; lcx.lineWidth=2.2; lcx.beginPath();
+  path.forEach((q,i)=>{ const J=Math.min(y1,M.cost(q)); i?lcx.lineTo(p.px(i),p.py(J)):lcx.moveTo(p.px(i),p.py(J)); }); lcx.stroke();
+  if(!MODE.samples2){ const jm=Math.min(y1,M.cost(M.opt));
+    lcx.strokeStyle='rgba(107,163,140,0.7)'; lcx.setLineDash([5,4]); lcx.lineWidth=1.5; lcx.beginPath();
+    lcx.moveTo(p.px(0),p.py(jm)); lcx.lineTo(p.px(X1),p.py(jm)); lcx.stroke(); lcx.setLineDash([]);
+    /* E = MSE (ไม่หาร 2) → พื้นที่ลดไม่ได้ = σ² ไม่ใช่ σ²/2 */
+    lcx.fillStyle='#3F7D63'; lcx.font='italic 16px KaTeX_Math';lcx.textAlign='left'; lcx.textBaseline='bottom'; lcx.fillText('σ²', p.px(0)+5, p.py(jm)-2); }
+}
+
+/* กรอบ Y ของรูปข้อมูล (ตามข้อมูลจริง) — ใช้หาว่าแกน x ของรูปข้อมูลอยู่ที่สัดส่วนไหน */
+function dataFrameY(){
+  let ylo=0,yhi=0; for(const q of pts){ if(q.y<ylo)ylo=q.y; if(q.y>yhi)yhi=q.y; }
+  const pad=(yhi-ylo)*0.1+0.08; return {Y0:ylo-pad,Y1:yhi+pad};
+}
+function draw(){
+  /* tab การถดถอย (1 มิติ): กราฟ E(w) ใช้ระดับแกน x เดียวกับทุก tab (CONV_Q) — ไม่ผูกกับข้อมูลของรอบนั้น */
+  if(M.kind==='reg' && M.dim===1){
+    const Y1=M.fr.Y1;
+    lsPlot=PG.fitPlot(lsCanvas(),{X0:M.fr.X0,X1:M.fr.X1,Y0:Y1*(1-1/CONV_Q),Y1:Y1,gx:M.fr.gx,margin:22,height:sqH(lsCanvas())});
+  }
+  drawLandscape();
+  if(M.kind==='pure') drawConvergence(); else { drawData(); drawLearning(); }
+  renderCalc();
+}
+function fmt(x){ return isFinite(x)?(Math.abs(x)>1e4?x.toExponential(1):(+x.toFixed(2)).toString()):'\\infty'; }
+function renderCalc(){
+  document.getElementById('play').innerHTML=kx(playing?'\\text{Pause}':'\\text{Play}');
+  const eta=lrVal();
+  const rows=[];
+  const stepLab='Step '+steps+(diverged?' - diverged: lower the rate':converged?' - converged':'');
+  const isReg=M.kind==='reg'&&!MODE.samples2, floor=M.cost(M.opt);
+  if(M.dim===1){
+    const sym=M.kind==='reg'?'E':'f', gv=M.grad(w)[0], wn=w[0]-eta*gv;
+    if(MODE.samples2){
+      /* 2 บรรทัดพอ — ป้าย "Objective function" บอกอยู่แล้วว่าเป็น min ไม่ต้องมีบรรทัด min_w E(w) แยก */
+      rows.push(['Objective function','\\textcolor{#3F6E99}{\\begin{aligned}E(w)&=\\tfrac{1}{n}\\textstyle\\sum_i(wx_i-y_i)^2\\\\ &=\\tfrac12\\big[(0w)^2+(2w-2)^2\\big]=2(w-1)^2\\end{aligned}}']);
+    } else {
+      rows.push(['Objective function','\\textcolor{#3F6E99}{'+sym+'(w)='+M.ftex+'}']);
+    }
+    rows.push(['Gradient (slope)','\\textcolor{#E3B23C}{'+sym+"'(w)="+M.dtex+'='+fmt(gv)+'}']);
+    rows.push(['Gradient descent','w\\leftarrow w-\\eta\\,'+sym+"'(w)"]);
+    rows.push([stepLab,'\\begin{aligned}&w\\leftarrow '+fmt(w[0])+'-'+eta.toFixed(2)+'\\cdot('+fmt(gv)+')='+fmt(wn)+'\\\\ &'+(isReg&&converged?sym+'(w)=\\sigma^2='+fmt(floor):sym+'(w)='+fmt(M.cost(w))+(isReg?',\\;\\sigma^2='+fmt(floor):''))+'\\end{aligned}']);
+  } else {
+    const sym=M.kind==='reg'?'E':'f', g=M.grad(w), wn0=w[0]-eta*g[0], wn1=w[1]-eta*g[1];
+    rows.push(['Objective function','\\textcolor{#3F6E99}{'+sym+'(w_0,w_1)='+M.ftex+'}']);
+    rows.push(['Gradient','\\textcolor{#E3B23C}{\\nabla '+sym+'='+(M.gtex||'')+'=('+fmt(g[0])+',\\,'+fmt(g[1])+')}']);
+    rows.push(['Gradient descent','(w_0,w_1)\\leftarrow(w_0,w_1)-\\eta\\,\\nabla '+sym]);
+    rows.push([stepLab,'\\begin{aligned}&w_0\\leftarrow '+fmt(w[0])+'-'+eta.toFixed(2)+'('+fmt(g[0])+')='+fmt(wn0)+'\\\\ &w_1\\leftarrow '+fmt(w[1])+'-'+eta.toFixed(2)+'('+fmt(g[1])+')='+fmt(wn1)+'\\\\ &'+(isReg&&converged?sym+'=\\sigma^2='+fmt(floor):sym+'='+fmt(M.cost(w))+(isReg?',\\;\\sigma^2='+fmt(floor):''))+'\\end{aligned}']);
+  }
+  let html=rows.map(r=>'<div class="crow"><span class="lbl">'+kx('\\text{'+r[0]+'}')+'</span><span class="eqn">'+kx(r[1])+'</span></div>').join('');
+  document.getElementById('calc').innerHTML=html;
+}
+
+function loop(){ if(playing){ gdStep(); draw(); } requestAnimationFrame(loop); }
+
+function resetGD(){ w=startW.slice(); path=[w.slice()]; steps=0; diverged=false; converged=false; playing=false;
+  convY1=Math.max(1e-3,Math.min(M.fr.Y1||9, M.cost(startW)*1.08)); draw(); }
+function pickStart(){ startSeed++; const r=PG.rng(startSeed), fr=M.fr;
+  if(M.dim===1) startW=[ fr.X0+(fr.X1-fr.X0)*(0.12+0.76*r.next()) ];
+  else startW=[ fr.X0+(fr.X1-fr.X0)*(0.12+0.76*r.next()), fr.Y0+(fr.Y1-fr.Y0)*(0.12+0.76*r.next()) ];
+  syncStart(); resetGD(); }
+function regStartZero(){   // all regression starts at w = 0 (1D) or (0,0) (2D)
+  if(M.dim===1){ startW=[0]; startEl.value=Math.max(0,Math.min(100,Math.round((0-M.fr.X0)/(M.fr.X1-M.fr.X0)*100))); syncStart(); }
+  else { startW=[0,0]; w0sl.value=Math.round((0-M.fr.X0)/(M.fr.X1-M.fr.X0)*100); w1sl.value=Math.round((0-M.fr.Y0)/(M.fr.Y1-M.fr.Y0)*100); document.getElementById('w0num').value='0.00'; document.getElementById('w1num').value='0.00'; }
+  resetGD();
+}
+function regen(){ dataSeed++; buildModel(); regStartZero(); }
+
+/* ===== tabs ===== */
+const TABS=[
+  {n:'Pure 1D', dim:1, kind:'pure', en:['fn','lr','start'], fns:PURE1D, def:'bowl'},
+  {n:'Pure 2D', dim:2, kind:'pure', en:['fn','lr'], fns:PURE2D, def:'bowl'},
+  {n:'Worked example (2 points)', dim:1, kind:'reg', samples2:true, en:['lr','start'], def:null},
+  {n:'Regression through the origin', dim:1, kind:'reg', en:['lr','start','noise','n'], def:null},
+  {n:'Simple linear regression', dim:2, kind:'reg', en:['lr','noise','n'], def:null},
+];
+const CTRLS=['fn','start','lr','noise','n'];
+let MODE=TABS[0];
+function setEnabled(id,on){ const e=document.getElementById('c-'+id); if(e) e.classList.toggle('off',!on); const inp=document.getElementById(id); if(inp)inp.disabled=!on; }
+function fillFns(T){ fnSeg.innerHTML=''; if(!T.fns)return;
+  Object.keys(T.fns).forEach(key=>{ const b=document.createElement('button'); b.innerHTML=kx('\\text{'+(T.fns[key].name||key)+'}'); b.dataset.k=key; b.className=(key===T.def?'on':'');
+    b.onclick=()=>{ fnVal=key; fnSeg.querySelectorAll('button').forEach(x=>x.className=x.dataset.k===key?'on':''); buildModel(); if(MODE.dim===1)startFromSlider();else pickStart(); playing=false; draw(); };
+    fnSeg.appendChild(b); });
+  fnVal=T.def; }
+function applyTab(k){
+  MODE=TABS[k];
+  document.querySelectorAll('.tabbtn').forEach((b,i)=>b.className='tabbtn'+(i===k?' on':''));
+  fillFns(MODE);
+  lr.value=(MODE.kind==='reg'||MODE.dim===1)?40:(MODE.fns[MODE.def].lr||50);   // η=0.1 for all regression & pure-1D · pure-2D tuned
+  ['fn','start','lr','noise','n'].forEach(id=>setEnabled(id,MODE.en.indexOf(id)>=0));
+  setEnabled('regen',MODE.kind==='reg'&&!MODE.samples2);
+  document.getElementById('c-fn').style.display=MODE.fns?'':'none';
+  document.getElementById('c-regen').style.display=(MODE.kind==='reg'&&!MODE.samples2)?'':'none';
+  document.getElementById('c-start').style.display=MODE.dim===1?'':'none';
+  document.getElementById('c-w0').style.display=MODE.dim===2?'':'none';
+  document.getElementById('c-w1').style.display=MODE.dim===2?'':'none';
+  document.getElementById('c-noise').style.display=(MODE.kind==='reg'&&!MODE.samples2)?'':'none';
+  document.getElementById('lcFig').style.display=MODE.kind==='reg'?'':'none';
+  document.querySelector('.plots').className='plots'+(MODE.kind==='reg'?' reg':'');
+  setLegends();
+  Kin(MODE.dim===1?'w':'(w_0,w_1)', document.getElementById('w0k'));
+  syncReadouts(); buildModel();
+  if(MODE.kind==='reg') regStartZero();   // all regression: start at 0
+  else if(MODE.dim===1){ startW=[0]; startEl.value=Math.max(0,Math.min(100,Math.round((0-M.fr.X0)/(M.fr.X1-M.fr.X0)*100))); syncStart(); resetGD(); }
+  else set2D();   // pure 2D: start from the w₀,w₁ sliders
+  playing=false; draw();
+}
+const tb=document.getElementById('tabs');
+TABS.forEach((T,i)=>{const b=document.createElement('button');b.className='tabbtn';b.innerHTML=kx('\\text{'+T.n+'}');b.onclick=()=>applyTab(i);tb.appendChild(b);});
+
+/* ===== readouts / number boxes ===== */
+function syncReadouts(){
+  document.getElementById('lrNum').value=lrVal().toFixed(2);
+  document.getElementById('noiseNum').value=(+noise.value/100).toFixed(2);
+  document.getElementById('nNum').value=n.value;
+}
+function syncStart(){ if(M&&M.dim===1) document.getElementById('startNum').value=(startW[0]!=null?startW[0].toFixed(2):''); }
+// start slider maps across the current 1-D frame
+function startFromSlider(){ if(!M||M.dim!==1)return; const fr=M.fr; startW=[ fr.X0+(fr.X1-fr.X0)*(+startEl.value/100) ]; syncStart(); resetGD(); }
+function set2D(){ if(!M||M.dim!==2)return; const fr=M.fr;
+  startW=[ fr.X0+(fr.X1-fr.X0)*(+w0sl.value/100), fr.Y0+(fr.Y1-fr.Y0)*(+w1sl.value/100) ];
+  document.getElementById('w0num').value=startW[0].toFixed(2); document.getElementById('w1num').value=startW[1].toFixed(2); resetGD(); }
+
+/* ===== static KaTeX labels ===== */
+function renderStatic(){
+  Kin('\\text{Gradient Descent}', document.getElementById('__pgt'));
+  Kin('\\text{Function}', document.getElementById('fnLab'));
+  Kin('w', document.getElementById('startlab'));
+  Kin('w_0', document.getElementById('w0lab'));
+  Kin('w_1', document.getElementById('w1lab'));
+  Kin('\\eta', document.getElementById('lrlab'));
+  document.getElementById('c-n').style.display='none';
+  Kin('\\sigma', document.getElementById('noiselab'));
+  document.getElementById('step').innerHTML=kx('\\text{Step}');
+  document.getElementById('reset').innerHTML=kx('\\text{Restart}');
+  document.getElementById('regen').innerHTML=kx('\\text{Resample}');
+}
+function legSw(color,dot,tex){ return '<span><i class="'+(dot?'dot':'')+'" style="background:'+color+'"></i>'+kx(tex)+'</span>'; }
+function setLegends(){
+  let L,R='',LC='';
+  if(MODE.kind==='pure'){
+    L=MODE.dim===1?legSw('#5B8FB9',0,'f(w)')+legSw('#E3B23C',0,"f'(w)"):legSw('#E3B23C',0,'-\\nabla f');
+  } else {
+    L=legSw(PG.colors.target,0,'\\text{target function}')+legSw(PG.colors.model,0,'\\text{model}');
+    R=MODE.dim===1?legSw('#5B8FB9',0,'E(w)')+legSw('#E3B23C',0,"E'(w)"):legSw('#E3B23C',0,'-\\nabla E');
+  }
+  document.getElementById('legL').innerHTML=L; document.getElementById('legR').innerHTML=R;
+  document.getElementById('legLC').innerHTML=LC;
+}
+
+/* ===== events ===== */
+lr.oninput=()=>{ document.getElementById('lrNum').value=lrVal().toFixed(2); if(!playing)draw(); };
+document.getElementById('lrNum').addEventListener('change',e=>{ let v=parseFloat(e.target.value); if(isFinite(v)){ v=Math.max(0.01,Math.min(3.16,v)); lr.value=lrInv(v);} document.getElementById('lrNum').value=lrVal().toFixed(2); if(!playing)draw(); });
+startEl.oninput=startFromSlider;
+w0sl.oninput=set2D; w1sl.oninput=set2D;
+document.getElementById('w0num').addEventListener('change',e=>{ if(!M||M.dim!==2)return; let v=parseFloat(e.target.value); if(isFinite(v)){ v=Math.max(M.fr.X0,Math.min(M.fr.X1,v)); w0sl.value=Math.round((v-M.fr.X0)/(M.fr.X1-M.fr.X0)*100);} set2D(); });
+document.getElementById('w1num').addEventListener('change',e=>{ if(!M||M.dim!==2)return; let v=parseFloat(e.target.value); if(isFinite(v)){ v=Math.max(M.fr.Y0,Math.min(M.fr.Y1,v)); w1sl.value=Math.round((v-M.fr.Y0)/(M.fr.Y1-M.fr.Y0)*100);} set2D(); });
+document.getElementById('startNum').addEventListener('change',e=>{ if(!M||M.dim!==1)return; let v=parseFloat(e.target.value); if(isFinite(v)){ v=Math.max(M.fr.X0,Math.min(M.fr.X1,v)); startW=[v]; startEl.value=Math.round((v-M.fr.X0)/(M.fr.X1-M.fr.X0)*100); } syncStart(); resetGD(); });
+noise.oninput=()=>{ document.getElementById('noiseNum').value=(+noise.value/100).toFixed(2); if(MODE.kind==='reg')regen(); };
+document.getElementById('noiseNum').addEventListener('change',e=>{ let v=parseFloat(e.target.value); if(isFinite(v)){ v=Math.max(0,Math.min(0.8,v)); noise.value=Math.round(v*100);} document.getElementById('noiseNum').value=(+noise.value/100).toFixed(2); if(MODE.kind==='reg')regen(); });
+n.oninput=()=>{ document.getElementById('nNum').value=n.value; if(MODE.kind==='reg')regen(); };
+document.getElementById('nNum').addEventListener('change',e=>{ let v=parseInt(e.target.value,10); if(isFinite(v)){ v=Math.max(4,Math.min(60,v)); n.value=v;} document.getElementById('nNum').value=n.value; if(MODE.kind==='reg')regen(); });
+document.getElementById('play').onclick=()=>{ if(diverged||converged) resetGD(); playing=!playing; draw(); };
+document.getElementById('step').onclick=()=>{ playing=false; if(diverged||converged) resetGD(); gdStep(); draw(); };
+document.getElementById('reset').onclick=resetGD;
+document.getElementById('regen').onclick=regen;
+window.addEventListener('resize',()=>{ rebuild(); draw(); });
+
+renderStatic(); applyTab(0); loop();
+(function(){var e=document.getElementById('gdHd');if(e&&window.katex){try{katex.render('\\text{Controls}',e,{throwOnError:false});}catch(x){}}})();
+</script>
+</body>
+</html>

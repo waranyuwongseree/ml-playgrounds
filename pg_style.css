@@ -1,0 +1,205 @@
+/* ============================================================================
+ * pg_style.css — shared visual identity for every playground
+ * loaded with pg_engine.js · theme: navy + system-ui (matches data drift / bayes)
+ * data/model/target colours match PG.colors
+ * ========================================================================== */
+:root{
+  --navy:#1e3a8a; --blue:#185fa5; --bg:#f6f7f9; --panel:#fff; --paper:#fff;
+  /* muted เดิม #6b7280 = 4.83:1 บนขาว แต่พอวางบนพื้นการ์ด/ครีม เหลือ ~4.2:1 → ตกเกณฑ์ WCAG 1.4.3
+     เข้มขึ้นเป็น #5b616e = 5.9:1 บนขาว · ~5.1:1 บนครีม → ผ่านทุกพื้นที่ใช้จริง */
+  --ink:#222630; --muted:#5b616e; --line:#e6e6e0; --sec:#eef0f4;
+  --data:#b5462e; --model:#2f6df6; --target:#1f9d63;
+  --readout:#185fa5; --grid:#eef1f5;
+  /* design tokens (consistency refactor) */
+  --maxw:1120px; --ctrl-col:320px; --num-w:66px;   /* §13: control rail = fixed width (NOT a fraction) */
+  /* type scale ~×1.2 (§13): secondary 13 · body/label 15 · value 18 · title 21 */
+  --fs-title:21px; --fs-body:15px; --fs-label:15px; --fs-metric:18px; --fs-sec:13px; --fs-axis:13px;
+  --sp1:4px; --sp2:8px; --sp3:12px; --sp4:16px; --sp5:24px;
+}
+*{box-sizing:border-box}
+body{margin:0;font-family:system-ui,-apple-system,"Segoe UI",sans-serif;
+     color:var(--ink);background:var(--bg);line-height:1.5}
+.wrap{max-width:var(--maxw);margin:0 auto;padding:16px 18px}
+h1{font-size:var(--fs-title);font-weight:600;color:var(--navy);margin:0 0 2px}
+.sub{color:var(--muted);font-size:15px;margin-bottom:16px}
+
+.layout{display:grid;grid-template-columns:1fr var(--ctrl-col);gap:22px}
+/* stack at <=820px so iPad portrait (768-810) gets a full-width canvas */
+@media(max-width:820px){.layout{grid-template-columns:1fr}
+  /* phones scroll instead of clipping — overrides any inline unconditional one-screen lock */
+  html,body{height:auto!important;overflow:auto!important}
+  .wrap{height:auto!important;overflow:visible!important}
+  .panel{max-height:none!important;overflow:visible!important}}
+/* one-screen lock is provided per-file inline (regression/drift/etc.) — not forced centrally,
+   so custom grid-layout playgrounds (fit_metrics/gradient_descent) are not broken */
+
+/* ทุกอย่างอยู่บน "card" เดียวกัน: กราฟ/ตาราง/mix-visual/control/ตารางข้อมูล */
+canvas{background:#fff;border:1px solid var(--line);border-radius:12px;width:100%;box-shadow:0 1px 3px rgba(0,0,0,.04)}
+
+.panel{background:var(--paper);border:1px solid var(--line);border-radius:12px;padding:14px 16px}
+/* unified control-panel heading standard (panel title + section headers identical, NO uppercase) */
+/* group header (UD §2.2): 13px · muted · ตัวพิมพ์ปกติ (ไม่ uppercase) — ทุกที่เหมือนกัน ห้ามมีบางตัวใหญ่บางตัวเล็ก */
+.pg .panel h2,.pg .dhd{font-size:13px;font-weight:600;text-transform:none;letter-spacing:0;color:var(--muted);margin:9px 0 6px;border-bottom:0;padding-bottom:0}
+.pg .panel h2:first-child,.pg .dhd:first-child{margin-top:0}
+
+.ctrl{margin-bottom:9px}
+.ctrl label{display:flex;justify-content:space-between;font-size:15px;font-weight:600;margin-bottom:4px}
+.ctrl label span{color:var(--readout);font-variant-numeric:tabular-nums}
+input[type=range]{-webkit-appearance:none;appearance:none;width:100%;height:6px;border-radius:4px;background:#8b95a6;outline:none}  /* §13: track ≥3:1 vs white (WCAG 1.4.11) */
+input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:18px;height:18px;border-radius:50%;background:var(--navy);cursor:pointer;border:3px solid #fff;box-shadow:0 1px 3px rgba(0,0,0,.2)}
+input[type=range]::-moz-range-thumb{width:16px;height:16px;border-radius:50%;background:var(--navy);cursor:pointer;border:3px solid #fff}
+
+select,button{font:inherit;font-size:15px;border:1px solid var(--line);background:#fff;color:var(--ink);
+  padding:7px 10px;border-radius:8px;cursor:pointer;transition:.15s}
+select{width:100%}
+button:hover{border-color:var(--navy);color:var(--navy)}
+button.primary{background:var(--navy);color:#fff;border-color:var(--navy)}
+button.primary:hover{filter:brightness(1.12);color:#fff}
+
+.row,.btns{display:flex;flex-wrap:wrap;gap:8px;margin:8px 0}
+button.primary{flex:1}
+
+.chk,.checkbox{display:flex;align-items:center;gap:7px;font-size:15px;margin:8px 0;cursor:pointer}
+
+.metrics{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:6px}
+.metric{background:#fff;border:1px solid var(--line);border-radius:9px;padding:7px 10px}   /* white card (มาตรฐานเดียวกับ result block อื่น) */
+.metric .k{font-size:15px;color:var(--muted)}
+.metric .v{font-size:var(--fs-metric);font-weight:700;font-variant-numeric:tabular-nums;color:var(--navy)}
+
+.legend{display:flex;gap:14px;font-size:var(--fs-sec);color:var(--muted);margin:8px 2px 0;flex-wrap:wrap}
+.legend i{display:inline-block;width:13px;height:3px;vertical-align:middle;margin-right:4px;border-radius:2px}
+
+.note{font-size:15px;color:var(--muted);margin-top:8px}
+.verdict{font-size:15px;font-weight:600;padding:9px 11px;border-radius:8px;margin-top:12px}
+
+/* tabs (for scaffolded playgrounds) */
+.tabs{display:flex;flex-wrap:wrap;gap:7px;margin:0 0 12px}
+.tabbtn{font-size:15px;padding:7px 15px;border:1px solid var(--line);border-radius:999px;background:#fff;cursor:pointer;color:#555;transition:.12s}
+.tabbtn:hover{border-color:#c7c7be}
+.tabbtn.on{background:var(--navy);color:#fff;border-color:var(--navy)}
+.ctrl.off{display:none!important}   /* off-tab controls are hidden, never just dimmed (beats inline display) */
+.hint{font-size:15px;color:var(--muted);background:var(--sec);border-radius:8px;padding:8px 11px;margin:0 0 12px}
+/* ขอบ selector ต้องเห็นชัด + มีเส้นคั่นระหว่างปุ่ม (เดิมขาวบนขาว มองไม่ออกว่าเป็นกลุ่มปุ่ม) */
+.seg{display:inline-flex;border:1px solid #cfd4dc;border-radius:8px;overflow:hidden}
+.seg button+button{border-left:1px solid #cfd4dc!important}
+/* UD §2.2: ปุ่ม selector สูงเท่ากันทุก playground — คุมด้วย min-height ตายตัว ไม่ใช่ padding
+   (เคยเพี้ยน 29/33/34px เพราะแต่ละไฟล์ตั้ง padding เอง) · !important กันไฟล์ตั้งทับ */
+.seg button{font:inherit;font-size:15px;border:0;background:#fff;color:#555;cursor:pointer;
+  min-height:var(--seg-h,33px)!important;padding:0 12px!important;display:flex;align-items:center;justify-content:center}
+.seg button.on{background:var(--navy);color:#fff}
+/* seg rows: stack label above + full-width buttons so labels never clip in the narrow control column */
+:is(.ctrl,.drow):has(.seg){display:flex!important;flex-direction:column!important;align-items:stretch!important;gap:5px!important}
+:is(.ctrl,.drow):has(.seg) .dlab{text-align:left;min-width:0}
+.seg{flex-wrap:wrap}
+.seg button{white-space:normal;overflow-wrap:break-word;min-width:0;line-height:1.2;flex:1 1 auto!important}
+/* แถว control สูงเท่ากัน (slider row) */
+.pg .drow:not(:has(.seg)),.pg .ctrl:not(:has(.seg)){min-height:var(--row-h,33px)}
+/* group header = ตัวรอง ไม่ใช่หัวข้อ · ตัวพิมพ์ปกติ 13px muted (เคยตั้ง uppercase → ขัดกับบรรทัดข้างบน บางไฟล์ใหญ่ บางไฟล์เล็ก) */
+.pg .panel .dhd,.pg .panel .ctrl>.kl{font-size:13px;text-transform:none;letter-spacing:0;color:var(--muted);font-weight:600}
+
+/* hide explanatory prose (kept in DOM so JS writing to them never throws) */
+.sub,.reo,.hint,.verdict,.note,figcaption{display:none!important}
+
+/* compact control row like the template: [symbol] [slider] [value] */
+.drow{display:flex;align-items:center;gap:10px;margin:4px 0}  /* §13: 8px between rows (rhythm) */
+.drow.off{display:none!important}   /* off-tab controls are hidden, never just dimmed (beats inline display) */
+/* higher-specificity guard so .off beats the seg-row rule below (:has(.seg){display:flex!important}) */
+body.pg .ctrl.off,body.pg .drow.off{display:none!important}
+.drow input[type=range]{flex:1;width:auto;min-width:0;margin:0}
+.dlab{flex:none;min-width:26px;text-align:center;font-size:15px;color:#475569}
+.num{flex:none;width:var(--num-w);font-size:15px;font-family:'KaTeX_Main','KaTeX_Math',serif;padding:4px 7px;border:1px solid var(--line);border-radius:7px;text-align:right;background:#fff;font-variant-numeric:tabular-nums;color:var(--readout);font-weight:600;-moz-appearance:textfield;appearance:textfield}
+.num::-webkit-outer-spin-button,.num::-webkit-inner-spin-button{-webkit-appearance:none;margin:0}
+/* KaTeX defaults to 1.21em — kill the upscale everywhere UI text must stay at its declared size (UD: buttons/labels = 15px) */
+.dlab .katex,.ctrl label .katex,.chk .katex,.legend .katex,.mbar .top .katex,.mtab th .katex,
+button .katex,.tabbtn .katex,.seg button .katex{font-size:1em}
+
+/* metric TABLE (mixed-scale metrics) */
+.mtab{width:100%;border-collapse:collapse;margin:12px 0 4px;font-size:15px}
+.mtab th{text-align:left;font-weight:600;color:var(--muted);padding:7px 10px;border-bottom:1px solid var(--line);white-space:nowrap}
+.mtab td{text-align:right;font-variant-numeric:tabular-nums;font-weight:700;color:var(--navy);padding:7px 10px;border-bottom:1px solid var(--line)}
+.mtab tr:last-child th,.mtab tr:last-child td{border-bottom:0}
+/* result tables/blocks sit on a white card everywhere (standard) — .pg beats per-file inline */
+.pg .mtab{border-collapse:separate;border-spacing:0;background:#fff;border:1px solid var(--line);border-radius:12px;box-shadow:0 1px 3px rgba(0,0,0,.04);overflow:hidden}
+.pg .mtab th,.pg .mtab td{border:0;border-bottom:1px solid var(--line)}
+.pg .mtab tr:last-child th,.pg .mtab tr:last-child td{border-bottom:0}
+.pg .below{background:#fff;border:1px solid var(--line);border-radius:12px;padding:10px 14px;box-shadow:0 1px 3px rgba(0,0,0,.04)}
+
+/* metric BARS (same-scale comparison); engine auto-sizes .fill from .mval */
+.mbars{margin:6px 0 2px}
+.mbar{margin:6px 0}
+.mbar .top{display:flex;justify-content:space-between;align-items:baseline;font-size:15px;color:var(--muted);margin-bottom:2px}
+.mbar .top b{color:var(--navy);font-weight:700;font-variant-numeric:tabular-nums}
+.mbar .track{height:11px;background:#e9edf3;border-radius:7px;overflow:hidden}
+.mbar .fill{display:block;height:100%;width:0;border-radius:7px;transition:width .25s}
+
+/* ============================================================================
+ * CANONICAL SHELL (§13) — central one-screen layout for rebuilt playgrounds.
+ * Gated under body.pg so un-migrated files stay untouched. Single source:
+ * a rebuilt playground sets <body class="pg"> and carries NO inline shell.
+ * Remove the .pg gate once all 25 playgrounds are migrated.
+ * ========================================================================== */
+body.pg{height:100vh;overflow:hidden;display:flex;flex-direction:column;justify-content:flex-start;align-items:stretch}  /* top-align: title อยู่บนสุดตรงกันทุก playground (รูป cap ด้วย clamp ไม่ยืดอยู่แล้ว) */
+.pg .wrap{width:100%;max-width:var(--maxw);margin:0 auto;height:100vh;max-height:900px;display:flex;flex-direction:column;gap:11px}   /* width:100% = ทุก playground กว้าง = --maxw เท่ากันเสมอ (กัน margin:auto หดตามเนื้อหา) */
+.pg .hdr{flex:none;display:flex;align-items:baseline;justify-content:space-between;gap:14px;flex-wrap:wrap}
+.pg .hdr h1{margin:0}
+.pg .hdr .tabs{margin:0 0 0 auto}   /* right-align even when the title is long and tabs wrap */
+.pg .layout{flex:1;min-height:0}
+.pg .layout>.stage{grid-column:1;min-width:0}   /* Body = ฮีโร่ ซ้าย (1fr) เสมอ ไม่ว่าลำดับ DOM */
+.pg .layout>.panel{grid-column:2}               /* Control = rail ขวา (320) เสมอ */
+.pg .stage{min-height:0;display:flex;flex-direction:column;gap:10px}
+/* UD §1.2: ความสูง Control **ตรึง** = สลับ tab แล้วไม่เด้ง
+   ⚠️ ตรึง "ต่อไฟล์" ด้วย --panel-h = ความสูงของ tab ที่ยาวสุดของไฟล์นั้น
+   ห้ามตั้งค่ากลางเหมารวม (เคยตั้ง 360px → ไฟล์ที่ control สั้นถูกยืด เกิดพื้นที่ขาวโล่ง) */
+.pg .panel{min-height:var(--panel-h,0);overflow:visible;align-self:start;max-height:none}   /* UD §1: no-scroll — ห้ามมี scrollbar */
+.pg .canvasbox{flex:none;height:clamp(260px,44vh,400px)}   /* มาตรฐานความสูงกราฟ: min260 · 44vh · max400 (ทุก playground เท่ากัน) */
+.pg .plots{display:flex;gap:14px;min-height:0}
+.pg .plots .canvasbox{flex:1 1 0;min-width:0}
+@media(max-width:820px){
+  body.pg{height:auto;overflow:auto}
+  .pg .wrap{height:auto;max-height:none}
+  .pg .panel{overflow:visible;max-height:none}
+  .pg .layout{display:block!important}                          /* ตอนแคบ: เลิก grid → stage/panel ไหลลงล่างเป็น block (กันซ้อนกัน 100%) */
+  .pg .layout>.stage,.pg .layout>.panel{width:auto;grid-column:auto}
+  .pg .stage{margin-bottom:14px}
+  .pg .canvasbox{height:clamp(240px,52vw,360px)}               /* กราฟกว้างเต็ม → คุมสูงด้วย vw ไม่ให้ผอม */
+  .distcls .below{flex-direction:column}                        /* univariate + metric stack เป็นแถวเดียว */
+}
+
+/* ============================================================================
+ * ARCHETYPE: distribution-classifier (.distcls) — bayes, drift, ...
+ * โครง/ขนาดร่วม "ที่เดียว" (กัน canvas/การ์ดผลเพี้ยนกันระหว่างไฟล์)
+ * สี = ปล่อยให้แต่ละไฟล์กำหนดตาม concept (drift=train/test · bayes=pos/neg)
+ * ========================================================================== */
+.distcls .stage{gap:6px;justify-content:flex-start}
+.distcls .canvasbox{flex:none;height:clamp(260px,44vh,400px);min-height:110px}   /* มาตรฐานความสูงกราฟเดียวกับทุก playground */
+body.distcls .wrap{height:auto;max-height:900px}   /* เนื้อหาสูงตามจริง แล้ว body จัดกึ่งกลาง (ไม่ stretch → ไม่มีช่องว่างใต้การ์ด) */
+.distcls #cv,.distcls #cverr{height:100%;display:block}
+.distcls .errbox{flex:none;height:128px}
+/* legend ใต้รูป (1 แถว) */
+.distcls .classleg{flex:none;display:flex;gap:14px;flex-wrap:wrap;font-size:var(--fs-sec);color:#555;padding:0 2px}
+.distcls .classleg .cli{display:flex;align-items:center;gap:5px}
+.distcls .classleg .cli .ln{display:inline-block;width:16px;height:3px;border-radius:2px}
+.distcls .classleg .cli .ar{display:inline-block;width:13px;height:11px;border-radius:3px}
+/* การ์ดผล = คอลัมน์ซ้าย (lcol) | metric 2 คอลัมน์ · สูงคงที่ → canvas เท่ากันทุกไฟล์ */
+.distcls .below{flex:none;display:flex;gap:16px;align-items:flex-start;min-height:195px;border:1px solid var(--line);border-radius:12px;padding:8px 14px;background:#fff;box-shadow:0 1px 3px rgba(0,0,0,.04)}
+.distcls .lcol{flex:none;width:200px;border-right:1px solid var(--line);padding-right:14px;display:flex;flex-direction:column;gap:5px;min-width:0}
+.distcls .lcol .lhd{font-size:var(--fs-sec);color:var(--muted);margin:0 0 2px;min-height:15px}
+.distcls .mcol{flex:1;min-width:0;display:flex;flex-direction:column;gap:9px}
+.distcls .mcol .mhd{font-size:var(--fs-sec);color:var(--muted);margin:0 0 4px;min-height:15px}
+/* bar: เลข (test) อยู่ระดับเดียวกับชื่อ/สูตร · แท่ง track เต็มความกว้างบรรทัดล่าง */
+.distcls .mbar{margin:0}
+.distcls .mbar .nm{display:flex;align-items:baseline;justify-content:space-between;gap:8px;font-size:13px;line-height:1.15;margin-bottom:3px}
+.distcls .mbar .nm .lab{min-width:0;overflow:hidden}
+.distcls .mbar .nm .v{flex:none;font-weight:700;font-variant-numeric:tabular-nums}
+.distcls .mbar .nm .v .tr{font-size:11px;font-weight:400;color:#6b7280;margin-left:5px}
+.distcls .mbar .track{position:relative;height:11px;background:#eef1f5;border-radius:6px;box-shadow:inset 0 1px 2px rgba(0,0,0,.06)}
+.distcls .mbar .trainbar{position:absolute;left:0;top:0;height:100%;border-radius:6px;opacity:.32;transition:width .25s}
+.distcls .mbar .fill{position:absolute;left:0;top:0;height:100%;border-radius:6px;transition:width .25s}
+/* control: หัวข้อกลุ่ม (ย้อมสีได้ตาม concept) + label เทากลาง + slider สั้นกันเลขชิดขอบ */
+.distcls .dhd{font-size:var(--fs-sec);font-weight:600;color:var(--muted);margin:9px 0 6px}
+.distcls .dhd:first-child{margin-top:0}
+.distcls .dgrid{display:grid;grid-template-columns:1fr;gap:7px;margin-bottom:4px}
+.distcls .dgrid .drow{margin:0}
+.distcls .drow .dlab{width:38px;text-align:left;color:#475569;font-size:15px}   /* สัญลักษณ์สั้น (μ₋ σ₊ …) → label แคบ slider ยาวเท่าทุก playground */
+.distcls .dgrid input[type=range]{max-width:none}   /* slider ยาวเต็มแถวเท่าทุก playground (เลิก cap 100px) */
+@media(max-width:760px){.distcls .below{flex-direction:column}.distcls .lcol{width:auto;border-right:0;border-bottom:1px solid var(--line);padding-right:0;padding-bottom:8px}}

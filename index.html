@@ -1,0 +1,143 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Machine Learning Playgrounds — All</title>
+<link href="https://fonts.googleapis.com/css2?family=Sarabun:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="pg_style.css?v=24">   <!-- landing อยู่ใต้มาตรฐานเดียวกับ playground: ฟอนต์/สี/ระยะมาจากที่นี่ -->
+<link rel="stylesheet" href="vendor/katex/katex.min.css">
+<script defer src="vendor/katex/katex.min.js"></script>
+<style>
+  /* เฉพาะเลย์เอาต์ของหน้านี้เท่านั้น — ห้ามตั้ง font-size เอง (UD: UI text = 15px) ความกระชับมาจาก "ระยะ" ไม่ใช่ "ย่อตัวอักษร" */
+  body{margin:0;background:var(--cream);color:var(--ink);line-height:1.5}
+  .wrap{max-width:var(--maxw,1120px);margin:0 auto;padding:26px 22px 40px}
+  .kick{letter-spacing:.14em;text-transform:uppercase;color:#c0392b;font-weight:700;font-size:15px}
+  /* h1 ไม่ตั้ง font-size เอง — ใช้ --fs-title (21px) จาก pg_style · เคยตั้ง 24px = เขียนทับ token (ซ้ำรอย --muted) */
+  h1{margin:2px 0 6px}
+  .sec{display:grid;grid-template-columns:168px 1fr;gap:14px;align-items:start;padding:9px 0;border-top:1px solid var(--line)}
+  .sec:first-of-type{border-top:0}
+  .part{display:flex;align-items:center;gap:7px;font-size:15px;font-weight:700;color:var(--navy);padding-top:6px}
+  .part .n{font-size:15px;color:#fff;background:var(--navy);border-radius:6px;padding:0 7px;font-weight:700}
+  /* KaTeX ไม่ตัดบรรทัด → คอลัมน์ต้องกว้างพอสำหรับชื่อยาวสุด (Cost-Sensitive Threshold + วันที่) ไม่งั้นโดน clip เงียบ ๆ */
+  /* กว้างพอสำหรับชื่อยาวสุด + ป้าย under construction (KaTeX ไม่ตัดบรรทัด ล้นแล้วโดน clip เงียบ ๆ) */
+  .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(340px,1fr));gap:8px}
+  a.card{display:flex;align-items:center;justify-content:space-between;gap:8px;text-decoration:none;color:inherit;
+         background:#fff;border:1px solid var(--line);border-radius:9px;padding:8px 11px;transition:.12s;min-height:40px}
+  a.card:hover{border-color:var(--navy);box-shadow:0 2px 8px rgba(30,58,138,.12)}
+  .title{font-size:15px;font-weight:600;line-height:1.25;flex:0 1 auto;min-width:0}
+  /* ห้าม overflow:hidden — มันกลืนข้อความที่ล้นแบบเงียบ ๆ · ให้การ์ดกว้างพอแทน */
+  .card .katex,.part .katex,.meta .katex,.kick .katex{font-size:1em}
+  .date{flex:0 0 auto}
+  /* วันที่แก้เนื้อหาล่าสุด — บอกได้จริงกว่า "new/updated" ที่ไม่มีวันหมดอายุ */
+  .date{font-size:13px;color:var(--muted);white-space:nowrap;font-variant-numeric:tabular-nums}
+  .date.fresh{color:#c0392b;font-weight:700}
+  /* under construction = ยังไม่ได้ปรับ "เนื้อหา" (มาตรฐานภาพอาจยังไม่ผ่าน) — ยังกดเข้าไปเล่นได้ตามปกติ
+     และตัวตรวจ (verify.html) จะข้ามหน้าเหล่านี้ ไม่เสียเวลาไล่แก้ของที่ยังจะรื้ออยู่ดี */
+  a.card.wip{background:repeating-linear-gradient(135deg,#fff,#fff 8px,#faf7f0 8px,#faf7f0 16px);border-style:dashed}
+  a.card.wip .title{color:var(--muted);font-weight:600}
+  .date.wip{color:#63500f;background:#fdf3d7;border:1px solid #eddca0;border-radius:6px;padding:1px 7px;font-weight:600}   /* เข้มพอให้ contrast ≥4.5:1 บนพื้นครีม */
+  .titlerow{display:flex;align-items:baseline;gap:12px;flex-wrap:wrap;margin-bottom:8px}
+  .meta{font-size:13px;color:var(--muted)}
+  @media(max-width:760px){.sec{grid-template-columns:1fr;gap:6px}}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="kick">Interactive eBook · Machine Learning</div>
+  <!-- วันที่บนการ์ด = แก้เนื้อหา · การกวาดมาตรฐานแตะทุกไฟล์ จึงบอกแยกที่เดียวตรงนี้
+       (span อยู่นอก h1 เพราะ katex.render จะเขียนทับเนื้อใน h1 ทั้งก้อน) -->
+  <div class="titlerow">
+    <h1 id="__pgt" data-tex="\text{All Playgrounds}">All Playgrounds</h1>
+    <span class="meta">content dates · standards swept 11 Jul 2026</span>
+  </div>
+
+  <div class="sec">
+    <div class="part"><span class="n">★</span>Start here</div>
+    <div class="grid">
+      <a class="card wip" href="playground_intro.html"><div class="title">ML in one view</div><span class="date wip">under construction</span></a>
+    </div>
+  </div>
+
+  <div class="sec">
+    <div class="part"><span class="n">1</span>Regression</div>
+    <div class="grid">
+      <a class="card" href="playground_gradient_descent.html"><div class="title">Gradient Descent</div><span class="date">30 Jun 2026</span></a>
+      <a class="card" href="playground_fit_metrics.html"><div class="title">Fit Metrics</div><span class="date">30 Jun 2026</span></a>
+    </div>
+  </div>
+
+  <div class="sec">
+    <div class="part"><span class="n">2</span>Generalization</div>
+    <div class="grid">
+      <a class="card" href="playground_generalization.html"><div class="title">Generalization</div><span class="date">2 Jul 2026</span></a>
+      <a class="card" href="playground_learning_curve.html"><div class="title">Learning Curve</div><span class="date">2 Jul 2026</span></a>
+    </div>
+  </div>
+
+  <div class="sec">
+    <div class="part"><span class="n">3</span>Evaluation</div>
+    <div class="grid">
+      <a class="card" href="playground_performance_estimation.html"><div class="title">Performance Estimation</div><span class="date fresh">11 Jul 2026</span></a>
+      <a class="card wip" href="playground_validation.html"><div class="title">Validation</div><span class="date wip">under construction</span></a>
+      <a class="card wip" href="playground_regularization.html"><div class="title">Regularization</div><span class="date wip">under construction</span></a>
+    </div>
+  </div>
+
+  <div class="sec">
+    <div class="part"><span class="n">4</span>Classification</div>
+    <div class="grid">
+      <a class="card wip" href="playground_classifier_eval.html"><div class="title">Classifier Evaluation</div><span class="date wip">under construction</span></a>
+      <a class="card wip" href="playground_cost_sensitive.html"><div class="title">Cost-Sensitive Threshold</div><span class="date wip">under construction</span></a>
+      <a class="card" href="playground_bayes.html"><div class="title">Bayes 1-D</div><span class="date">29 Jun 2026</span></a>
+      <a class="card wip" href="playground_bayes_2d.html"><div class="title">Bayes 2-D</div><span class="date wip">under construction</span></a>
+    </div>
+  </div>
+
+  <div class="sec">
+    <div class="part"><span class="n">5</span>Unsupervised</div>
+    <div class="grid">
+      <a class="card wip" href="playground_gmm.html"><div class="title">Clustering</div><span class="date wip">under construction</span></a>
+      <a class="card wip" href="playground_pca.html"><div class="title">PCA</div><span class="date wip">under construction</span></a>
+    </div>
+  </div>
+
+  <div class="sec">
+    <div class="part"><span class="n">6</span>Trustworthy ML</div>
+    <div class="grid">
+      <a class="card wip" href="playground_double_descent.html"><div class="title">Double Descent</div><span class="date wip">under construction</span></a>
+      <a class="card wip" href="playground_data_leakage.html"><div class="title">Data Leakage</div><span class="date wip">under construction</span></a>
+      <a class="card wip" href="playground_xai.html"><div class="title">XAI</div><span class="date wip">under construction</span></a>
+      <a class="card" href="playground_drift.html"><div class="title">Data Drift</div><span class="date">29 Jun 2026</span></a>
+    </div>
+  </div>
+
+</div>
+<script>
+/* UD: ALL text = KaTeX — ไม่ใช่แค่หัวเรื่อง · ทุกป้ายในหน้านี้ (หมวด/ชื่อการ์ด/วันที่/meta) เรนเดอร์ผ่าน \text{} */
+window.addEventListener('load',function(){
+  if(!window.katex) return;
+  var esc=function(s){ return s.replace(/\\/g,'').replace(/([%&#$_{}])/g,'\\$1')
+                        .replace(/·/g,'}\\cdot\\text{').replace(/★/g,'}\\bigstar\\text{'); };
+  var kx=function(el){
+    var raw=(el.getAttribute('data-tex')||('\\text{'+esc(el.textContent.trim())+'}'));
+    try{ katex.render(raw,el,{throwOnError:false}); }catch(e){}
+  };
+  var t=document.getElementById('__pgt'); if(t) kx(t);
+  document.querySelectorAll('.kick,.meta,.part .n,.title,.date').forEach(kx);
+  // .part มีทั้งตัวเลขและชื่อหมวด → เรนเดอร์เฉพาะโหนดข้อความของมันเอง
+  document.querySelectorAll('.part').forEach(function(p){
+    [].slice.call(p.childNodes).forEach(function(n){
+      if(n.nodeType!==3 || !n.textContent.trim()) return;
+      var s=document.createElement('span'); s.textContent=n.textContent.trim();
+      p.replaceChild(s,n); kx(s);
+    });
+  });
+});
+
+/* วันที่บนการ์ด = วันที่แก้ "เนื้อหา" ล่าสุด (เขียนมือ) — ไม่ใช่ mtime ของไฟล์
+   เพราะการกวาดมาตรฐาน (ฟอนต์/สี/canvas) แตะทุกไฟล์พร้อมกัน จะทำให้ทุกการ์ดเด้งเป็นวันเดียวกันหมดและไร้ความหมาย
+   วันที่ของการกวาดมาตรฐาน แยกไปบอกที่เดียวใต้หัวเรื่อง */
+</script>
+</body>
+</html>

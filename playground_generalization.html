@@ -1,0 +1,276 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Generalization</title>
+<link rel="stylesheet" href="pg_style.css?v=24">
+<link rel="stylesheet" href="vendor/katex/katex.min.css">
+<script src="vendor/katex/katex.min.js"></script>
+<script src="vendor/katex/auto-render.min.js"></script>
+<style>
+:root{--panel-h:313px}   /* UD §1.2: ตรึงความสูง Control = tab ที่ยาวสุด */
+.sub,.reo,.hint,.verdict,.note,.formula,figcaption{display:none!important}
+.dlab .katex,.chk .katex,.checkbox .katex,.legend .katex,.mbar .top .katex,.mtab th .katex{font-size:1em}
+.pair{display:grid;grid-template-columns:1fr 1fr;gap:10px 14px;justify-items:center}
+/* หลักแรก = ช่องว่างกว้างเท่าหลักป้ายของตารางข้างล่าง → รูป 4 รูปตรงกับ 4 หลักของตารางพอดี */
+.grid4{display:grid;grid-template-columns:var(--labw) repeat(4,1fr);gap:8px;justify-items:center}
+:root{--labw:46px}   /* ป้ายแถวเป็นคำย่อ (bias², var, E_in, E_out) → หลักแคบ รูปได้ที่คืน */
+#cmpTable th:first-child{padding-left:0;padding-right:0}
+#cmpTable td{padding-left:4px!important;padding-right:4px!important}
+#cmpTable{width:100%;table-layout:fixed}
+#cmpTable th:first-child{width:var(--labw)}
+@media(max-width:820px){.grid4{grid-template-columns:1fr 1fr}.grid4 .spacer{display:none}}
+.pair figure,.grid4 figure{margin:0;text-align:center}
+.gcap{font-size:12.5px;color:#475569;margin-top:2px}
+/* 4 tab แรก: ตัดคำบรรยายใต้กราฟและบรรทัด d ออก (สมการในการ์ดบอกครบแล้ว · d ไปอยู่เป็นป้ายในรูป)
+   → รูปได้พื้นที่คืน · เหลือ .gcap เฉพาะชื่อแบบจำลองใต้รูป 4 รูปของ tab สุดท้าย */
+#capA,#capB,.dnote{display:none!important}
+/* UD §1 no-scroll เด็ดขาด: ห้ามมี scrollbar ที่ element ไหนเลย → เนื้อหาต้องพอดี ไม่ใช่ซ่อนหลัง scroll */
+/* ตรึงความสูงการ์ดสมการ = ตอนที่ยาวสุด (3 บรรทัด) → ที่ว่างของรูปเท่ากันทุก tab → รูปซ้ายบนขนาดเดียวกันทั้ง 4 tab */
+.eqbox{background:#fff;border:1px solid var(--line);border-radius:12px;padding:6px 12px;box-shadow:0 1px 3px rgba(0,0,0,.04);margin-top:6px;text-align:center;overflow:visible;height:102px;box-sizing:border-box;display:flex;align-items:center;justify-content:center}
+.eqbox .katex{font-size:.95em}
+.cmptab{font-size:14px}
+.cmptab th,.cmptab td{padding:3px 8px}
+.dnote{text-align:center;font-size:13px;color:#334155;margin-top:6px;font-weight:600}
+html,body{height:100%;margin:0;overflow:hidden}
+.wrap{height:100vh;display:flex;flex-direction:column;overflow:hidden;box-sizing:border-box;padding:10px 18px}
+.wrap>.hdr{flex:none}
+.layout{flex:1;min-height:0;align-items:stretch}
+.layout>div{min-height:0}
+.seg{flex-wrap:wrap}.seg button{white-space:normal!important;min-width:0;line-height:1.2}
+.panel{overflow:visible;max-height:none}
+.stage{overflow:visible;min-height:0}
+@media(max-width:820px){html,body{overflow:auto}.wrap{height:auto}}
+</style>
+</head>
+<body class="pg">
+<h2 class="sr-only" style="position:absolute;width:1px;height:1px;overflow:hidden">Bias-variance demo with clean numbered axes. One dataset shows in-sample vs out-of-sample error; the other tabs share one accumulating ensemble that forms the average fit, then bias and variance, converging to theoretical values.</h2>
+<div class="wrap">
+  <div class="hdr">
+  <h1 id="__pgt" data-tex="\text{Generalization}">Generalization</h1>
+  <div class="tabs" id="tabs"></div>
+  </div>
+  <div class="hint" id="hint"></div>
+  <div class="layout">
+    <div class="stage">
+      <div class="pair" id="viewPair">
+        <figure><canvas id="pA"></canvas><div class="gcap" id="capA"></div></figure>
+        <figure><canvas id="pB"></canvas><div class="gcap" id="capB"></div></figure>
+      </div>
+      <div class="grid4" id="viewGrid" style="display:none">
+        <div class="spacer"></div>
+        <figure><canvas id="g1"></canvas><div class="gcap" id="gc1"></div></figure>
+        <figure><canvas id="g2"></canvas><div class="gcap" id="gc2"></div></figure>
+        <figure><canvas id="g3"></canvas><div class="gcap" id="gc3"></div></figure>
+        <figure><canvas id="g4"></canvas><div class="gcap" id="gc4"></div></figure>
+      </div>
+      <div class="eqbox" id="eqBox"></div>
+      <div class="dnote" id="dnote"></div>
+      <div class="mbars" id="cardDecomp" style="display:none">
+        <div class="mbar" data-max="2" style="margin:5px 0"><div class="top" style="display:flex;justify-content:space-between;font-size:15px;color:#6b7280;margin-bottom:2px"><span>\(\text{bias}^2\)</span><b class="mval" id="bias2" style="color:#1e3a8a;font-weight:700">–</b></div><div class="track" style="height:11px;background:#e9edf3;border-radius:7px;overflow:hidden"><i class="fill" style="display:block;height:100%;width:0;border-radius:7px;background:#E07A5F;transition:width .25s"></i></div></div>
+        <div class="mbar" data-max="2" style="margin:5px 0"><div class="top" style="display:flex;justify-content:space-between;font-size:15px;color:#6b7280;margin-bottom:2px"><span>\(\text{variance}\)</span><b class="mval" id="varc" style="color:#1e3a8a;font-weight:700">–</b></div><div class="track" style="height:11px;background:#e9edf3;border-radius:7px;overflow:hidden"><i class="fill" style="display:block;height:100%;width:0;border-radius:7px;background:#5B8FB9;transition:width .25s"></i></div></div>
+        <div class="mbar" data-max="2" style="margin:5px 0"><div class="top" style="display:flex;justify-content:space-between;font-size:15px;color:#6b7280;margin-bottom:2px"><span>\(\sigma^2\)</span><b class="mval" id="noisev" style="color:#1e3a8a;font-weight:700">–</b></div><div class="track" style="height:11px;background:#e9edf3;border-radius:7px;overflow:hidden"><i class="fill" style="display:block;height:100%;width:0;border-radius:7px;background:#9aa3b2;transition:width .25s"></i></div></div>
+        <div class="mbar" data-max="2" style="margin:5px 0"><div class="top" style="display:flex;justify-content:space-between;font-size:15px;color:#6b7280;margin-bottom:2px"><span>\(E_\text{out}\)</span><b class="mval" id="eout" style="color:#1e3a8a;font-weight:700">–</b></div><div class="track" style="height:11px;background:#e9edf3;border-radius:7px;overflow:hidden"><i class="fill" style="display:block;height:100%;width:0;border-radius:7px;background:#B07AAE;transition:width .25s"></i></div></div>
+      </div>
+      <table class="mtab" id="cmpTable" style="display:none;margin:10px auto 0;border-collapse:collapse;font-size:14px;border:1px solid var(--line);border-radius:10px;overflow:hidden"></table>
+      <div class="verdict" id="verdict" style="background:#eef4ff;color:#1e40af">–</div>
+    </div>
+    <div class="panel">
+      <div class="drow" id="c-target" style="display:flex;align-items:center;gap:10px;margin:9px 0">
+        <span class="dlab" style="flex:0 0 auto;color:#475569;font-size:15px;font-weight:600">\(\text{Target function}\)</span>
+        <div class="seg" data-for="target" style="flex:1 1 auto;display:flex;border:1px solid #e6e6e0;border-radius:8px;overflow:hidden"><button type="button" data-val="sin" style="flex:1;font-size:15px;border:0;padding:7px 8px;cursor:pointer">\(\sin(\pi x)\)</button><button type="button" data-val="quad" style="flex:1;font-size:15px;border:0;border-left:1px solid #e6e6e0;padding:7px 8px;cursor:pointer">\(x^2\)</button><button type="button" data-val="cubic" style="flex:1;font-size:15px;border:0;border-left:1px solid #e6e6e0;padding:7px 8px;cursor:pointer">\(x^3\)</button></div>
+        <select id="target" style="display:none"><option value="sin">sin</option><option value="quad">quad</option><option value="cubic">cubic</option></select>
+      </div>
+      <div class="drow" id="c-model" style="display:flex;align-items:center;gap:10px;margin:9px 0">
+        <span class="dlab" style="flex:0 0 auto;color:#475569;font-size:15px;font-weight:600">\(\text{Model}\)</span>
+        <div class="seg" data-for="model" style="flex:1 1 auto;display:flex;flex-wrap:wrap;border:1px solid #e6e6e0;border-radius:8px;overflow:hidden"><button type="button" data-val="0" style="flex:1;font-size:15px;border:0;padding:7px 6px;cursor:pointer;white-space:nowrap">\(\text{Constant}\)</button><button type="button" data-val="1" style="flex:1;font-size:15px;border:0;border-left:1px solid #e6e6e0;padding:7px 6px;cursor:pointer;white-space:nowrap">\(\text{Linear}\)</button><button type="button" data-val="2" style="flex:1;font-size:15px;border:0;border-left:1px solid #e6e6e0;padding:7px 6px;cursor:pointer;white-space:nowrap">\(\text{Quad.}\)</button><button type="button" data-val="3" style="flex:1;font-size:15px;border:0;border-left:1px solid #e6e6e0;padding:7px 6px;cursor:pointer;white-space:nowrap">\(\text{Cubic}\)</button></div>
+        <select id="model" style="display:none"><option value="0">constant</option><option value="1" selected>linear</option><option value="2">quadratic</option><option value="3">cubic</option></select>
+      </div>
+      <div class="drow" id="c-n" style="display:flex;align-items:center;gap:10px;margin:9px 0">
+        <span class="dlab" style="flex:0 0 28px;text-align:center;color:#475569;font-size:15px">\(n\)</span>
+        <input type="range" id="n" min="2" max="20" value="2" step="1" style="flex:1 1 auto;width:auto;min-width:0;margin:0">
+        <span class="num" id="nV" style="flex:0 0 62px;text-align:right;font-size:15px;padding:4px 7px;border:1px solid #e6e6e0;border-radius:7px;background:#fff;color:#185fa5;font-weight:600;font-variant-numeric:tabular-nums">2</span>
+      </div>
+      <div class="drow" id="c-noise" style="display:flex;align-items:center;gap:10px;margin:9px 0">
+        <span class="dlab" style="flex:0 0 28px;text-align:center;color:#475569;font-size:15px">\(\sigma\)</span>
+        <input type="range" id="noise" min="0" max="50" value="0" step="1" style="flex:1 1 auto;width:auto;min-width:0;margin:0">
+        <span class="num" id="noiseV" style="flex:0 0 62px;text-align:right;font-size:15px;padding:4px 7px;border:1px solid #e6e6e0;border-radius:7px;background:#fff;color:#185fa5;font-weight:600;font-variant-numeric:tabular-nums">0.00</span>
+      </div>
+      <div class="row" id="rowEnsemble" style="display:none">
+        <button id="stepBtn">\(\text{Add dataset}\)</button>
+        <button class="primary" id="playBtn">\(\text{Play}\)</button>
+        <button id="resetBtn">\(\text{Reset}\)</button>
+      </div>
+      <div class="row" id="rowSingle" style="display:none">
+        <button class="primary" id="regen">\(\text{Resample}\)</button>
+      </div>
+    </div>
+  </div>
+</div>
+<script src="pg_engine.js?v=5"></script>
+<script src="gen_luts.js?v=1"></script>
+<script>
+const C={tgt:'#6BA38C',avg:'#5B8FB9',bias:'#E07A5F',varc:'#5B8FB9',data:'#E07A5F',fit:'108,116,130',gd:'#7a828f',avgt:'#111',ref:'#b9c0cc'};
+// WCAG AA text variants: pastels fail 4.5:1 on white as text, so darken (same hue) wherever a colour
+// is drawn as TEXT (KaTeX textcolor, table headers). Fills (curves/points/bands/bars) keep the pastel.
+const TXMAP={'#E07A5F':'#B0503A','#5B8FB9':'#3F6E99','#6BA38C':'#3F7D63','#B07AAE':'#7E5A93'};const tx=c=>TXMAP[c]||c;
+function K(t,el,d){if(!el)return;if(window.katex){try{katex.render(String(t),el,{throwOnError:false,displayMode:!!d});return;}catch(e){}}el.textContent=t;}
+const TARGETS={sin:x=>Math.sin(Math.PI*x),quad:x=>x*x,cubic:x=>x*x*x};
+const targetSel=document.getElementById('target'),modelSel=document.getElementById('model'),n=document.getElementById('n'),noise=document.getElementById('noise'),playBtn=document.getElementById('playBtn'),dnote=document.getElementById('dnote');
+const pA=document.getElementById('pA'),pB=document.getElementById('pB'),eqBox=document.getElementById('eqBox'),capA=document.getElementById('capA'),capB=document.getElementById('capB');
+const g1=document.getElementById('g1'),g2=document.getElementById('g2'),g3=document.getElementById('g3'),g4=document.getElementById('g4');
+const GRID=80,LIMIT=50000,REC_MAX=50,REF_D=15000;
+const xs=Array.from({length:GRID},(_,i)=>-1+2*i/(GRID-1));
+let baseSeed=1,mode='eio',pairSide=320,gridSide=210;
+let accN=0,sum=new Float64Array(GRID),sum2=new Float64Array(GRID),recent=[],lastPts=[],lastFit=null,lastW=null,sumW=new Float64Array(4),ref=null,cmp=null,playing=false,timer=null;
+function polyStr(w){if(!w||!w.length)return '0.00';let t=[];for(let j=w.length-1;j>=0;j--){const c=w[j];if(Math.abs(c)<0.005&&j>0)continue;const s=c<0?'-':(t.length?'+':'');const xp=j===0?'':(j===1?'x':'x^{'+j+'}');t.push(s+Math.abs(c).toFixed(2)+xp);}return t.length?t.join(''):'0.00';}
+function sampleDS(f,nn,sigma,seed){const r=PG.rng(seed),g=()=>(r.next()+r.next()+r.next()+r.next()-2)/2,SC=sigma*Math.sqrt(12),pts=[];for(let i=0;i<nn;i++){const x=-1+2*r.next();pts.push({x,y:f(x)+(sigma>0?g()*SC:0)});}pts.sort((a,b)=>a.x-b.x);return pts;}
+function interp(x,a){const t=(x+1)/2*(GRID-1);let i=Math.floor(t);if(i<0)i=0;if(i>=GRID-1)i=GRID-2;const u=t-i;return a[i]*(1-u)+a[i+1]*u;}
+function P(cv,side,margin,coords){cv.width=side;cv.height=side;cv.style.width=side+'px';cv.style.height=side+'px';return PG.Plot(cv,Object.assign({X0:-1,X1:1,Y0:-2,Y1:2,margin:margin},coords));}
+function cfg(){return {f:TARGETS[targetSel.value]||TARGETS.sin,M:+modelSel.value,nn:+n.value,sigma:+noise.value/100};}
+function syncReadouts(){K(n.value,document.getElementById('nV'));K((+noise.value/100).toFixed(2),document.getElementById('noiseV'));}
+function axes(p,yt,lab,xt){const c=p.ctx,F=t=>Number.isInteger(t)?(''+t):t.toFixed(2);c.strokeStyle='#94a3b8';c.lineWidth=1.1;c.beginPath();c.moveTo(p.px(p.X0),p.py(p.Y1));c.lineTo(p.px(p.X0),p.py(p.Y0));c.lineTo(p.px(p.X1),p.py(p.Y0));c.stroke();c.fillStyle='#64748b';c.font='14px KaTeX_Main';c.textAlign='center';c.textBaseline='top';for(const t of (xt||[-1,-0.5,0,0.5,1])){c.beginPath();c.moveTo(p.px(t),p.py(p.Y0));c.lineTo(p.px(t),p.py(p.Y0)+3);c.stroke();c.fillText(F(t),p.px(t),p.py(p.Y0)+4);}c.textAlign='right';c.textBaseline='middle';for(const t of yt){c.beginPath();c.moveTo(p.px(p.X0),p.py(t));c.lineTo(p.px(p.X0)-3,p.py(t));c.stroke();c.fillText(F(t),p.px(p.X0)-5,p.py(t));}if(p.Y0<0&&p.Y1>0){c.strokeStyle='#eceff3';c.lineWidth=1;c.beginPath();c.moveTo(p.px(p.X0),p.py(0));c.lineTo(p.px(p.X1),p.py(0));c.stroke();}if(lab){c.fillStyle='#64748b';c.font='italic 14px KaTeX_Math';c.textAlign='center';c.textBaseline='bottom';c.fillText('x',(p.px(p.X0)+p.px(p.X1))/2,p.H-1);if(lab===true){c.textAlign='left';c.textBaseline='bottom';c.fillText('y',p.px(p.X0)+3,p.py(p.Y1)-2);}}}
+/* จำนวนชุดข้อมูลที่สะสม = ป้ายเล็กในรูป (มุมขวาบน) — ไม่กินบรรทัดใต้กราฟ */
+function dBadge(p){const c=p.ctx,num=' = '+accN;
+  c.font='italic 14px KaTeX_Math';const w1=c.measureText('d').width;
+  c.font='14px KaTeX_Main';const w=w1+c.measureText(num).width+14;
+  const x=p.px(p.X1)-w-2,y=p.py(p.Y1)+2;
+  c.fillStyle='rgba(255,255,255,0.86)';c.strokeStyle='#e6e6e0';c.lineWidth=1;   /* เส้นขอบ = สีเส้นโครงสร้างมาตรฐาน */
+  c.beginPath();c.roundRect?c.roundRect(x,y,w,20,6):c.rect(x,y,w,20);c.fill();c.stroke();
+  c.textAlign='left';c.textBaseline='middle';c.fillStyle='#475569';
+  c.font='italic 14px KaTeX_Math';c.fillText('d',x+7,y+10);
+  c.font='14px KaTeX_Main';c.fillText(num,x+7+w1,y+10);}
+function clipRect(p){const c=p.ctx;c.save();c.beginPath();c.rect(p.px(p.X0),p.py(p.Y1),p.px(p.X1)-p.px(p.X0),p.py(p.Y0)-p.py(p.Y1));c.clip();}
+function cloud(p,fits){fits=fits||recent;const L=fits.length,c=p.ctx,st=Math.max(0,L-22);clipRect(p);for(let k=st;k<L;k++){const fn=fits[k];let ok=true;for(let s=-1;s<=1.001;s+=0.25){if(Math.abs(fn(s))>3){ok=false;break;}}if(!ok)continue;const a=0.11+0.30*(k-st+1)/(L-st);PG.draw.curve(p,fn,{color:'rgba('+C.fit+','+a.toFixed(3)+')',width:1.3});}c.restore();}
+// reference from precomputed LUT (T=20000). varPt(σ)=v0+σ²·(v1−v0); mean/bias² σ-independent.
+// Scalar varc caps each grid varPt at CAP before averaging (blow-up guard); raw varPt kept for the plot.
+function computeRef(){const {f,M,nn,sigma}=cfg(),s2=sigma*sigma,CAP=8,D=(typeof GEN_LUT!=='undefined')?GEN_LUT[targetSel.value+'_'+M+'_'+nn]:null;
+  if(!D){ref={mean:xs.map(()=>0),biasSq:xs.map(()=>0),varPt:xs.map(()=>0),bias2:0,varc:0};return;}
+  const mean=D.mean,biasSq=[],varPt=[];let b=0,v=0;
+  for(let i=0;i<GRID;i++){biasSq[i]=(mean[i]-f(xs[i]))**2;varPt[i]=D.v0[i]+s2*(D.v1[i]-D.v0[i]);b+=biasSq[i];v+=Math.min(varPt[i],CAP);}
+  ref={mean,biasSq,varPt,bias2:b/GRID,varc:v/GRID};}
+function addDatasets(k){const {f,M,nn,sigma}=cfg();for(let j=0;j<k&&accN<LIMIT;j++){const pts=sampleDS(f,nn,sigma,baseSeed*100000+accN),m=PG.fit.poly(pts,{degree:M});for(let i=0;i<GRID;i++){const yp=m.predict(xs[i]);sum[i]+=yp;sum2[i]+=yp*yp;}recent.push(m.predict);for(let j=0;j<m.weights.length;j++)sumW[j]+=m.weights[j];lastW=m.weights;lastPts=pts;lastFit=m.predict;accN++;}if(recent.length>REC_MAX)recent=recent.slice(-REC_MAX);}
+function curStats(){const {f}=cfg(),CAP=8;const mean=[],biasSq=[],varPt=[],std=[];let b=0,v=0;for(let i=0;i<GRID;i++){const mu=accN?sum[i]/accN:0,vv=accN?Math.max(0,sum2[i]/accN-mu*mu):0;mean[i]=mu;biasSq[i]=(mu-f(xs[i]))**2;varPt[i]=vv;std[i]=Math.sqrt(vv);b+=biasSq[i];v+=Math.min(vv,CAP);}return {mean,biasSq,varPt,std,bias2:b/GRID,varc:v/GRID};}
+function resetAccum(seedShift){stopPlay();if(seedShift)baseSeed++;accN=0;sum=new Float64Array(GRID);sum2=new Float64Array(GRID);recent=[];lastPts=[];lastFit=null;lastW=null;sumW=new Float64Array(4);ref=null;}
+function ensureReady(){if(!ref)computeRef();if(accN===0)addDatasets(1);}
+// per-model comparison from LUT (scalars via σ² interpolation, varc capped). The faint sample cloud
+// (fits) stays live — cheap illustration only, not a Monte-Carlo estimate.
+function computeCompare(){const {f,nn,sigma}=cfg(),s2=sigma*sigma,CAP=8,DF=22;cmp={rows:[]};
+  for(const M of [0,1,2,3]){const D=(typeof GEN_LUT!=='undefined')?GEN_LUT[targetSel.value+'_'+M+'_'+nn]:null;
+    let mean,b=0,v=0,rawEin=0;
+    if(D){mean=D.mean;for(let i=0;i<GRID;i++){b+=(mean[i]-f(xs[i]))**2;v+=Math.min(D.v0[i]+s2*(D.v1[i]-D.v0[i]),CAP);}b/=GRID;v/=GRID;rawEin=D.ein0+s2*(D.ein1-D.ein0);}
+    else{mean=xs.map(()=>0);}
+    const fits=[];for(let d=0;d<DF;d++){fits.push(PG.fit.poly(sampleDS(f,nn,sigma,600000+M*100000+d),{degree:M}).predict);}
+    cmp.rows.push({M,bias2:b,varc:v,ein:rawEin+s2,eout:b+v+s2,mean,fits});}}
+function drawCmpFig(cv,row,f,side){const p=P(cv,side,32);p.clear();axes(p,[-2,0,2],true,[-1,0,1]);cloud(p,row.fits);PG.draw.curve(p,f,{color:C.tgt,width:2});PG.draw.curve(p,x=>interp(x,row.mean),{color:C.avg,width:3});}
+/* รูปคู่บน = จัตุรัส ขนาดเท่ากันเสมอ และ "ใหญ่ที่สุดเท่าที่ที่ว่างจริงจะให้ได้"
+   ที่ว่างจริง = ความสูง stage − (การ์ดสมการ + บรรทัด d + caption + gap) → ไม่เหลือขาวข้างล่าง ไม่ล้นจอ */
+/* ที่ว่างแนวตั้งจริง = จากขอบบนของ stage ถึงก้นจอ (ไม่ใช้ stage.clientHeight — มันหดตามเนื้อหา เลยได้รูปเล็กและเหลือขาวข้างล่าง) */
+function stageAvail(){
+  const st=document.querySelector('.stage'); if(!st)return 420;
+  const top=st.getBoundingClientRect().top;
+  return Math.max(240,Math.round((window.innerHeight||700)-top-14));
+}
+function availSide(){
+  const st=document.querySelector('.stage'); if(!st)return 360;
+  const eq=document.getElementById('eqBox'), dn=document.getElementById('dnote');
+  const eqH=(eq&&eq.offsetParent)?eq.getBoundingClientRect().height:0;
+  const dnH=(dn&&dn.offsetParent&&dn.textContent.trim())?dn.getBoundingClientRect().height+6:0;
+  return Math.max(240,Math.round(stageAvail()-eqH-dnH-24));   // 24 = caption + margin
+}
+function relayout(){const stageW=Math.max(280,(document.querySelector('.stage').clientWidth)||640);
+  pairSide=Math.min(Math.round((stageW-16)/2),availSide());
+  // tab เปรียบเทียบ: กริดมีหลักป้ายว่างข้างหน้า (--labw) → ต้องหักออกก่อนหารเป็น 4 รูป ไม่งั้นรูปล้นออกนอก stage
+  const labw=parseInt(getComputedStyle(document.documentElement).getPropertyValue('--labw'))||96;
+  const cols=(window.innerWidth<=820)?2:4, avail=stageW-(window.innerWidth<=820?0:labw)-cols*8;
+  // ใหญ่สุดเท่าที่ที่ว่างให้ (ไม่มีเพดานตายตัว) — เหลือที่ให้ caption + ตาราง
+  const T=document.getElementById('cmpTable'), tH=(T&&T.offsetParent)?T.getBoundingClientRect().height:165;
+  const capH=Math.max(150,Math.round(stageAvail()-26-tH-16));
+  gridSide=Math.max(150,Math.min(Math.round(avail/cols),capH));}
+function drawPW(cv,side,margin,arr,avg,color,refArr){
+  // blow-up guard: scale from the 90th percentile of the stable data (edge spikes at small n
+  // reach millions) so the curve stays on-scale; off-scale parts are cut by clipRect, not flattened.
+  const src=(refArr||arr).filter(v=>isFinite(v)).slice().sort((a,b)=>a-b);
+  const p90=src.length?src[Math.min(src.length-1,Math.floor(src.length*0.9))]:0.1;
+  const ymax=Math.max(0.1,Math.min(p90*1.35,3));
+  const p=P(cv,side,margin,{Y0:0,Y1:ymax});p.clear();axes(p,[0,ymax/2,ymax],'x');const line=(a,st,w,dash)=>{const c=p.ctx;c.save();clipRect(p);c.strokeStyle=st;c.lineWidth=w;c.setLineDash(dash||[]);c.beginPath();for(let i=0;i<GRID;i++){const X=p.px(xs[i]),Y=p.py(a[i]);i?c.lineTo(X,Y):c.moveTo(X,Y);}c.stroke();c.setLineDash([]);c.restore();};if(refArr)line(refArr,C.ref,2,[5,4]);line(arr,color,2.6);const c=p.ctx;c.strokeStyle=C.avgt;c.lineWidth=2;c.beginPath();c.moveTo(p.px(-1),p.py(Math.min(avg,ymax)));c.lineTo(p.px(1),p.py(Math.min(avg,ymax)));c.stroke();}
+function dcurve(p,fn){const c=p.ctx;c.save();clipRect(p);c.setLineDash([5,4]);PG.draw.curve(p,fn,{color:C.ref,width:2});c.setLineDash([]);c.restore();}
+function drawOverlay(cv,side,margin,f,meanArr,showFits,showTarget,refMean,lab){const p=P(cv,side,margin);p.clear();axes(p,[-2,-1,0,1,2],lab);if(showFits)cloud(p);if(showTarget)PG.draw.curve(p,f,{color:C.tgt,width:showFits?2:2.5});if(refMean)dcurve(p,x=>interp(x,refMean));PG.draw.curve(p,x=>interp(x,meanArr),{color:C.avg,width:3});return p;}
+const GD='\\textcolor{'+C.gd+'}{g^{(d)}(x)}',GB='\\textcolor{'+tx(C.avg)+'}{\\bar g(x)}',FT='\\textcolor{'+tx(C.tgt)+'}{f(x)}';
+/* ความสูงการ์ดสมการเปลี่ยนตาม tab → วัดครั้งเดียวไม่พอ: วาดเสร็จแล้ววัดใหม่ ถ้าขนาดเปลี่ยนเกิน 4px วาดซ้ำครั้งเดียว
+   (กันรูปเล็กเกิน/ล้นจอ และกัน canvas ถูก resize หลังวาด = ภาพเบลอ) */
+function render(){render0();const used=pairSide;relayout();if(Math.abs(pairSide-used)>4)render0();}
+function render0(){relayout();const {f,M,nn,sigma}=cfg();
+  if(mode==='eio'){const pts=sampleDS(f,nn,sigma,baseSeed),m=PG.fit.poly(pts,{degree:M});
+    let p=P(pA,pairSide,34);p.clear();axes(p,[-2,-1,0,1,2],true);{const c=p.ctx;c.save();clipRect(p);PG.draw.curve(p,f,{color:C.tgt,width:1.5});PG.draw.curve(p,m.predict,{color:C.avg,width:3});PG.draw.squares(p,pts,m.predict);PG.draw.points(p,pts,{color:C.data,r:5});c.restore();}
+    let q=P(pB,pairSide,34);q.clear();axes(q,[-2,-1,0,1,2],true);{const c=q.ctx;c.save();clipRect(q);PG.draw.band(q,x=>Math.min(m.predict(x),f(x)),x=>Math.max(m.predict(x),f(x)),{color:'rgba(224,122,95,0.28)'});PG.draw.curve(q,f,{color:C.tgt,width:2.5});PG.draw.curve(q,m.predict,{color:C.avg,width:3});c.restore();}
+    let se=0;for(const z of pts){const e=m.predict(z.x)-z.y;se+=e*e;}let so=0;for(let i=0;i<GRID;i++)so+=(m.predict(xs[i])-f(xs[i]))**2;
+    K('\\text{In-sample: error on the }n\\text{ sampled points}',capA);K('\\text{Out-of-sample: error vs the true target } f',capB);
+    K('\\begin{aligned}\\textcolor{#7E5A93}{E_\\text{in}}&=\\tfrac1n\\textstyle\\sum_i\\bigl(\\textcolor{'+tx(C.avg)+'}{g(x_i)}-\\textcolor{'+tx(C.data)+'}{y_i}\\bigr)^2='+(se/(pts.length||1)).toFixed(2)+'\\\\[2pt]\\textcolor{#B0503A}{E_\\text{out}}&=\\mathbb{E}_x\\bigl(\\textcolor{'+tx(C.avg)+'}{g(x)}-\\textcolor{'+tx(C.tgt)+'}{f(x)}\\bigr)^2='+(so/GRID).toFixed(2)+'\\end{aligned}',eqBox,true);
+    dnote.textContent='';setV('eio',{M,nn});return;}
+  if(mode==='compare'){if(!cmp)computeCompare();relayout();[g1,g2,g3,g4].forEach((cv,i)=>drawCmpFig(cv,cmp.rows[i],f,gridSide));K('\\text{constant}',document.getElementById('gc1'));K('\\text{linear}',document.getElementById('gc2'));K('\\text{quadratic}',document.getElementById('gc3'));K('\\text{cubic}',document.getElementById('gc4'));
+    /* ตารางสลับแถว↔หลัก: หลัก = แบบจำลอง เรียงตรงกับรูป 4 รูปข้างบน → ไม่ต้องพิมพ์ชื่อแบบจำลองซ้ำอีกรอบ
+       แถว = ปริมาณที่วัด (bias² · variance · E_in · E_out) · หลักของแบบจำลองที่ E_out ต่ำสุด = เขียว */
+    const best=Math.min(...cmp.rows.map(r=>r.eout));
+    // ป้ายแถวใช้คำย่อ (var ไม่ใช่ variance) → หลักป้ายแคบลง เหลือที่ให้รูปใหญ่ขึ้น
+    const rowsDef=[['\\text{bias}^2',tx(C.bias),r=>r.bias2],['\\text{var}',tx(C.varc),r=>r.varc],['E_\\text{in}','#7E5A93',r=>r.ein],['E_\\text{out}','#7c5aa6',r=>r.eout]];
+    let h='';
+    rowsDef.forEach(([lab,col,get])=>{
+      h+='<tr><th style="text-align:left;padding:5px 12px;font-weight:600">\\(\\textcolor{'+col+'}{'+lab+'}\\)</th>';
+      cmp.rows.forEach(r=>{const hl=Math.abs(r.eout-best)<1e-9;
+        h+='<td style="text-align:center;padding:5px 12px;'+(hl?'background:#f0fdf4;font-weight:700':'')+'">\\('+(hl?'\\textcolor{#15803d}{'+get(r).toFixed(2)+'}':get(r).toFixed(2))+'\\)</td>';});
+      h+='</tr>';});
+    const T=document.getElementById('cmpTable');T.innerHTML=h;if(window.renderMathInElement)try{renderMathInElement(T,{delimiters:[{left:'\\(',right:'\\)',display:false}],throwOnError:false});}catch(e){}dnote.textContent='';setV('cmp',{});return;}
+  ensureReady();const st=curStats();dnote.textContent='';const gW=[];for(let j=0;j<=M;j++)gW[j]=accN?sumW[j]/accN:0;
+  if(mode==='gbar'){let p=P(pA,pairSide,34);p.clear();axes(p,[-2,-1,0,1,2],true);PG.draw.curve(p,f,{color:C.tgt,width:2.5});if(lastFit){const c=p.ctx;c.save();clipRect(p);PG.draw.curve(p,lastFit,{color:'rgba(91,143,185,0.55)',width:2});c.restore();}if(lastPts.length)PG.draw.points(p,lastPts,{color:C.data,r:5});dBadge(p);
+    drawOverlay(pB,pairSide,34,f,st.mean,true,false,ref.mean,true);
+    K('\\text{this round: data + its fit}',capA);K('\\text{all fits combine into the average }'+GB+';\\ \\text{dashed = theory}',capB);
+    K('\\begin{aligned}'+GD+'&='+polyStr(lastW)+'\\quad(\\text{this round})\\\\[2pt]'+GB+'&=\\mathbb{E}_d\\,'+GD+'='+polyStr(gW)+'\\end{aligned}',eqBox,true);setV('ens',{bias2:st.bias2,varc:st.varc,M,nn});return;}
+  if(mode==='bias'){let p=P(pA,pairSide,34);p.clear();axes(p,[-2,-1,0,1,2],true);cloud(p);PG.draw.curve(p,f,{color:C.tgt,width:2});PG.draw.curve(p,x=>interp(x,st.mean),{color:C.avg,width:3});dBadge(p);drawPW(pB,pairSide,34,st.biasSq,st.bias2,C.bias,ref.biasSq);
+    K('\\text{fits + }'+GB+'\\ \\text{vs the target}\\ '+FT,capA);K('\\textcolor{'+tx(C.bias)+'}{\\text{bias}(x)^2}\\ \\text{(curve)},\\ \\text{its average}\\ \\textcolor{'+C.avgt+'}{\\text{bias}^2}\\ \\text{(black line)}',capB);
+    K('\\begin{aligned}\\textcolor{'+tx(C.avg)+'}{\\bar g(x)}&='+polyStr(gW)+'\\\\[2pt]\\textcolor{'+tx(C.bias)+'}{\\text{bias}(x)^2}&=\\bigl('+GB+'-'+FT+'\\bigr)^2\\\\[2pt]\\textcolor{'+C.avgt+'}{\\text{bias}^2}&='+st.bias2.toFixed(2)+'\\quad\\text{(theory}\\approx '+ref.bias2.toFixed(2)+')\\end{aligned}',eqBox,true);setV('ens',{bias2:st.bias2,varc:st.varc,M,nn});return;}
+  if(mode==='variance'){let vp=P(pA,pairSide,34);vp.clear();axes(vp,[-2,-1,0,1,2],true);cloud(vp);PG.draw.curve(vp,x=>interp(x,st.mean),{color:C.avg,width:3});dBadge(vp);drawPW(pB,pairSide,34,st.varPt,st.varc,C.varc,ref.varPt);
+    K('\\text{spread of fits around}\\ '+GB,capA);K('\\textcolor{'+tx(C.varc)+'}{\\text{var}(x)}\\ \\text{(curve)},\\ \\text{its average}\\ \\textcolor{'+C.avgt+'}{\\text{variance}}\\ \\text{(black line)}',capB);
+    K('\\begin{aligned}\\textcolor{'+tx(C.avg)+'}{\\bar g(x)}&='+polyStr(gW)+'\\\\[2pt]\\textcolor{'+tx(C.varc)+'}{\\text{var}(x)}&=\\mathbb{E}_d\\bigl('+GD+'-'+GB+'\\bigr)^2\\\\[2pt]\\textcolor{'+C.avgt+'}{\\text{variance}}&='+st.varc.toFixed(2)+'\\quad\\text{(theory}\\approx '+ref.varc.toFixed(2)+')\\end{aligned}',eqBox,true);setV('ens',{bias2:st.bias2,varc:st.varc,M,nn});return;}
+  drawOverlay(g1,gridSide,26,f,st.mean,true,false,null,false);drawOverlay(g2,gridSide,26,f,st.mean,false,true,ref.mean,false);drawPW(g3,gridSide,26,st.biasSq,st.bias2,C.bias,ref.biasSq);drawPW(g4,gridSide,26,st.varPt,st.varc,C.varc,ref.varPt);
+  K('\\text{fits}+'+GB,document.getElementById('gc1'));K(GB+'\\ \\text{vs}\\ '+FT,document.getElementById('gc2'));K('\\textcolor{'+tx(C.bias)+'}{\\text{bias}(x)^2}',document.getElementById('gc3'));K('\\textcolor{'+tx(C.varc)+'}{\\text{var}(x)}',document.getElementById('gc4'));
+  const noiseV=sigma*sigma,s=st.bias2+st.varc+noiseV;K(st.bias2.toFixed(2),document.getElementById('bias2'));K(st.varc.toFixed(2),document.getElementById('varc'));K(noiseV.toFixed(2),document.getElementById('noisev'));K(s.toFixed(2),document.getElementById('eout'));
+  K('\\mathbb{E}_d[E_\\text{out}]=\\textcolor{'+tx(C.bias)+'}{'+st.bias2.toFixed(2)+'}+\\textcolor{'+tx(C.varc)+'}{'+st.varc.toFixed(2)+'}+'+noiseV.toFixed(2)+'='+s.toFixed(2)+'\\quad\\text{(theory}\\approx '+(ref.bias2+ref.varc+noiseV).toFixed(2)+')',eqBox,true);setV('ens',{bias2:st.bias2,varc:st.varc,M,nn});}
+function setV(kind,o){const el=document.getElementById('verdict');const set=(t,bg,c)=>{el.textContent=t;el.style.background=bg;el.style.color=c;};
+  if(kind==='eio'){if(o.nn<=2&&o.M>=1)set('n=2: the line hits both points so E_in=0, but E_out (vs the true target everywhere) is large. In-sample error alone is misleading.','#fffbeb','#b45309');else set('Left = error only on the sampled points (E_in). Right = error vs the true target over all x (E_out). Resample to compare.','#eef4ff','#1e40af');return;}
+  if(kind==='cmp'){set('The model with the lowest E_out wins (highlighted) — often not the most complex one. On sin, n=2 the constant model beats linear because variance dominates.','#f0fdf4','#15803d');return;}
+  if(accN<30)set('Few datasets — noisy. Add more (or Play): as d grows the solid curve/number settles onto the dashed theory value.','#eef4ff','#1e40af');else if(o.varc>o.bias2*2.0)set('Variance dominates: fits spread widely. A simpler model lowers E_out — on sin, n=2 constant beats linear.','#fef2f2','#b91c1c');else if(o.bias2>o.varc*2.0)set('Bias dominates: the average fit sits far from the target but the fits cluster tightly.','#fffbeb','#b45309');else set('Balanced: bias² and variance are comparable.','#f0fdf4','#15803d');}
+function stopPlay(){playing=false;if(timer){clearTimeout(timer);timer=null;}K('\\text{Play}',playBtn);}
+function tick(){if(!playing)return;if(accN>=LIMIT){stopPlay();return;}addDatasets(Math.min(LIMIT-accN,Math.max(1,Math.floor(accN/12)+1),400));render();timer=setTimeout(tick,35);}
+function startPlay(){if(playing||accN>=LIMIT)return;ensureReady();playing=true;K('\\text{Pause}',playBtn);tick();}
+const TABS=[
+  {n:'E_{in}\\text{ vs }E_{out}',mode:'eio'},
+  {n:'\\text{Average fit}',mode:'gbar'},
+  {n:'\\text{Bias}',mode:'bias'},
+  {n:'\\text{Variance}',mode:'variance'},
+  {n:'\\text{Model comparison}',mode:'compare'},
+];
+const HINTS={eio:'One dataset. <b>Left</b>: fit the <b>n</b> points, <b>E_in</b> = error on those points. <b>Right</b>: same fit vs the <b>true target</b>, <b>E_out</b> = error everywhere. Resample to compare.',gbar:'Add datasets. Left shows one round’s data & fit; right accumulates every fit (older ones fade) into the average <b>ḡ</b>, approaching the dashed theory curve.',bias:'<b>bias²(x)</b> = gap between ḡ and the target, squared. Its average (black line) is the bias² number, approaching the dashed theory.',variance:'The blue band is the ±1 SD spread of the fits around ḡ. <b>var(x)</b> (right) is that spread squared; its average is the variance number.',compare:'Two models side by side (constant vs linear) with their fits and average. The table compares <b>bias²</b>, <b>variance</b>, and <b>E_out</b> for all four models — the lowest E_out (highlighted) is the best, often not the most complex.'};
+function applyTab(k){const T=TABS[k];mode=T.mode;document.querySelectorAll('.tabbtn').forEach((b,i)=>b.className='tabbtn'+(i===k?' on':''));const cm=(mode==='compare'),ens=(mode==='gbar'||mode==='bias'||mode==='variance');
+  document.getElementById('viewPair').style.display=cm?'none':'grid';document.getElementById('viewGrid').style.display=cm?'grid':'none';document.getElementById('cardDecomp').style.display='none';
+  document.getElementById('cmpTable').style.display=cm?'table':'none';document.getElementById('eqBox').style.display=cm?'none':'block';
+  document.getElementById('c-model').className='drow'+(cm?' off':'');
+  document.getElementById('rowEnsemble').style.display=ens?'flex':'none';document.getElementById('rowSingle').style.display=mode==='eio'?'flex':'none';
+  document.getElementById('hint').innerHTML=HINTS[mode];render();if(window.renderMathInElement)try{renderMathInElement(document.getElementById('hint'),{delimiters:[{left:'\\(',right:'\\)',display:false}],throwOnError:false});}catch(e){}}
+const tb=document.getElementById('tabs');
+TABS.forEach((T,i)=>{const b=document.createElement('button');b.className='tabbtn';(window.katex?katex.render(T.n,b,{throwOnError:false}):(b.textContent=T.n));b.onclick=()=>applyTab(i);tb.appendChild(b);});
+function onDist(){resetAccum(false);cmp=null;syncReadouts();render();}
+n.addEventListener('input',()=>{if(mode==='eio'){syncReadouts();render();}else syncReadouts();});
+n.addEventListener('change',onDist);noise.addEventListener('input',()=>{if(mode==='eio'){syncReadouts();render();}else syncReadouts();});noise.addEventListener('change',onDist);targetSel.addEventListener('change',onDist);modelSel.addEventListener('change',onDist);
+document.getElementById('regen').addEventListener('click',()=>{baseSeed++;render();});
+document.getElementById('stepBtn').addEventListener('click',()=>{stopPlay();ensureReady();addDatasets(1);render();});
+playBtn.addEventListener('click',()=>{playing?stopPlay():startPlay();});
+document.getElementById('resetBtn').addEventListener('click',()=>{resetAccum(true);render();});
+window.addEventListener('resize',()=>{render();});
+syncReadouts();applyTab(0);
+</script>
+<script>(function(){if(!window.katex)return;var t=document.getElementById("__pgt");if(t)try{katex.render(t.getAttribute("data-tex"),t,{throwOnError:false});}catch(e){}})();</script>
+<script>document.addEventListener("DOMContentLoaded",function(){if(window.renderMathInElement)renderMathInElement(document.body,{delimiters:[{left:"\\(",right:"\\)",display:false},{left:"$$",right:"$$",display:true}],throwOnError:false});});</script>
+</body>
+</html>
