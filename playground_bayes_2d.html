@@ -1,0 +1,378 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>2-D Bayes Classifier</title>
+<link rel="stylesheet" href="pg_style.css?v=24">
+<link rel="stylesheet" href="vendor/katex/katex.min.css">
+<script src="vendor/katex/katex.min.js"></script>
+<script src="vendor/katex/auto-render.min.js"></script>
+<style>
+  /* ⚠️ ห้ามประกาศ --muted/--navy/--sec ทับ pg_style (ต้นเหตุ contrast 4.2:1 ที่หัวตาราง) */
+  :root{--blue:#185fa5;--bg:#f6f7f9;--card:#fff;--bd:#e6e6e0;--panel-h:734px;}   /* UD §1.2: ตรึงความสูง Control = tab ที่ยาวสุด */
+  *{box-sizing:border-box}
+  body{font-family:system-ui,-apple-system,"Segoe UI",sans-serif;margin:0;background:var(--bg);color:#222;padding:10px 18px}   /* no-scroll: ลด padding ไม่ให้เกินจอ */
+  /* UD: รูป 2 มิติ ต้องจัตุรัส (สเกล x/y เท่ากัน) — เดิมเป็น 16:9 กว้างเกิน
+     ให้ความสูงเป็นตัวคุม แล้วความกว้างตามอัตราส่วน 1:1 จัดกึ่งกลาง */
+  .canvasbox{aspect-ratio:1/1;width:auto;margin:0 auto;height:clamp(260px,44vh,400px)}
+  .wrap{max-width:1120px;margin:0 auto;display:flex;flex-direction:column;gap:11px}
+  h1{font-weight:600;color:var(--navy);margin:0}
+  .tabs{display:flex;flex-wrap:wrap;gap:7px}
+  .tabbtn{font-size:15px;padding:7px 15px;border:1px solid var(--bd);border-radius:999px;background:var(--card);cursor:pointer;color:#555;transition:all .12s}
+  .tabbtn:hover{border-color:#c7c7be}.tabbtn.on{background:var(--navy);color:#fff;border-color:var(--navy)}
+  .dhd{font-size:13px;font-weight:600;color:var(--muted);margin:9px 0 6px}   /* = 1-D .distcls .dhd */
+  .dhd:first-child{margin-top:0}
+  .seg2{display:inline-flex;border:1px solid var(--bd);border-radius:8px;overflow:hidden;margin-bottom:12px}
+  .seg2 button{font-size:15px;padding:6px 11px;border:0;background:var(--card);cursor:pointer;color:#666}
+  .seg2 button.on{background:var(--navy);color:#fff}
+  .dgrid{display:grid;grid-template-columns:1fr;gap:7px;margin-bottom:4px}   /* = 1-D .distcls .dgrid */
+  .drow{display:flex;align-items:center;gap:10px;margin:0}.drow.off{opacity:.32}
+  .drow .dlab{font-size:15px;width:38px;color:#475569;text-align:left}   /* = 1-D .distcls .drow .dlab */
+  .drow .num{width:66px;font-size:15px;padding:4px 6px;border:1px solid var(--bd);border-radius:7px;text-align:right;background:var(--card);-moz-appearance:textfield;appearance:textfield}
+  .drow .num::-webkit-outer-spin-button,.drow .num::-webkit-inner-spin-button{-webkit-appearance:none;margin:0}
+  input[type=range]{-webkit-appearance:none;appearance:none;flex:1;height:6px;border-radius:4px;background:#8b95a6;outline:none;margin:0}   /* track ≥3:1 (WCAG 1.4.11) */
+  input[type=range]:disabled{opacity:.5}
+  input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:18px;height:18px;border-radius:50%;background:var(--navy);cursor:pointer;border:3px solid #fff}
+  .caseLabel{font-size:15px;line-height:1.45;background:var(--sec);border-radius:9px;padding:9px 11px;color:#374151;margin-top:4px}
+  .caseLabel b{color:var(--navy)}
+  .feq{font-size:15px;background:var(--card);border:1px solid var(--bd);border-radius:10px;padding:10px 12px;overflow:visible;margin-top:10px}   /* UD §1: no-scroll — ห้ามมี scrollbar */
+  .feq .step{margin:5px 0}
+  .stage{display:flex;flex-direction:column;gap:10px}
+  /* control เยอะ (โดยเฉพาะ Sandbox) → panel เลื่อนดูได้ครบ ไม่ล้นจอ */
+  .layout{align-items:start}
+  .panel{max-height:calc(100vh - 96px);overflow-y:auto;overflow-x:hidden}
+  /* กฎจัตุรัสต้องชนะ — เดิมบรรทัดนี้ (specificity สูงกว่า) ตั้ง height:auto + flex:1 ทำให้รูปยืดเป็น 16:9 */
+  .pg .canvasbox{flex:0 0 auto;aspect-ratio:1/1;width:auto;margin:0 auto;height:clamp(260px,44vh,400px);min-height:0}
+  canvas{width:100%;height:100%;display:block;border:1px solid var(--bd);border-radius:10px;background:var(--card)}
+  /* legend: แต่ละรายการ 1 บรรทัด (ห้ามถูกบีบจนตัดคำ) → nowrap + ไม่ยอมหด */
+  .legend{display:flex;gap:14px;flex-wrap:wrap;font-size:13px;color:var(--muted);justify-content:center;align-items:center}
+  /* legend 1 รายการ = 1 บรรทัด (UD §2.3) — KaTeX ตัดบรรทัดเองไม่ได้ ต้อง nowrap */
+  /* ต้องเป็น ">" เท่านั้น — ถ้าใช้ ".legend span" จะไปโดน span ภายในของ KaTeX ด้วย
+     (katex-html กลายเป็น flex → ตัวอักษรซ้อนกันเป็นแนวตั้ง สูง 109px) */
+  .legend>span{display:flex;align-items:center;gap:5px;white-space:nowrap;flex:0 0 auto}
+  .legend .katex,.legend .katex-html{white-space:nowrap}
+  .dotc{width:11px;height:11px;border-radius:50%;flex:none}
+  /* legend = เหมือน 1-D (.classleg): มาร์กเกอร์ + ข้อความสีคลาส 13px #555 */
+  .classleg{display:flex;gap:14px;flex-wrap:wrap;justify-content:center;font-size:13px;color:#555;padding:0 2px;margin:2px 0}
+  .classleg .cli{display:flex;align-items:center;gap:5px;white-space:nowrap}
+  .classleg .cli .dot{width:11px;height:11px;border-radius:50%;display:inline-block;flex:none}
+  .classleg .cli .ring{width:11px;height:11px;border-radius:50%;display:inline-block;flex:none;box-sizing:border-box;background:transparent}
+  .classleg .katex,.classleg .katex-html{white-space:nowrap}
+  /* TOP: plot | confusion */
+  .toprow{display:flex;gap:16px;align-items:center;justify-content:center;flex-wrap:wrap}
+  .cmwrap{display:flex;flex-direction:column;gap:8px}
+  /* BOTTOM = เหมือน 1-D .below: [ สมการ (.lcol) | metrics A | metrics B ] */
+  .below{display:flex;gap:16px;align-items:flex-start;min-height:180px;border:1px solid var(--bd);border-radius:12px;padding:8px 14px;background:var(--card);box-shadow:0 1px 3px rgba(0,0,0,.04)}
+  @media(max-width:760px){.below{flex-direction:column}.lcol{width:auto!important;border-right:0!important;border-bottom:1px solid var(--bd);padding-right:0!important;padding-bottom:8px}}
+  .lcol{flex:none;width:186px;border-right:1px solid var(--bd);padding-right:14px;display:flex;flex-direction:column;gap:5px;min-width:0}
+  .lcol .lhd{font-size:13px;color:var(--muted);margin:0 0 2px;min-height:15px}
+  .lcol .estep{font-size:14px;color:var(--ink);line-height:1.35}
+  .lcol .estep>span{display:inline-block;margin-right:.26em}   /* prose ตัดบรรทัดได้ */
+  /* metric bars — คัดลอกสเปกจาก .distcls ของ 1-D ทุกค่า → เลข/ป้าย/แท่ง เหมือนเป๊ะ */
+  .mcol{flex:1;min-width:0;display:flex;flex-direction:column;gap:9px}
+  .mcol .mhd{font-size:13px;color:var(--muted);margin:0 0 4px;min-height:15px}
+  .mbar{margin:0}
+  .mbar .nm{display:flex;align-items:baseline;justify-content:space-between;gap:8px;font-size:13px;line-height:1.15;margin-bottom:3px}
+  .mbar .nm .lab{min-width:0;overflow:hidden}
+  .mbar .nm .v{flex:none;font-weight:700;font-variant-numeric:tabular-nums}
+  .mbar .nm .katex{font-size:1em}
+  .mbar .track{position:relative;height:11px;background:#eef1f5;border-radius:6px;box-shadow:inset 0 1px 2px rgba(0,0,0,.06)}
+  .mbar .fill{position:absolute;left:0;top:0;height:100%;border-radius:6px;transition:width .25s}
+  /* ล็อกความกว้างคงที่ → confusion matrix ขนาดเท่ากันทุก tab (คอลัมน์ไม่ยืดตามจำนวนหลักของตัวเลข) */
+  .cm{display:grid;grid-template-columns:58px 1fr 1fr;gap:7px;font-size:15px;width:300px}
+  .cm .hh{display:flex;align-items:center;justify-content:center;color:var(--muted);font-size:15px;padding:2px 4px;text-align:center}
+  .cm .cell{border-radius:9px;padding:16px 10px;text-align:center}.cm .cell b{font-size:27px;display:block;font-variant-numeric:tabular-nums}.cm .cell span{font-size:15px}
+  .tp{background:#FBE9E4;color:#8A3B2C}.fn{background:#FAEFD6;color:#8A6510}.fp{background:#E3F1EE;color:#2E7D70}.tn{background:#E9F0F8;color:#3F6E99}
+  .mtab{width:100%;border-collapse:collapse;font-size:15px}
+  .mtab th{background:var(--sec);color:var(--muted);font-weight:600;font-size:15px;padding:5px 9px;text-align:right}
+  .mtab td{border:1px solid var(--bd);padding:5px 9px;text-align:right;font-weight:600}
+  .mtab th:first-child,.mtab td:first-child{text-align:left;font-weight:400}
+  .mtab th:nth-child(2),.mtab td:nth-child(2){text-align:center;font-weight:400}
+  .shapeline{font-size:15px;color:var(--muted);margin-top:7px}
+  .summary{display:none;flex-direction:column;gap:14px}.summary.on{display:flex}
+  .stab{border-collapse:separate;border-spacing:7px;width:100%}
+  .stab td{background:var(--card);border:1px solid var(--bd);border-radius:10px;padding:11px;vertical-align:top;font-size:15px}
+  .stab .tag{font-size:15px;font-weight:700;padding:2px 8px;border-radius:999px;display:inline-block;margin-bottom:6px;background:#E9F0F8;color:#3F6E99}
+  .secttl{font-size:16px;font-weight:600;color:var(--navy)}
+  .ref{font-size:15px;color:#9ca3af}
+  /* foundations block: Bayes -> prior -> MV normal -> discriminant */
+  .found{display:flex;flex-direction:column;gap:9px;background:var(--card);border:1px solid var(--bd);border-radius:12px;padding:12px 16px}
+  .frow{display:flex;align-items:center;gap:16px}
+  .frow .fl{flex:0 0 178px;font-size:14px;color:var(--muted);text-align:right}
+  .frow .fe{flex:1;font-size:15px;overflow-x:auto;overflow-y:hidden}
+  .stab td .pr>span{display:inline-block;margin-right:.28em}   /* prose = ชิ้น KaTeX ที่ตัดบรรทัดได้ (กันล้น) */
+  @media(max-width:640px){.frow{flex-direction:column;align-items:flex-start;gap:2px}.frow .fl{text-align:left;flex:none}}
+</style>
+</head>
+<body class="pg">
+<div class="wrap">
+  <div class="hdr">
+    <h1 id="h1">2-D Bayes Classifier</h1>
+    <div class="tabs" id="tabs"></div>
+  </div>
+  <div class="layout" id="mainPanel">
+    <div class="stage">
+      <!-- TOP: plot | confusion matrix -->
+      <div class="toprow">
+        <div class="canvasbox"><canvas id="cv"></canvas></div>
+        <div class="cmwrap">
+          <div class="cm">
+            <div class="hh"></div><div class="hh" id="ch-pp">pred 1</div><div class="hh" id="ch-pn">pred 0</div>
+            <div class="hh" id="ch-ap">actual 1</div><div class="cell tp"><b id="tp">0</b><span>\(\mathrm{TP}\)</span></div><div class="cell fn"><b id="fn">0</b><span>\(\mathrm{FN}\)</span></div>
+            <div class="hh" id="ch-an">actual 0</div><div class="cell fp"><b id="fp">0</b><span>\(\mathrm{FP}\)</span></div><div class="cell tn"><b id="tn">0</b><span>\(\mathrm{TN}\)</span></div>
+          </div>
+        </div>
+      </div>
+      <!-- legend = เหมือน 1-D -->
+      <div class="classleg">
+        <span class="cli"><i class="dot" style="background:#E07A5F"></i>\(\textcolor{#B0503A}{\text{class }+\ (\text{positive})}\)</span>
+        <span class="cli"><i class="dot" style="background:#5B8FB9"></i>\(\textcolor{#3F6E99}{\text{class }-\ (\text{negative})}\)</span>
+        <span class="cli"><i class="ring" style="border:2px solid #888"></i>\(\text{misclassified (ring)}\)</span>
+      </div>
+      <!-- BOTTOM = เหมือน 1-D .below: สมการ + Classification metrics -->
+      <div class="below">
+        <div class="lcol">
+          <div class="lhd" id="eqhd"></div>
+          <div class="estep" id="eq1"></div>
+          <div class="estep" id="eq2"></div>
+          <div class="estep" id="eq3"></div>
+        </div>
+        <div class="mcol" id="mcolA"></div>
+        <div class="mcol" id="mcolB"></div>
+      </div>
+    </div>
+    <div class="panel">
+      <div class="dhd" id="hd-ctl">\(\text{Model (covariance assumption)}\)</div>
+      <div class="seg2" id="modelSeg">
+        <button data-m="lda">\(\text{LDA}\)</button><button data-m="qda" class="on">\(\text{QDA}\)</button><button data-m="nb">\(\text{Naive Bayes}\)</button>
+      </div>
+      <div class="dhd">\(\text{Positive class }(+)\)</div>
+      <div class="dgrid">
+        <div class="drow" id="row-mux1"><span class="dlab" id="l-mux1"></span><input type="range" id="Rmux1" min="-3" max="3" step="0.1" value="1.4"><input class="num" type="number" id="Nmux1" value="1.4"></div>
+        <div class="drow" id="row-muy1"><span class="dlab" id="l-muy1"></span><input type="range" id="Rmuy1" min="-3" max="3" step="0.1" value="0"><input class="num" type="number" id="Nmuy1" value="0"></div>
+        <div class="drow" id="row-sx1"><span class="dlab" id="l-sx1"></span><input type="range" id="Rsx1" min="0.4" max="2.2" step="0.1" value="1.0"><input class="num" type="number" id="Nsx1" value="1.0"></div>
+        <div class="drow" id="row-sy1"><span class="dlab" id="l-sy1"></span><input type="range" id="Rsy1" min="0.4" max="2.2" step="0.1" value="1.0"><input class="num" type="number" id="Nsy1" value="1.0"></div>
+        <div class="drow" id="row-r1"><span class="dlab" id="l-r1"></span><input type="range" id="Rr1" min="-0.9" max="0.9" step="0.05" value="0"><input class="num" type="number" id="Nr1" value="0"></div>
+      </div>
+      <div class="dhd">\(\text{Negative class }(-)\)</div>
+      <div class="dgrid">
+        <div class="drow" id="row-mux0"><span class="dlab" id="l-mux0"></span><input type="range" id="Rmux0" min="-3" max="3" step="0.1" value="-1.4"><input class="num" type="number" id="Nmux0" value="-1.4"></div>
+        <div class="drow" id="row-muy0"><span class="dlab" id="l-muy0"></span><input type="range" id="Rmuy0" min="-3" max="3" step="0.1" value="0"><input class="num" type="number" id="Nmuy0" value="0"></div>
+        <div class="drow" id="row-sx0"><span class="dlab" id="l-sx0"></span><input type="range" id="Rsx0" min="0.4" max="2.2" step="0.1" value="1.0"><input class="num" type="number" id="Nsx0" value="1.0"></div>
+        <div class="drow" id="row-sy0"><span class="dlab" id="l-sy0"></span><input type="range" id="Rsy0" min="0.4" max="2.2" step="0.1" value="1.0"><input class="num" type="number" id="Nsy0" value="1.0"></div>
+        <div class="drow" id="row-r0"><span class="dlab" id="l-r0"></span><input type="range" id="Rr0" min="-0.9" max="0.9" step="0.05" value="0"><input class="num" type="number" id="Nr0" value="0"></div>
+      </div>
+      <div class="dhd">\(\text{Class balance \& size}\)</div>
+      <div class="dgrid">
+        <div class="drow" id="row-p1"><span class="dlab" id="l-p1"></span><input type="range" id="Rp1" min="0.1" max="0.9" step="0.05" value="0.5"><input class="num" type="number" id="Np1" value="0.5"></div>
+        <div class="drow" id="row-n"><span class="dlab" id="l-n"></span><input type="range" id="Rn" min="40" max="400" step="20" value="180"><input class="num" type="number" id="Nn" value="180"></div>
+      </div>
+    </div>
+  </div>
+  <div class="summary" id="summaryPanel">
+    <!-- 1) foundations first: Bayes -> prior -> multivariate normal -> discriminant -->
+    <div class="secttl" id="s2-found"></div>
+    <div class="found">
+      <div class="frow"><span class="fl" id="fl2-post"></span><span class="fe" id="fe2-post"></span></div>
+      <div class="frow"><span class="fl" id="fl2-prior"></span><span class="fe" id="fe2-prior"></span></div>
+      <div class="frow"><span class="fl" id="fl2-lik"></span><span class="fe" id="fe2-lik"></span></div>
+      <div class="frow"><span class="fl" id="fl2-disc"></span><span class="fe" id="fe2-disc"></span></div>
+    </div>
+    <!-- 2) then split: covariance assumption -> boundary shape -->
+    <div class="secttl" id="s2-split"></div>
+    <table class="stab">
+      <tr><td><span class="tag" id="tg-lda"></span> <span class="pr" id="pr-lda"></span></td>
+          <td><span class="tag" id="tg-qda"></span> <span class="pr" id="pr-qda"></span></td></tr>
+      <tr><td><span class="tag" id="tg-nb"></span> <span class="pr" id="pr-nb"></span></td>
+          <td><span class="tag" id="tg-iso"></span> <span class="pr" id="pr-iso"></span></td></tr>
+    </table>
+    <p class="ref"><span class="pr" id="pr-ref"></span></p>
+  </div>
+</div>
+<script>
+(function(){
+  "use strict";
+  var modeM='qda', curTab=0;
+  var bases=['mux0','muy0','mux1','muy1','sx0','sy0','r0','sx1','sy1','r1','p1','n'];
+  function det(S){return S.a*S.c-S.b*S.b;}
+  function gc(x,y,m,S,pi){var dx=x-m[0],dy=y-m[1],d=det(S);return -0.5*(dx*dx*S.c-2*dx*dy*S.b+dy*dy*S.a)/d-0.5*Math.log(d)+Math.log(pi);}
+  function diag(S){return {a:S.a,b:0,c:S.c};}
+  function pool(A,B,p1){var p0=1-p1;return {a:p0*A.a+p1*B.a,b:p0*A.b+p1*B.b,c:p0*A.c+p1*B.c};}
+  var seed; function rsd(){seed=987654;} function rnd(){seed=(seed*1664525+1013904223)>>>0;return seed/4294967296;}
+  function gss(){var u=Math.max(1e-9,rnd()),v=rnd();return Math.sqrt(-2*Math.log(u))*Math.cos(6.2831853*v);}
+  var MT={'l-mux0':'\\mu_{x-}','l-muy0':'\\mu_{y-}','l-mux1':'\\mu_{x+}','l-muy1':'\\mu_{y+}',
+    'l-sx0':'\\sigma_{x-}','l-sy0':'\\sigma_{y-}','l-r0':'\\rho_-',
+    'l-sx1':'\\sigma_{x+}','l-sy1':'\\sigma_{y+}','l-r1':'\\rho_+','l-p1':'\\pi_+','l-n':'n',
+    'ch-pp':'\\hat y=+','ch-pn':'\\hat y=-','ch-ap':'\\text{actual }+','ch-an':'\\text{actual }-',
+    'h1':'\\text{2-D Bayes Classifier}','eqhd':'\\text{Decision boundary}',
+    'th-met':'\\text{metric}','th-frm':'\\text{formula}','th-val':'\\text{value}',
+    'lab-acc':'\\text{accuracy}','lab-prec':'\\text{precision}','lab-rec':'\\text{recall}','lab-sens':'\\text{sensitivity}','lab-spec':'\\text{specificity}',
+    'f-acc':'\\tfrac{\\textcolor{#B0503A}{\\mathrm{TP}}+\\textcolor{#3F6E99}{\\mathrm{TN}}}{n}','f-prec':'\\tfrac{\\textcolor{#B0503A}{\\mathrm{TP}}}{\\textcolor{#B0503A}{\\mathrm{TP}}+\\textcolor{#2E7D70}{\\mathrm{FP}}}','f-rec':'\\tfrac{\\textcolor{#B0503A}{\\mathrm{TP}}}{\\textcolor{#B0503A}{\\mathrm{TP}}+\\textcolor{#8A6510}{\\mathrm{FN}}}','f-sens':'\\tfrac{\\textcolor{#B0503A}{\\mathrm{TP}}}{\\textcolor{#B0503A}{\\mathrm{TP}}+\\textcolor{#8A6510}{\\mathrm{FN}}}','f-spec':'\\tfrac{\\textcolor{#3F6E99}{\\mathrm{TN}}}{\\textcolor{#3F6E99}{\\mathrm{TN}}+\\textcolor{#2E7D70}{\\mathrm{FP}}}',
+    's2-found':'\\text{1) Bayes rule: posterior}\\propto\\text{prior}\\times\\text{likelihood}',
+    'fl2-post':'\\text{posterior}','fe2-post':'P(c\\mid\\mathbf{x})=\\dfrac{\\pi_c\\,p(\\mathbf{x}\\mid c)}{\\sum_k \\pi_k\\,p(\\mathbf{x}\\mid k)}',
+    'fl2-prior':'\\text{prior (base rate)}','fe2-prior':'\\pi_c=P(c),\\quad \\pi_-+\\pi_+=1',
+    'fl2-lik':'\\text{likelihood (2-D normal)}','fe2-lik':'p(\\mathbf{x}\\mid c)=\\dfrac{1}{2\\pi\\sqrt{|\\Sigma_c|}}\\exp\\!\\Big(-\\tfrac12(\\mathbf{x}-\\mu_c)^{\\top}\\Sigma_c^{-1}(\\mathbf{x}-\\mu_c)\\Big)',
+    'fl2-disc':'\\text{discriminant}','fe2-disc':'g_c(\\mathbf{x})=-\\tfrac12(\\mathbf{x}-\\mu_c)^{\\top}\\Sigma_c^{-1}(\\mathbf{x}-\\mu_c)-\\tfrac12\\ln|\\Sigma_c|+\\ln\\pi_c',
+    's2-split':'\\text{2) Covariance assumption}\\to\\text{boundary shape}',
+    'tg-lda':'\\text{LDA}','tg-qda':'\\text{QDA}','tg-nb':'\\text{Naive Bayes}','tg-iso':'\\text{Isotropic}'};
+  function K(t,el){try{katex.render(t,el,{throwOnError:false});}catch(e){el.textContent=t;}}
+  // long descriptions = wrappable KaTeX pieces (KaTeX blocks don't line-break → would overflow)
+  var PROSE={
+    'pr-lda':['\\Sigma_-=\\Sigma_+','\\text{(shared).}','\\text{Quadratic terms cancel}\\to','\\textbf{straight line.}','\\text{Few parameters, robust, but inflexible.}'],
+    'pr-qda':['\\Sigma','\\text{per class (full).}','\\text{Boundary is a}','\\textbf{conic}','\\text{(curve) hugging each ellipse.}','\\text{Captures shape \\& rotation.}'],
+    'pr-nb':['\\Sigma','\\text{diagonal (features independent).}','\\textbf{Axis-aligned}','\\text{quadratic; ignores correlation}\\to','\\text{wrong when features correlate.}'],
+    'pr-iso':['\\Sigma=\\sigma^2 I','\\text{shared}\\to','\\text{line at the midpoint}','=\\text{nearest-mean (simplest case).}'],
+    'pr-ref':['\\text{Ref: Duda, Hart \\& Stork, Pattern Classification, Ch.\\,2}','\\text{— Gaussian class-conditionals give linear (shared}','\\Sigma\\text{) or quadratic (per-class}','\\Sigma\\text{) discriminants.}']
+  };
+  function renderProse(){if(!window.katex)return;for(var id in PROSE){var el=document.getElementById(id);if(el)kxProse(el,PROSE[id]);}}
+  function renderTexts(){if(!window.katex)return;for(var id in MT){var el=document.getElementById(id);if(el)K(MT[id],el);}renderProse();}
+  // performance bars (same style as 1-D Bayes / drift)
+  function kx(t){try{return window.katex?katex.renderToString(t,{throwOnError:false}):t;}catch(e){return t;}}
+  function tcc(t,c){return '\\textcolor{'+c+'}{\\mathrm{'+t+'}}';}
+  var _Rd='#B0503A',_Bl='#3F6E99',_Navy='#1e3a8a',_FN='#8A6510',_FP='#2E7D70';
+  var FM={Sensitivity:tcc('TP',_Rd)+'/('+tcc('TP',_Rd)+'+'+tcc('FN',_FN)+')',
+          Specificity:tcc('TN',_Bl)+'/('+tcc('TN',_Bl)+'+'+tcc('FP',_FP)+')',
+          Precision:tcc('TP',_Rd)+'/('+tcc('TP',_Rd)+'+'+tcc('FP',_FP)+')',
+          Accuracy:'('+tcc('TP',_Rd)+'+'+tcc('TN',_Bl)+')/n',
+          F1:'2'+tcc('TP',_Rd)+'/(2'+tcc('TP',_Rd)+'+'+tcc('FP',_FP)+'+'+tcc('FN',_FN)+')',
+          AUC:'P(\\hat p_+\\!>\\!\\hat p_-)'};
+  function bar(name,v){v=Math.max(0,Math.min(1,v));
+    return '<div class="mbar"><div class="nm"><span class="lab">'+kx('\\text{'+name+'}\\;'+FM[name])+'</span><span class="v" style="color:'+_Navy+'">'+kx(Math.round(v*100)+'\\%')+'</span></div>'
+      +'<div class="track"><span class="fill" style="width:'+(v*100)+'%;background:'+_Navy+'"></span></div></div>';}
+  function aucFrom(pos,neg){var t=pos.length*neg.length;if(!t)return 0.5;var c=0,a,b;
+    for(a=0;a<pos.length;a++)for(b=0;b<neg.length;b++){if(pos[a]>neg[b])c++;else if(pos[a]===neg[b])c+=0.5;}return c/t;}
+  var TABS=[
+    {n:'Equal covariance', en:['mux0','muy0','mux1','muy1','sx0','p1','n'], models:['lda'], pre:{mux0:-1.4,muy0:0,mux1:1.4,muy1:0,sx0:1.0,sy0:1.0,r0:0,sx1:1.0,sy1:1.0,r1:0,p1:0.5,n:180}, m:'lda'},
+    {n:'Unequal covariance', en:['mux0','muy0','mux1','muy1','sx0','sy0','sx1','sy1','p1','n'], models:['qda'], pre:{mux0:-1.3,muy0:0,mux1:1.3,muy1:0,sx0:1.0,sy0:1.0,r0:0,sx1:1.7,sy1:0.7,r1:0,p1:0.5,n:180}, m:'qda'},
+    {n:'Correlation', en:['mux0','muy0','mux1','muy1','r0','r1','p1','n'], models:['nb','qda'], pre:{mux0:-1.3,muy0:0,mux1:1.3,muy1:0,sx0:1.3,sy0:0.7,r0:0,sx1:1.1,sy1:0.7,r1:0.7,p1:0.5,n:180}, m:'nb'},
+    {n:'Sandbox', en:bases.slice(), models:['lda','qda','nb'], pre:{mux0:-1.4,muy0:0,mux1:1.4,muy1:0,sx0:1.3,sy0:0.6,r0:0,sx1:1.0,sy1:0.7,r1:0.6,p1:0.5,n:180}, m:'qda'},
+    {n:'Summary', summary:true}
+  ];
+  function gv(b){return parseFloat(document.getElementById('R'+b).value);}
+  function sv(b,v){document.getElementById('R'+b).value=v;document.getElementById('N'+b).value=v;}
+  var cv=document.getElementById('cv'),ctx=cv.getContext('2d');
+  var W=440,H=420,SC=2,scale=46,cx0=220,cy0=210;
+  // ⚠️ วัดจาก canvas เอง ไม่ใช่ parent (border-box + border 1px → parent กว้างกว่าพื้นที่วาดจริง 2px → เบลอ)
+  function sizeCanvas(){if(!cv)return;var w=Math.round(cv.clientWidth)||440,h=Math.round(cv.clientHeight)||420,dpr=window.devicePixelRatio||1;
+    SC=dpr;cv.width=Math.round(w*dpr);cv.height=Math.round(h*dpr);W=w;H=h;scale=Math.min(W/9.4,H/8.0);cx0=W/2;cy0=H/2;}
+  function px(x){return cx0+x*scale;} function py(y){return cy0-y*scale;}
+  function models(S0,S1,p1){if(modeM==='qda')return[S0,S1];if(modeM==='nb')return[diag(S0),diag(S1)];var P=pool(S0,S1,p1);return[P,P];}
+  function ellipse(m,S,k,col,lw){var th=0.5*Math.atan2(2*S.b,S.a-S.c),tr=Math.sqrt(((S.a-S.c)/2)*((S.a-S.c)/2)+S.b*S.b);
+    var l1=(S.a+S.c)/2+tr,l2=Math.max(1e-4,(S.a+S.c)/2-tr);
+    ctx.save();ctx.translate(px(m[0]),py(m[1]));ctx.rotate(-th);ctx.beginPath();
+    ctx.ellipse(0,0,k*Math.sqrt(l1)*scale,k*Math.sqrt(l2)*scale,0,0,6.2832);ctx.strokeStyle=col;ctx.lineWidth=lw;ctx.stroke();ctx.restore();}
+  function draw(){
+   try{
+    var p1=gv('p1'),p0=1-p1;
+    var S0={a:gv('sx0')*gv('sx0'),b:gv('r0')*gv('sx0')*gv('sy0'),c:gv('sy0')*gv('sy0')};
+    var S1={a:gv('sx1')*gv('sx1'),b:gv('r1')*gv('sx1')*gv('sy1'),c:gv('sy1')*gv('sy1')};
+    var m0=[gv('mux0'),gv('muy0')],m1=[gv('mux1'),gv('muy1')];
+    var U=models(S0,S1,p1),U0=U[0],U1=U[1];
+    // สมการเส้นแบ่งเชิงตัวเลข (live): g_+ - g_- = A x^2 + B y^2 + C xy + D x + E y + F = 0
+    (function(){
+      if(!window.katex)return;var e3=document.getElementById('eq3');if(!e3)return;
+      function inv(S){var d=det(S);return {i11:S.c/d,i12:-S.b/d,i22:S.a/d};}
+      function cst(S,m,pi){var I=inv(S);return -0.5*(I.i11*m[0]*m[0]+2*I.i12*m[0]*m[1]+I.i22*m[1]*m[1])-0.5*Math.log(det(S))+Math.log(pi);}
+      var I0=inv(U0),I1=inv(U1);
+      var cx2=-0.5*(I1.i11-I0.i11),cy2=-0.5*(I1.i22-I0.i22),cxy=-(I1.i12-I0.i12);
+      var cx=(I1.i11*m1[0]+I1.i12*m1[1])-(I0.i11*m0[0]+I0.i12*m0[1]);
+      var cy=(I1.i12*m1[0]+I1.i22*m1[1])-(I0.i12*m0[0]+I0.i22*m0[1]);
+      var cf=cst(U1,m1,p1)-cst(U0,m0,p0);
+      var T=[[cx2,'x^2'],[cy2,'y^2'],[cxy,'xy'],[cx,'x'],[cy,'y'],[cf,'']],P=[];
+      T.forEach(function(t){if(Math.abs(t[0])<5e-3)return;var c=t[0],mag=Math.abs(c).toFixed(2),lead=P.length===0;
+        var sg=lead?(c<0?'-':''):(c<0?'-':'+');P.push(sg+mag+(t[1]?'\\,'+t[1]:''));});
+      if(!P.length)P=['0'];P.push('=0');
+      kxProse(e3,P);
+    })();
+    ctx.setTransform(SC,0,0,SC,0,0);ctx.clearRect(0,0,W,H);
+    var st=7,ix,iy,x,y;
+    for(ix=0;ix<W;ix+=st)for(iy=0;iy<H;iy+=st){x=(ix-cx0)/scale;y=(cy0-iy)/scale;
+      var pr1=gc(x,y,m1,U1,p1)>gc(x,y,m0,U0,p0);ctx.fillStyle=pr1?'rgba(224,122,95,0.15)':'rgba(91,143,185,0.15)';ctx.fillRect(ix,iy,st,st);}
+    ctx.strokeStyle='rgba(120,120,120,0.3)';ctx.lineWidth=1;ctx.beginPath();ctx.moveTo(0,py(0));ctx.lineTo(W,py(0));ctx.moveTo(px(0),0);ctx.lineTo(px(0),H);ctx.stroke();
+    ellipse(m0,S0,1,'#5B8FB9',1.5);ellipse(m0,S0,2,'rgba(91,143,185,0.4)',1.1);
+    ellipse(m1,S1,1,'#E07A5F',1.5);ellipse(m1,S1,2,'rgba(224,122,95,0.4)',1.1);
+    rsd();var n=Math.round(gv('n')),TP=0,FN=0,FP=0,TN=0,i,posS=[],negS=[];
+    for(i=0;i<n;i++){var c1=rnd()<p1,z1=gss(),z2=gss(),m=c1?m1:m0,S=c1?S1:S0;
+      var l11=Math.sqrt(S.a),l21=S.b/l11,l22=Math.sqrt(Math.max(1e-6,S.c-l21*l21));
+      var xx=m[0]+l11*z1,yy=m[1]+l21*z1+l22*z2;
+      var score=gc(xx,yy,m1,U1,p1)-gc(xx,yy,m0,U0,p0),pred1=score>0,cat;
+      if(c1)posS.push(score);else negS.push(score);
+      if(c1&&pred1){cat='#E07A5F';TP++;}else if(c1&&!pred1){cat='#E07A5F';FN++;}else if(!c1&&!pred1){cat='#5B8FB9';TN++;}else{cat='#5B8FB9';FP++;}
+      var Xp=px(xx),Yp=py(yy);ctx.globalAlpha=0.82;ctx.fillStyle=cat;ctx.beginPath();ctx.arc(Xp,Yp,3.3,0,6.2832);ctx.fill();ctx.globalAlpha=1;
+      if(c1!==pred1){ctx.strokeStyle=pred1?'#E07A5F':'#5B8FB9';ctx.lineWidth=1.8;ctx.beginPath();ctx.arc(Xp,Yp,5.2,0,6.2832);ctx.stroke();}}  // วงขอบ = คลาสที่ทายเป็น (FP→แดง, FN→น้ำเงิน)
+    K(String(TP),document.getElementById('tp'));K(String(FN),document.getElementById('fn'));K(String(FP),document.getElementById('fp'));K(String(TN),document.getElementById('tn'));
+    var acc=(TP+TN)/n,prec=(TP+FP)?TP/(TP+FP):0,rec=(TP+FN)?TP/(TP+FN):0,spec=(TN+FP)?TN/(TN+FP):0;
+    var f1=(prec+rec)?2*prec*rec/(prec+rec):0,auc=aucFrom(posS,negS);
+    document.getElementById('mcolA').innerHTML='<div class="mhd">'+kx('\\text{Classification metrics}')+'</div>'+bar('Sensitivity',rec)+bar('Specificity',spec)+bar('Precision',prec);
+    document.getElementById('mcolB').innerHTML='<div class="mhd">&nbsp;</div>'+bar('Accuracy',acc)+bar('F1',f1)+bar('AUC',auc);
+   }catch(e){ctx.setTransform(SC,0,0,SC,0,0);ctx.fillStyle='#A32D2D';ctx.font='14px KaTeX_Main';ctx.fillText('draw err: '+e.message,10,20);}
+  }
+  function liveEq(){
+    if(!window.katex)return;
+    K('g_+(\\mathbf{x})-g_-(\\mathbf{x})=0',document.getElementById('eq1'));
+    var t2;
+    if(modeM==='lda')t2=['\\Sigma_-=\\Sigma_+','\\Rightarrow','\\text{line}'];
+    else if(modeM==='nb')t2=['\\text{diag }\\Sigma','\\Rightarrow','\\text{axis-aligned}'];
+    else t2=['\\text{full }\\Sigma_c','\\Rightarrow','\\text{conic curve}'];
+    kxProse(document.getElementById('eq2'),t2);
+  }
+  /* ประโยคยาว = KaTeX ก้อนเดียว → ตัดบรรทัดไม่ได้ → ล้น rail 320px
+     วิธีมาตรฐาน: แตกเป็น "ชิ้น KaTeX ต่อวลี" (ยังเป็น KaTeX ทุกตัวอักษร แต่ขึ้นบรรทัดใหม่ระหว่างชิ้นได้) */
+  function kxProse(el,parts){
+    el.innerHTML='';
+    parts.forEach(function(p,i){
+      var s=document.createElement('span');
+      s.style.cssText='display:inline-block;margin-right:.28em';
+      try{katex.render(p,s,{throwOnError:false});}catch(e){s.textContent=p;}
+      el.appendChild(s);
+    });
+  }
+  function caseLab(){
+    var parts;
+    if(modeM==='lda')parts=['\\textbf{LDA:}','\\text{assumes a shared}','\\Sigma\\to','\\text{straight-line boundary.}','\\text{If the classes really differ}','\\text{in shape it is suboptimal.}'];
+    else if(modeM==='nb')parts=['\\textbf{Naive Bayes:}','\\text{assumes features}','\\text{independent (diagonal}','\\Sigma\\text{).}','\\text{Raise}','\\rho_+','\\text{to see it ignore}','\\text{the tilt and misclassify.}'];
+    else parts=['\\textbf{QDA:}','\\text{each class keeps its full}','\\Sigma\\to','\\text{curved boundary}','\\text{that hugs the true ellipses.}'];
+    kxProse(document.getElementById('caseLabel'),parts);
+  }
+  function upd(){if(TABS[curTab].summary)return;
+    // tab 0 (Equal covariance): the single "spread" control drives BOTH classes equally (isotropic, equal Σ)
+    if(curTab===0){var sc=gv('sx0');sv('sy0',sc);sv('sx1',sc);sv('sy1',sc);sv('r0',0);sv('r1',0);}
+    liveEq();draw();}
+  function syncLocks(){var T=TABS[curTab];bases.forEach(function(b){var on=T.en.indexOf(b)>=0;
+    document.getElementById('R'+b).disabled=!on;document.getElementById('N'+b).disabled=!on;
+    document.getElementById('row-'+b).style.display=on?'':'none';});   // ซ่อนแถวที่ไม่เกี่ยวกับ tab (ลดความรก)
+    document.querySelectorAll('.panel .dhd').forEach(function(hd){var g=hd.nextElementSibling;
+      if(!g||!g.classList.contains('dgrid'))return;
+      var any=[].some.call(g.querySelectorAll('.drow'),function(r){return r.style.display!=='none';});
+      hd.style.display=any?'':'none';});}   // ซ่อนหัวข้อกลุ่มที่ไม่มีแถวเปิด
+  function setModelSeg(){var bs=document.querySelectorAll('#modelSeg button');for(var i=0;i<bs.length;i++)bs[i].className=(bs[i].getAttribute('data-m')===modeM)?'on':'';}
+  function applyTab(k){curTab=k;var T=TABS[k];
+    var btns=document.querySelectorAll('.tabbtn');for(var i=0;i<btns.length;i++)btns[i].className='tabbtn'+(i===k?' on':'');
+    if(T.summary){document.getElementById('mainPanel').style.display='none';document.getElementById('summaryPanel').className='summary on';renderTexts();return;}
+    document.getElementById('mainPanel').style.display='grid';document.getElementById('summaryPanel').className='summary';
+    if(T.pre)for(var b in T.pre)sv(b,T.pre[b]);
+    if(T.m)modeM=T.m;
+    // แสดงเฉพาะปุ่มโมเดลที่เกี่ยวกับ tab นี้ ("มีอะไรก็แสดงแค่นั้น")
+    var segBtns=document.querySelectorAll('#modelSeg button');
+    for(var si=0;si<segBtns.length;si++){var mm=segBtns[si].getAttribute('data-m');segBtns[si].style.display=(T.models&&T.models.indexOf(mm)<0)?'none':'';}
+    setModelSeg();syncLocks();
+    // tab 0 uses sx0 as the shared "spread σ" — relabel it (restore σx0 on other tabs)
+    var lsx0=document.getElementById('l-sx0');if(lsx0)K((k===0)?'\\sigma':MT['l-sx0'],lsx0);
+    sizeCanvas();upd();}
+  var tb=document.getElementById('tabs');
+  TABS.forEach(function(T,i){var el=document.createElement('button');el.className='tabbtn';K('\\text{'+T.n+'}',el);el.addEventListener('click',function(){applyTab(i);});tb.appendChild(el);});
+  bases.forEach(function(b){var Re=document.getElementById('R'+b),Ne=document.getElementById('N'+b);
+    Re.addEventListener('input',function(){Ne.value=Re.value;upd();});Ne.addEventListener('input',function(){Re.value=Ne.value;upd();});});
+  document.querySelectorAll('#modelSeg button').forEach(function(b){b.addEventListener('click',function(){modeM=b.getAttribute('data-m');setModelSeg();upd();});});
+  window.addEventListener('resize',function(){sizeCanvas();upd();});
+  function autoRender(){if(window.renderMathInElement)renderMathInElement(document.body,{delimiters:[{left:'\\(',right:'\\)',display:false},{left:'$$',right:'$$',display:true}],throwOnError:false});}
+  function boot(){renderTexts();applyTab(0);autoRender();}
+  boot();
+  requestAnimationFrame(function(){sizeCanvas();renderTexts();upd();autoRender();});
+  setTimeout(function(){sizeCanvas();renderTexts();if(!TABS[curTab].summary)upd();autoRender();},250);
+  setTimeout(function(){sizeCanvas();renderTexts();if(!TABS[curTab].summary)upd();autoRender();},800);
+})();
+</script>
+</body>
+</html>
