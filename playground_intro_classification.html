@@ -13,7 +13,7 @@
   .layout{align-items:start}
   .pg.distcls .canvasbox{height:clamp(210px,28vh,250px)}
   .distcls .stage{gap:6px}
-  /* bivariate = แบบ 2-D Bayes: plot จตุรัส ซ้าย · confusion matrix ใหญ่ กินพื้นที่ที่เหลือ ขวา */
+  /* bivariate = แบบ 2-D Bayes: plot จตุรัส ซ้าย · confusion matrix ใหญ่ ขวา */
   .toprow{display:flex;gap:26px;align-items:center}
   .toprow .canvasbox{flex:1 1 auto;width:auto;min-width:0;margin:0}
   .toprow.bi .canvasbox{flex:none;aspect-ratio:1/1;width:auto}
@@ -24,6 +24,23 @@
   .cm .cell{border-radius:14px;padding:26px 8px;text-align:center}.cm .cell b{font-size:24px;display:block;font-variant-numeric:tabular-nums;font-weight:400}.cm .cell span{font-size:17px}
   .cm .katex{font-size:1em}
   .tp{background:#FBE9E4;color:#8A3B2C}.fn{background:#FAEFD6;color:#8A6510}.fp{background:#E3F1EE;color:#2E7D70}.tn{background:#E9F0F8;color:#3F6E99}
+  /* Example (สไลด์ PSA): ซ้าย = ตารางยาว · ขวา = pdf, posterior, การคำนวณ */
+  .exwrap{display:none;gap:18px;align-items:flex-start}
+  .exwrap.on{display:flex}
+  .exleft{flex:0 0 300px;min-width:0}
+  .exright{flex:1 1 auto;min-width:0;display:flex;flex-direction:column;gap:8px}
+  .excv{height:186px}.excv.post{height:150px}
+  .excv canvas{width:100%;height:100%;display:block;border:1px solid var(--line);border-radius:10px;background:#fff}
+  .excalc{background:#fff;border:1px solid var(--line);border-radius:12px;padding:8px 14px;font-size:15px;line-height:1.5}
+  .excalc .ln{display:block;white-space:nowrap}
+  .excalc .katex{font-size:1em}
+  .dtab{width:100%;border-collapse:collapse;font-size:15px}
+  .dtab th{background:var(--navy);color:#fff;font-weight:400;padding:5px 8px;text-align:center}
+  .dtab td{padding:3px 8px;text-align:center;color:var(--ink);line-height:1.35;background:#fff}
+  .dtab tr.alt td{background:#f1f4f9}
+  .dtab td.st{background:#e6ebf4;vertical-align:middle;text-align:left;padding-left:14px;border-left:2px solid #fff}
+  .dtab .katex{font-size:1em}
+  .dtab .ln{display:block;white-space:nowrap}
   .panel{max-height:calc(100vh - 96px);overflow-y:auto;overflow-x:hidden}
   .seg2{display:flex;flex-wrap:wrap;border:1px solid var(--line);border-radius:8px;overflow:hidden;margin-bottom:6px;background:#fff}
   .seg2 button{flex:1 1 auto;font:inherit;font-size:14px;padding:6px 8px;border:0;background:#fff;color:#555;cursor:pointer;white-space:nowrap}
@@ -31,7 +48,6 @@
   .seg2 .katex{font-size:1em}
   .tgls{display:flex;flex-direction:column;gap:9px;margin-top:10px}
   .hid{visibility:hidden}
-  /* ตาราง: .mtab กลาง — 15px, ทุกเซลล์ KaTeX น้ำหนัก 400, หัว/ตัวแนวเดียวกัน */
   .distcls .below{min-height:0;padding:6px 14px 8px}
   .tblbox{min-width:0;width:100%}
   .pg .mtab{margin:0}
@@ -47,14 +63,6 @@
   .pg .mtab th.r .katex-html,.pg .mtab td:last-child .katex-html{display:inline-block}
   .pg .mtab .ln{display:block}
   .pg .mtab .ln .katex{white-space:nowrap}
-  /* Example tab: ตารางข้อมูล PSA (แบบสไลด์) — คอลัมน์ Cancer / Healthy / สถิติ */
-  .extab{display:none;width:100%;border-collapse:collapse;font-size:15px}
-  .extab th,.extab td{padding:3px 10px;text-align:center;font-weight:400;color:var(--ink);line-height:1.35}
-  .extab th{color:var(--muted);font-weight:600;border-bottom:1px solid var(--line)}
-  .extab td.st{text-align:left;padding-left:16px;border-left:1px solid var(--line);vertical-align:top}
-  .extab td:last-child,.extab th:last-child{text-align:left}
-  .extab .katex{font-size:1em}
-  .extab .ln{display:block;white-space:nowrap}
   /* summary tab */
   .summary{display:none;flex-direction:column;gap:16px;min-height:0;overflow:visible}
   .summary.on{display:flex;flex:1}
@@ -71,7 +79,7 @@
   .stab td .note{font-size:13px;color:var(--muted);margin-top:6px}
   .stab td .note>span{display:inline-block;margin-right:.26em}
   .ref{font-size:13px;color:#9ca3af}
-  @media(max-width:640px){.frow{flex-direction:column;align-items:flex-start;gap:2px}.frow .fl{text-align:left;flex:none}}
+  @media(max-width:640px){.frow{flex-direction:column;align-items:flex-start;gap:2px}.frow .fl{text-align:left;flex:none}.exwrap.on{flex-direction:column}.exleft{flex:none}}
 </style>
 </head>
 <body class="pg distcls">
@@ -81,7 +89,17 @@
   <!-- ===== interactive ===== -->
   <div class="layout" id="mainPanel">
     <div class="stage">
-      <div class="toprow">
+      <!-- Example layout -->
+      <div class="exwrap" id="exwrap">
+        <div class="exleft"><table class="dtab" id="dtab"><thead><tr><th id="dt-x"></th><th id="dt-y"></th><th id="dt-s"></th></tr></thead><tbody id="dtbody"></tbody></table></div>
+        <div class="exright">
+          <div class="excv"><canvas id="cvpdf"></canvas></div>
+          <div class="excv post"><canvas id="cvpost"></canvas></div>
+          <div class="excalc" id="excalc"></div>
+        </div>
+      </div>
+      <!-- model-comparison layout -->
+      <div class="toprow" id="toprow">
         <div class="canvasbox"><canvas id="cv"></canvas></div>
         <div class="cmwrap" id="cmwrap"><div class="cm">
           <div class="hh"></div><div class="hh" id="ch-pp"></div><div class="hh" id="ch-pn"></div>
@@ -90,14 +108,11 @@
         </div></div>
       </div>
       <div class="classleg" id="classleg"></div>
-      <div class="below">
-        <div class="tblbox">
-          <table class="mtab" id="modtab">
-            <thead><tr><th id="th-m"></th><th id="th-f"></th><th id="th-r"></th><th class="r" id="th-e"></th></tr></thead>
-            <tbody id="modbody"></tbody>
-          </table>
-          <table class="extab" id="extab"><thead><tr><th id="ex-hp"></th><th id="ex-hn"></th><th id="ex-hs"></th></tr></thead><tbody id="exbody"></tbody></table>
-        </div>
+      <div class="below" id="below">
+        <div class="tblbox"><table class="mtab" id="modtab">
+          <thead><tr><th id="th-m"></th><th id="th-f"></th><th id="th-r"></th><th class="r" id="th-e"></th></tr></thead>
+          <tbody id="modbody"></tbody>
+        </table></div>
       </div>
     </div>
 
@@ -187,8 +202,10 @@
 
   // ---------- Example (สไลด์ PSA): 14 ค่า — Cancer = positive, Healthy = negative ----------
   var EX={pos:[4.1,3.4,2.9,2.8,2.7,2.1,1.6],neg:[2.5,2.0,1.7,1.4,1.2,0.9,0.8],xmin:0,xmax:5,ax:'PSA (\u00b5g/L)  x'};
-  function msd(a){var m=0,s=0,i;for(i=0;i<a.length;i++)m+=a[i];m/=a.length;for(i=0;i<a.length;i++)s+=(a[i]-m)*(a[i]-m);return [m,Math.sqrt(s/(a.length-1))];}   // sample sd (n−1) เหมือนสไลด์
+  function msd(a){var m=0,s=0,i;for(i=0;i<a.length;i++)m+=a[i];m/=a.length;for(i=0;i<a.length;i++)s+=(a[i]-m)*(a[i]-m);return [m,Math.sqrt(s/(a.length-1))];}
   EX.sp=msd(EX.pos);EX.sn=msd(EX.neg);EX.pip=EX.pos.length/(EX.pos.length+EX.neg.length);
+  EX.fp=function(x){return npdf(x,EX.sp[0],EX.sp[1]);};EX.fn=function(x){return npdf(x,EX.sn[0],EX.sn[1]);};
+  EX.post=function(x){var a=EX.pip*EX.fp(x),b=(1-EX.pip)*EX.fn(x);return a/(a+b);};
 
   // ---------- PDM data (day4_data.js) ----------
   var D4IDX=(function(){var a=new Int32Array(128);if(typeof D4A64!=='undefined')for(var i=0;i<D4A64.length;i++)a[D4A64.charCodeAt(i)]=i;return a;})();
@@ -274,7 +291,7 @@
     'hd-pos':'\\textcolor{#B0503A}{\\text{Positive class}}','hd-neg':'\\textcolor{#3F6E99}{\\text{Negative class}}',
     'lbl-x0':'x_0','lbl-muy1':'\\mu_{2+}','lbl-muy0':'\\mu_{2-}','lbl-s0':'\\sigma_-','lbl-s1':'\\sigma_+','lbl-p1':'\\pi_+','lbl-sev':'\\delta','lbl-n':'n','lbl-k':'k','lbl-depth':'\\text{depth}',
     'th-m':'\\text{model}','th-f':'z','th-r':'\\text{rule}','th-e':'\\text{accuracy}',
-    'ex-hp':'\\textcolor{#B0503A}{\\text{Cancer }(y=+)}','ex-hn':'\\textcolor{#3F6E99}{\\text{Healthy }(y=-)}','ex-hs':'\\text{statistics}',
+    'dt-x':'\\textcolor{#fff}{\\text{PSA }(x)}','dt-y':'\\textcolor{#fff}{\\text{Class }(y)}','dt-s':'\\textcolor{#fff}{\\text{Statistics}}',
     'ch-pp':'\\hat y=+','ch-pn':'\\hat y=-','ch-ap':'\\text{actual }+','ch-an':'\\text{actual }-','cs-tp':'\\mathrm{TP}','cs-fn':'\\mathrm{FN}','cs-fp':'\\mathrm{FP}','cs-tn':'\\mathrm{TN}',
     's-found':'\\text{1) Classification = estimate }P(y{=}+\\mid \\mathbf x)\\text{, then decide}',
     'fl-target':'\\text{target}','fe-target':'P(y{=}+\\mid \\mathbf x)\\quad\\text{(probability the object is positive given its features; predicted class = }+\\text{ when it exceeds }\\tfrac12)',
@@ -304,7 +321,6 @@
   function posName(){return isEX()?'cancer':isPDM()?'fault':'positive';} function negName(){return isEX()?'healthy':isPDM()?'healthy':'negative';}
   function clLine(name,lc,tc,shape){return '<span class="cli"><i class="'+(shape||'ln')+'" style="background:'+lc+'"></i><span>'+kx('\\textcolor{'+tc+'}{\\text{'+name+'}}')+'</span></span>';}
   function fillLegend(){var el=document.getElementById('classleg');if(!el)return;
-    if(isEX()){el.innerHTML=clLine('Cancer (positive)','#E07A5F',Rd,'ar')+clLine('Healthy (negative)','#5B8FB9',Bl,'ar')+clLine('normal fitted per class','#888','#666')+clLine('query point x0','#444','#444','ar');return;}
     el.innerHTML=clLine(isPDM()?'Fault hours (positive)':'Positive class','#E07A5F',Rd,'ar')+clLine(isPDM()?'Healthy hours (negative)':'Negative class','#5B8FB9',Bl,'ar')
       +clLine(dim()===2?'predicted region':'predicted class',MC,MC,dim()===2?'ar':'ln')+clLine('misclassified (ring)','#888','#666');}
 
@@ -313,38 +329,62 @@
   var SC=2,W=640,H=286;
   function sizeCanvas(){if(!cv)return;var w=Math.round(cv.clientWidth)||640,h=Math.round(cv.clientHeight)||322,dpr=window.devicePixelRatio||1;
     W=w;H=h;SC=dpr;cv.width=Math.round(w*dpr);cv.height=Math.round(h*dpr);}
+  function prep(c){var w=Math.round(c.clientWidth)||600,h=Math.round(c.clientHeight)||180,dpr=window.devicePixelRatio||1;
+    c.width=Math.round(w*dpr);c.height=Math.round(h*dpr);var g=c.getContext('2d');g.setTransform(dpr,0,0,dpr,0,0);g.clearRect(0,0,w,h);return {g:g,W:w,H:h};}
   function niceStep(lo,hi){var raw=(hi-lo)/6,p=Math.pow(10,Math.floor(Math.log10(raw))),m=raw/p,s=(m<1.5?1:m<3.5?2:m<7.5?5:10)*p;
     return {step:s,dec:Math.max(0,-Math.floor(Math.log10(s)+1e-9))};}
-  // Example: จุดบนแกน + normal ต่อคลาส + x0 (แบบสไลด์)
-  function drawEx(x0){
-    var L=44,Rm=16,pw=W-L-Rm,TOP=26,BOT=44,ph=H-TOP-BOT,xmin=EX.xmin,xmax=EX.xmax,i;
+  // Example — กราฟบน: pdf ต่อคลาส + จุดบนแกน + x0
+  function drawExPdf(x0){var c=prep(document.getElementById('cvpdf')),g=c.g,W=c.W,H=c.H;
+    var L=40,Rm=14,pw=W-L-Rm,TOP=24,BOT=36,ph=H-TOP-BOT,xmin=EX.xmin,xmax=EX.xmax,i;
     function px(x){return L+(x-xmin)/(xmax-xmin)*pw;}
-    var fp=function(x){return npdf(x,EX.sp[0],EX.sp[1]);},fn=function(x){return npdf(x,EX.sn[0],EX.sn[1]);};
-    var fmax=Math.max(fp(EX.sp[0]),fn(EX.sn[0]))*1.08,base=TOP+ph;
-    function py(f){return base-f/fmax*ph;}
+    var fmax=Math.max(EX.fp(EX.sp[0]),EX.fn(EX.sn[0]))*1.1,base=TOP+ph;function py(f){return base-f/fmax*ph;}
     var N=300,dx=(xmax-xmin)/N;
-    function curve(f,fill,stroke){ctx.beginPath();ctx.moveTo(px(xmin),base);for(i=0;i<=N;i++){var x=xmin+i*dx;ctx.lineTo(px(x),py(f(x)));}ctx.lineTo(px(xmax),base);ctx.closePath();
-      ctx.fillStyle=fill;ctx.fill();ctx.strokeStyle=stroke;ctx.lineWidth=1.8;ctx.beginPath();for(i=0;i<=N;i++){var x2=xmin+i*dx;i===0?ctx.moveTo(px(x2),py(f(x2))):ctx.lineTo(px(x2),py(f(x2)));}ctx.stroke();}
-    curve(fn,'rgba(91,143,185,0.25)','#5B8FB9');curve(fp,'rgba(224,122,95,0.25)','#E07A5F');
-    ctx.strokeStyle='rgba(128,128,128,0.6)';ctx.lineWidth=1;ctx.beginPath();ctx.moveTo(L,base);ctx.lineTo(L+pw,base);ctx.stroke();
-    ctx.fillStyle='rgba(128,128,128,0.9)';ctx.font='14px KaTeX_Main,serif';ctx.textAlign='center';ctx.textBaseline='alphabetic';
-    for(var a=0;a<=xmax;a+=1)ctx.fillText(a,px(a),base+16);
-    ctx.textAlign='right';ctx.fillStyle='rgba(90,90,90,0.9)';ctx.font='13px KaTeX_Main,serif';ctx.fillText(EX.ax,L+pw,base+31);
-    // จุดข้อมูลบนแกน
-    EX.neg.forEach(function(x){ctx.fillStyle='rgba(91,143,185,0.9)';ctx.beginPath();ctx.arc(px(x),base-6,5,0,7);ctx.fill();});
-    EX.pos.forEach(function(x){ctx.fillStyle='rgba(224,122,95,0.9)';ctx.beginPath();ctx.arc(px(x),base-6,5,0,7);ctx.fill();});
-    // ป้าย x̄, s ใกล้ยอด
-    ctx.font='13px KaTeX_Main,serif';ctx.textAlign='center';
-    ctx.fillStyle='#3F6E99';ctx.fillText('x\u0304\u208B = '+EX.sn[0].toFixed(1)+'   s\u208B = '+EX.sn[1].toFixed(2),px(EX.sn[0]),py(fn(EX.sn[0]))-8);
-    ctx.fillStyle='#B0503A';ctx.fillText('x\u0304\u208A = '+EX.sp[0].toFixed(1)+'   s\u208A = '+EX.sp[1].toFixed(2),px(EX.sp[0]),py(fp(EX.sp[0]))-8);
-    // x0: เส้นประ + จุดเทา + ค่าความหนาแน่น
-    var xq=px(x0);ctx.strokeStyle='#444';ctx.setLineDash([5,4]);ctx.lineWidth=1.4;ctx.beginPath();ctx.moveTo(xq,TOP-4);ctx.lineTo(xq,base);ctx.stroke();ctx.setLineDash([]);
-    ctx.fillStyle='#444';ctx.beginPath();ctx.arc(xq,base-6,6,0,7);ctx.fill();ctx.strokeStyle='#fff';ctx.lineWidth=1.5;ctx.stroke();
-    [[fp,'#B0503A'],[fn,'#3F6E99']].forEach(function(q){ctx.fillStyle=q[1];ctx.beginPath();ctx.arc(xq,py(q[0](x0)),4,0,7);ctx.fill();});
-    ctx.textAlign='left';ctx.fillStyle='#B0503A';ctx.fillText('f(x\u2080 | cancer) = '+fp(x0).toFixed(2),L+6,TOP-8);
-    ctx.fillStyle='#3F6E99';ctx.fillText('f(x\u2080 | healthy) = '+fn(x0).toFixed(2),L+190,TOP-8);
-    ctx.fillStyle='#444';ctx.fillText('x\u2080 = '+x0.toFixed(1),L+380,TOP-8);
-  }
+    function curve(f,fill,stroke){g.beginPath();g.moveTo(px(xmin),base);for(i=0;i<=N;i++){var x=xmin+i*dx;g.lineTo(px(x),py(f(x)));}g.lineTo(px(xmax),base);g.closePath();
+      g.fillStyle=fill;g.fill();g.strokeStyle=stroke;g.lineWidth=1.8;g.beginPath();for(i=0;i<=N;i++){var x2=xmin+i*dx;i===0?g.moveTo(px(x2),py(f(x2))):g.lineTo(px(x2),py(f(x2)));}g.stroke();}
+    curve(EX.fn,'rgba(91,143,185,0.25)','#5B8FB9');curve(EX.fp,'rgba(224,122,95,0.25)','#E07A5F');
+    g.strokeStyle='rgba(128,128,128,0.6)';g.lineWidth=1;g.beginPath();g.moveTo(L,base);g.lineTo(L+pw,base);g.stroke();
+    g.fillStyle='rgba(128,128,128,0.9)';g.font='13px KaTeX_Main,serif';g.textAlign='center';g.textBaseline='alphabetic';
+    for(var a=0;a<=xmax;a+=1)g.fillText(a,px(a),base+15);
+    g.textAlign='right';g.fillStyle='rgba(90,90,90,0.9)';g.fillText(EX.ax,L+pw,base+29);
+    g.textAlign='left';g.fillText('f(x | class)',L+4,TOP-9);
+    EX.neg.forEach(function(x){g.fillStyle='rgba(91,143,185,0.9)';g.beginPath();g.arc(px(x),base-5,4.5,0,7);g.fill();});
+    EX.pos.forEach(function(x){g.fillStyle='rgba(224,122,95,0.9)';g.beginPath();g.arc(px(x),base-5,4.5,0,7);g.fill();});
+    g.textAlign='center';g.fillStyle='#3F6E99';g.fillText('x\u0304\u208B = '+EX.sn[0].toFixed(1)+'  s\u208B = '+EX.sn[1].toFixed(2),px(EX.sn[0]),py(EX.fn(EX.sn[0]))-6);
+    g.fillStyle='#B0503A';g.fillText('x\u0304\u208A = '+EX.sp[0].toFixed(1)+'  s\u208A = '+EX.sp[1].toFixed(2),px(EX.sp[0]),py(EX.fp(EX.sp[0]))-6);
+    var xq=px(x0);g.strokeStyle='#444';g.setLineDash([5,4]);g.lineWidth=1.4;g.beginPath();g.moveTo(xq,TOP-2);g.lineTo(xq,base);g.stroke();g.setLineDash([]);
+    g.fillStyle='#444';g.beginPath();g.arc(xq,base-5,5.5,0,7);g.fill();g.strokeStyle='#fff';g.lineWidth=1.5;g.stroke();
+    [[EX.fp,'#B0503A'],[EX.fn,'#3F6E99']].forEach(function(q){g.fillStyle=q[1];g.beginPath();g.arc(xq,py(q[0](x0)),4,0,7);g.fill();});
+    g.textAlign='right';g.fillStyle='#444';g.fillText('x\u2080 = '+x0.toFixed(1),L+pw,TOP-9);}
+  // Example — กราฟล่าง: posterior P(cancer|x) + threshold + x0
+  function drawExPost(x0){var c=prep(document.getElementById('cvpost')),g=c.g,W=c.W,H=c.H;
+    var L=40,Rm=14,pw=W-L-Rm,TOP=20,BOT=30,ph=H-TOP-BOT,xmin=EX.xmin,xmax=EX.xmax,i;
+    function px(x){return L+(x-xmin)/(xmax-xmin)*pw;} function py(p){return TOP+(1-p)*ph;}
+    g.font='12px KaTeX_Main,serif';g.textBaseline='middle';
+    [0,0.5,1].forEach(function(p){g.strokeStyle=p===0.5?'rgba(17,17,17,0.55)':'rgba(128,128,128,0.35)';g.lineWidth=1;if(p===0.5)g.setLineDash([5,4]);
+      g.beginPath();g.moveTo(L,py(p));g.lineTo(L+pw,py(p));g.stroke();g.setLineDash([]);g.fillStyle='rgba(90,90,90,0.9)';g.textAlign='right';g.fillText(p===0.5?'0.5':String(p),L-6,py(p));});
+    g.textBaseline='alphabetic';g.textAlign='center';g.fillStyle='rgba(128,128,128,0.9)';for(var a=0;a<=xmax;a+=1)g.fillText(a,px(a),py(0)+14);
+    g.textAlign='left';g.fillStyle='rgba(90,90,90,0.9)';g.fillText('P(cancer | x)',L+4,TOP-7);
+    var N=300,dx=(xmax-xmin)/N;g.strokeStyle=MC;g.lineWidth=2.2;g.beginPath();
+    for(i=0;i<=N;i++){var x=xmin+i*dx;i===0?g.moveTo(px(x),py(EX.post(x))):g.lineTo(px(x),py(EX.post(x)));}g.stroke();
+    var xs=crossings1(function(v){return EX.post(v[0]);},xmin,xmax);
+    g.strokeStyle='#111';g.fillStyle='#111';g.lineWidth=1.6;g.textAlign='center';
+    xs.forEach(function(r){g.setLineDash([5,4]);g.beginPath();g.moveTo(px(r),py(1));g.lineTo(px(r),py(0));g.stroke();g.setLineDash([]);g.fillText('threshold '+r.toFixed(2),px(r),H-3);});
+    var xq=px(x0),p0=EX.post(x0);g.strokeStyle='#444';g.setLineDash([5,4]);g.lineWidth=1.4;g.beginPath();g.moveTo(xq,TOP);g.lineTo(xq,py(0));g.stroke();g.setLineDash([]);
+    g.fillStyle=MC;g.beginPath();g.arc(xq,py(p0),4.5,0,7);g.fill();
+    g.textAlign=xq>W/2?'right':'left';g.fillStyle=MC;g.fillText('P = '+p0.toFixed(2),xq+(xq>W/2?-8:8),py(p0)-8);}
+  function fillDtab(){var tb=document.getElementById('dtbody');if(!tb)return;var h='',i;
+    function rows(arr,cls,color,st){arr.forEach(function(x,i){h+='<tr class="'+((i%2)?'alt':'')+'"><td>'+kx(x.toFixed(1))+'</td><td>'+kx('\\textcolor{'+color+'}{\\text{'+cls+'}}')+'</td>'
+      +(i===0?'<td class="st" rowspan="'+arr.length+'">'+st+'</td>':'')+'</tr>';});}
+    rows(EX.pos,'Cancer',Rd,'<span class="ln">'+kx('\\bar x_+='+EX.sp[0].toFixed(1))+'</span><span class="ln">'+kx('s_+='+EX.sp[1].toFixed(2))+'</span>');
+    rows(EX.neg,'Healthy',Bl,'<span class="ln">'+kx('\\bar x_-='+EX.sn[0].toFixed(1))+'</span><span class="ln">'+kx('s_-='+EX.sn[1].toFixed(2))+'</span>');
+    tb.innerHTML=h;}
+  function fillCalc(x0){var el=document.getElementById('excalc');if(!el)return;var fp=EX.fp(x0),fn=EX.fn(x0),pip=EX.pip,post=EX.post(x0);
+    function fmt(s){return '<span class="ln">'+kx(s)+'</span>';}
+    el.innerHTML=fmt('f(x\\mid c)=\\dfrac{1}{s_c\\sqrt{2\\pi}}\\,e^{-\\frac{(x-\\bar x_c)^2}{2s_c^2}}')
+      +fmt('f(x_0{=}'+x0.toFixed(1)+'\\mid\\text{cancer})=\\dfrac{1}{'+EX.sp[1].toFixed(2)+'\\sqrt{2\\pi}}\\,e^{-\\frac{('+x0.toFixed(1)+'-'+EX.sp[0].toFixed(1)+')^2}{2\\cdot '+EX.sp[1].toFixed(2)+'^2}}='+fp.toFixed(2))
+      +fmt('f(x_0{=}'+x0.toFixed(1)+'\\mid\\text{healthy})=\\dfrac{1}{'+EX.sn[1].toFixed(2)+'\\sqrt{2\\pi}}\\,e^{-\\frac{('+x0.toFixed(1)+'-'+EX.sn[0].toFixed(1)+')^2}{2\\cdot '+EX.sn[1].toFixed(2)+'^2}}='+fn.toFixed(2))
+      +fmt('P(\\text{cancer}\\mid x_0)=\\dfrac{\\pi_+ f_+}{\\pi_+ f_+ + \\pi_- f_-}=\\dfrac{'+pip.toFixed(2)+'\\cdot '+fp.toFixed(2)+'}{'+pip.toFixed(2)+'\\cdot '+fp.toFixed(2)+'+'+(1-pip).toFixed(2)+'\\cdot '+fn.toFixed(2)+'}='+post.toFixed(2)
+        +'\\ \\Rightarrow\\ \\hat y='+(post>0.5?'\\textcolor{#B0503A}{\\text{cancer}}':'\\textcolor{#3F6E99}{\\text{healthy}}'));}
   function draw1(P){
     var L=44,Rm=16,pw=W-L-Rm,TOP=22,BOT=50,ph=H-TOP-BOT,xmin=P.xmin,xmax=P.xmax,i,x,m=P.m;
     function px(x){return L+(x-xmin)/(xmax-xmin)*pw;} function py(p){return TOP+(1-p)*ph;}
@@ -391,18 +431,18 @@
       ctx.fillStyle=yv?'rgba(224,122,95,0.9)':'rgba(91,143,185,0.84)';ctx.beginPath();ctx.arc(xp,yp,4,0,7);ctx.fill();
       var pr=m.post(v)>0.5?1:0;if(pr!==yv){ctx.strokeStyle=pr?'#E07A5F':'#5B8FB9';ctx.lineWidth=2;ctx.beginPath();ctx.arc(xp,yp,6,0,7);ctx.stroke();}}
   }
-  function draw(P){try{ctx.setTransform(SC,0,0,SC,0,0);ctx.clearRect(0,0,W,H);if(P.ex)drawEx(P.x0);else (P.dim===2?draw2:draw1)(P);}
+  function draw(P){try{ctx.setTransform(SC,0,0,SC,0,0);ctx.clearRect(0,0,W,H);(P.dim===2?draw2:draw1)(P);}
     catch(e){ctx.setTransform(SC,0,0,SC,0,0);ctx.fillStyle='#c0392b';ctx.font='15px KaTeX_Main,serif';ctx.textAlign='left';ctx.fillText('draw err: '+e.message,10,20);}}
-  function fillCM(P){var bi=(P.dim===2&&!P.ex);document.querySelector('.toprow').className='toprow'+(bi?' bi':'');if(!bi)return;
+  function fillCM(P){var bi=(P.dim===2);document.getElementById('toprow').className='toprow'+(bi?' bi':'');if(!bi)return;
     K(String(P.TP),document.getElementById('c-tp'));K(String(P.FN),document.getElementById('c-fn'));K(String(P.FP),document.getElementById('c-fp'));K(String(P.TN),document.getElementById('c-tn'));}
 
-  // ---------- ตาราง ----------
+  // ---------- ตารางโมเดล ----------
   function fx(v,d){return (Math.abs(v)<1e-9?0:v).toFixed(d===undefined?2:d);}
   function sgn(v,d){return (v>=0?'+':'-')+fx(Math.abs(v),d);}
   function lines(arr){return arr.map(function(t){return '<span class="ln">'+kx(t)+'</span>';}).join('');}
   function POS(){return 'y=\\textcolor{#B0503A}{\\text{'+posName()+'}}';} function NEG(){return 'y=\\textcolor{#3F6E99}{\\text{'+negName()+'}}';}
   function linExpr(f,sym){var s='';for(var d=0;d<f.W.length;d++)s+=(d?sgn(f.W[d]):fx(f.W[d]))+'\\,'+sym[d];return s+sgn(f.B);}
-  function modelCell(key,f,sym){if(f.linear)return lines([linExpr(f,sym)]);return '';}   // หัวคอลัมน์เป็น z แล้ว ไม่ต้องใส่ z=
+  function modelCell(key,f,sym){if(f.linear)return lines([linExpr(f,sym)]);return '';}
   function ruleCell(key,f,sym,dec){
     if(f.linear){
       if(sym.length===1){if(Math.abs(f.W[0])<1e-9)return lines(['\\text{always }'+(f.B>0?POS():NEG())]);
@@ -416,16 +456,6 @@
     MODELS.forEach(function(m){var f=F[m.key];
       h+='<tr class="'+((modeM===m.key)?'sel':'')+'"><td>'+kx('\\text{'+m.name+'}')+'</td>'
         +'<td>'+modelCell(m.key,f,sym)+'</td><td>'+ruleCell(m.key,f,sym,dec)+'</td><td>'+kx(((1-f.err)*100).toFixed(1)+'\\%')+'</td></tr>';});
-    tb.innerHTML=h;}
-  // Example table: ข้อมูล 2 คอลัมน์ (Cancer / Healthy) + สถิติ + ความหนาแน่นที่ x0 + Bayes (แบบสไลด์)
-  function fillEx(x0){var tb=document.getElementById('exbody');if(!tb)return;var h='',i,n=Math.max(EX.pos.length,EX.neg.length);
-    var fp=npdf(x0,EX.sp[0],EX.sp[1]),fn=npdf(x0,EX.sn[0],EX.sn[1]),pip=EX.pip,post=pip*fp/(pip*fp+(1-pip)*fn);
-    var stats=lines(['\\bar x_+='+fx(EX.sp[0],1)+',\\ s_+='+fx(EX.sp[1]),'\\bar x_-='+fx(EX.sn[0],1)+',\\ s_-='+fx(EX.sn[1]),
-      'f(x\\mid c)=\\dfrac{1}{s_c\\sqrt{2\\pi}}\\,e^{-\\frac{(x-\\bar x_c)^2}{2s_c^2}}',
-      'f(x_0{=}'+fx(x0,1)+'\\mid\\text{cancer})='+fx(fp),'f(x_0{=}'+fx(x0,1)+'\\mid\\text{healthy})='+fx(fn),
-      'P(\\text{cancer}\\mid x_0)=\\dfrac{\\pi_+ f_+}{\\pi_+ f_+ + \\pi_- f_-}='+fx(post)+'\\ \\ (\\pi_+='+fx(pip)+')']);
-    for(i=0;i<n;i++){h+='<tr><td>'+(i<EX.pos.length?kx(fx(EX.pos[i],1)):'')+'</td><td>'+(i<EX.neg.length?kx(fx(EX.neg[i],1)):'')+'</td>'
-      +(i===0?'<td class="st" rowspan="'+n+'">'+stats+'</td>':'')+'</tr>';}
     tb.innerHTML=h;}
 
   // ---------- data for the current tab ----------
@@ -445,10 +475,12 @@
     return {X:X,ys:ys,xmin:lo[0],xmax:hi[0],ymin:D===2?lo[1]:0,ymax:D===2?hi[1]:1,sym:sym,ax:c.ax,dec:2,mid:(lo[0]+hi[0])/2,scale:cols.map(function(col,d){return (hi[d]-lo[d])||1;})};}
 
   // ---------- main update ----------
+  function showEx(on){document.getElementById('exwrap').className='exwrap'+(on?' on':'');
+    ['toprow','classleg','below'].forEach(function(id){document.getElementById(id).style.display=on?'none':'';});}
   function upd(){
     if(T().summary)return;
-    document.getElementById('modtab').style.display=isEX()?'none':'';document.getElementById('extab').style.display=isEX()?'table':'none';
-    if(isEX()){var x0=gv('x0');var DPx={ex:true,dim:1,x0:x0};fillCM(DPx);draw(DPx);fillEx(x0);fillLegend();if(fitPlot()){sizeCanvas();draw(DPx);}return;}
+    if(isEX()){showEx(true);var x0=gv('x0');fillDtab();drawExPdf(x0);drawExPost(x0);fillCalc(x0);return;}
+    showEx(false);
     var D=dim(),S=dataset(),X=S.X,ys=S.ys,kk=Math.round(gv('k')),dp=Math.round(gv('depth')),k;
     var F={logistic:fitLogistic(X,ys),nb:fitNB(X,ys),knn:fitKNN(X,ys,kk,S.scale),tree:fitTree(X,ys,dp)};
     MODELS.forEach(function(m){var f=F[m.key];f.err=trainErr(f.post,X,ys);f.xstar=(D===1&&f.linear)?crossings1(f.post,S.xmin,S.xmax):[];});
@@ -460,9 +492,9 @@
     if(fitPlot()){sizeCanvas();draw(DP);}
   }
   function fitPlot(){var pn=document.querySelector('.panel'),st=document.querySelector('.stage'),cb=document.querySelector('.canvasbox');
-    if(!pn||!st||!cb||innerWidth<=820)return false;
+    if(!pn||!st||!cb||innerWidth<=820||isEX())return false;
     var cur=cb.getBoundingClientRect().height,others=st.getBoundingClientRect().height-cur;
-    var target=Math.max((isPDM()||isEX())?240:200,Math.min(400,Math.round(pn.getBoundingClientRect().height-others)));
+    var target=Math.max(isPDM()?240:200,Math.min(400,Math.round(pn.getBoundingClientRect().height-others)));
     if(Math.abs(target-cur)<2)return false;cb.style.height=target+'px';return true;}
 
   // ---------- controls ----------
