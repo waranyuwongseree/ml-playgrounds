@@ -23,8 +23,15 @@
   .pg .mtab th,.pg .mtab td{padding:4px 7px;font-size:13px}
   .pg .mtab th,.pg .mtab td{vertical-align:top;line-height:1.45}          /* หัวกับตัวจัดแนวเดียวกัน */
   .pg .mtab th{white-space:normal}
-  .pg .mtab th.num{text-align:right}                                   /* หัวคอลัมน์ตัวเลขชิดขวาเท่าตัวตาราง */
-  .pg .mtab td:first-child{text-align:left;font-weight:400;white-space:nowrap}   /* ชื่อโมเดลชิดซ้ายเท่าหัว */
+  .pg .mtab th.r{text-align:right}                                   /* หัวคอลัมน์ตัวเลขชิดขวาเท่าตัวตาราง */
+  .pg .mtab td:first-child{text-align:left;white-space:nowrap}   /* ชื่อโมเดลชิดซ้ายเท่าหัว */
+  /* ยกเลิกสไตล์ตัวเลขของ .mtab กลาง (หนา/น้ำเงิน) → ทุกเซลล์น้ำหนัก 400 สีเดียวกัน ฟอนต์ KaTeX ขนาดเดียวกับหัว */
+  .pg .mtab td{font-weight:400;color:var(--ink);font-variant-numeric:normal}
+  .pg .mtab td.num,.pg .mtab td:last-child{text-align:right}
+  .pg .mtab th .katex,.pg .mtab td .katex{font-size:1em;line-height:1.2;vertical-align:baseline}
+  /* คอลัมน์ตัวเลข: กล่อง KaTeX เป็น block ชิดขวา ทั้งหัวและตัว → ขอบขวาตรงกันเป๊ะ (ไม่ขึ้นกับ inline-box ของ KaTeX) */
+  .pg .mtab th.r .katex,.pg .mtab td:last-child .katex{display:block;text-align:right}
+  .pg .mtab th.r .katex-html,.pg .mtab td:last-child .katex-html{display:inline-block}
   .pg .mtab td.txt{text-align:left;font-weight:400;color:var(--ink);line-height:1.45}   /* คอลัมน์กฎ = ข้อความ */
   .pg .mtab tr.sel th,.pg .mtab tr.sel td{background:#f4f7fb}
   .pg .mtab .katex{font-size:1em}
@@ -60,7 +67,7 @@
       <div class="classleg" id="classleg"></div>
       <div class="below">
         <div class="tblbox"><table class="mtab" id="modtab">
-          <thead><tr><th id="th-m"></th><th id="th-f"></th><th class="num" id="th-b"></th><th class="num" id="th-e"></th></tr></thead>
+          <thead><tr><th id="th-m"></th><th id="th-f"></th><th id="th-r"></th><th class="r" id="th-e"></th></tr></thead>
           <tbody id="modbody"></tbody>
         </table></div>
       </div>
@@ -198,7 +205,7 @@
     'sb-logistic':'\\text{Logistic}','sb-nb':'\\text{Naive Bayes}','sb-knn':'\\text{KNN}','sb-tree':'\\text{Tree}',
     'hd-pos':'\\textcolor{#B0503A}{\\text{Positive class}}','hd-neg':'\\textcolor{#3F6E99}{\\text{Negative class}}','hd-share':'\\text{Class balance \\& size}',
     'lbl-mu0':'\\mu_-','lbl-mu1':'\\mu_+','lbl-s0':'\\sigma_-','lbl-s1':'\\sigma_+','lbl-p1':'\\pi_+','lbl-n':'n','lbl-k':'k','lbl-depth':'\\text{depth}',
-    'th-m':'\\text{model}','th-f':'\\hat y','th-b':'\\text{threshold}','th-e':'\\text{accuracy}',
+    'th-m':'\\text{model}','th-f':'\\hat P','th-r':'\\text{rule}','th-e':'\\text{accuracy}',
     's-found':'\\text{1) Classification = estimate }P(y{=}+\\mid x)\\text{, then decide}',
     'fl-target':'\\text{target}','fe-target':'P(y{=}+\\mid x)\\quad\\text{(probability the object is positive given its feature; predicted class = }+\\text{ when it exceeds }\\tfrac12)',
     'fl-rule':'\\text{decision rule}','fe-rule':'\\hat y=+\\iff P(y{=}+\\mid x)>\\tfrac12',
@@ -271,8 +278,19 @@
   function fx(v,d){return (Math.abs(v)<1e-9?0:v).toFixed(d===undefined?2:d);}
   function lines(arr){return arr.map(function(t){return '<span class="ln">'+kx(t)+'</span>';}).join('');}
   var POS='y=\\textcolor{#B0503A}{\\text{positive}}',NEG='y=\\textcolor{#3F6E99}{\\text{negative}}';
+  // คอลัมน์ P̂ = ตัวโมเดลที่ fit ได้ (สมการ)
+  function modelCell(key,f){
+    if(f.linear)return lines(['\\sigma('+fx(f.W)+'\\,x'+(f.B>=0?'+':'-')+fx(Math.abs(f.B))+')']);
+    if(key==='knn')return lines(['\\tfrac{1}{'+f.k+'}\\sum_{i\\in N_{'+f.k+'}(x)}y_i']);
+    var R=f.rules,out=[];   // tree: P̂ ต่อช่วง (ใบ)
+    R.forEach(function(r,i){out.push(((i===0)?'x<'+fx(r.hi):(i===R.length-1)?'\\text{else}':'x<'+fx(r.hi))+':\\ '+fx(r.p));});
+    return lines(out);}
+  // คอลัมน์ rule = กฎตัดสิน y ชัด ๆ (if … then y = positive / else y = negative)
   function ruleCell(key,f){
-    if(f.linear)return lines(['\\sigma('+fx(f.W)+'\\,x'+(f.B>=0?'+':'-')+fx(Math.abs(f.B))+')']);   // ตัวโมเดล; กฎของมัน = threshold (คอลัมน์ถัดไป)
+    if(f.linear){ // σ(Wx+B) > 1/2 ⇔ Wx+B > 0 ⇔ x ≷ -B/W
+      if(Math.abs(f.W)<1e-9)return lines(['\\text{always }'+(f.B>0?POS:NEG)]);
+      var t=-f.B/f.W, gt=f.W>0;
+      return lines(['\\text{if }x'+(gt?'>':'<')+fx(t)+'\\text{ then }'+POS,'\\text{else }'+NEG]);}
     if(key==='knn')return lines(['y=\\text{majority of the }'+f.k+'\\text{ nearest points}']);
     var R=f.rules,out=[];
     R.forEach(function(r,i){var yy=(r.p>0.5)?POS:NEG;
@@ -281,10 +299,9 @@
     return lines(out);}
   function fillTable(F){var tb=document.getElementById('modbody');if(!tb)return;var h='';
     MODELS.forEach(function(m){var f=F[m.key];
-      var th=(f.linear&&f.xstar.length)?f.xstar.map(function(v){return fx(v,1);}).join(' · '):'';   // KNN/tree: ไม่แสดง threshold
       // ทุกเซลล์เรนเดอร์ผ่าน KaTeX (ตัวเลขด้วย) → ฟอนต์ทั้งตารางเป็นชุดเดียว
       h+='<tr class="'+((modeM===m.key)?'sel':'')+'"><td>'+kx('\\text{'+m.name+'}')+'</td>'
-        +'<td class="txt">'+ruleCell(m.key,f)+'</td><td>'+(th?kx(th.replace(/ · /g,'\\;\\cdot\\;')):'')+'</td><td>'+kx(((1-f.err)*100).toFixed(1)+'\\%')+'</td></tr>';});
+        +'<td class="txt">'+modelCell(m.key,f)+'</td><td class="txt">'+ruleCell(m.key,f)+'</td><td>'+kx(((1-f.err)*100).toFixed(1)+'\\%')+'</td></tr>';});
     tb.innerHTML=h;}
 
   // ---------- main update ----------
