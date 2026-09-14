@@ -7,6 +7,7 @@
 <link rel="stylesheet" href="pg_style.css?v=24">
 <link rel="stylesheet" href="vendor/katex/katex.min.css">
 <script src="vendor/katex/katex.min.js"></script>
+<script src="day4_data.js"></script>
 <style>
   /* intro-classification — โครง/ฟอนต์ = .distcls กลาง (เหมือน 1-D Bayes); ตาราง = .mtab กลาง 15px */
   .layout{align-items:start}
@@ -19,6 +20,7 @@
   .seg2 button.on{background:var(--navy);color:#fff}
   .seg2 .katex{font-size:1em}
   .tgls{display:flex;flex-direction:column;gap:9px;margin-top:10px}
+  .hid{visibility:hidden}                       /* จองพื้นที่ไว้ (ให้แผง control สูงคงที่ทุกโมเดล) */
   /* ตาราง: .mtab กลาง — 15px (เท่า 1-D Bayes), ทุกเซลล์ KaTeX น้ำหนัก 400, หัว/ตัวแนวเดียวกัน */
   .distcls .below{min-height:0;padding:6px 14px 8px}
   .tblbox{min-width:0;width:100%}
@@ -58,7 +60,7 @@
 <div class="wrap">
   <div class="hdr"><h1 id="h1">Intro to Classification</h1><div class="tabs" id="tabs"></div></div>
 
-  <!-- ===== interactive (Univariate / Bivariate) ===== -->
+  <!-- ===== interactive ===== -->
   <div class="layout" id="mainPanel">
     <div class="stage">
       <div class="canvasbox"><canvas id="cv"></canvas></div>
@@ -73,31 +75,37 @@
 
     <!-- CONTROL: ข้อมูล → โมเดล → ค่าตั้งของโมเดล -->
     <div class="panel">
-      <div class="dhd" id="hd-pos"></div>
+      <!-- sim data (tab Univariate / Bivariate) -->
+      <div id="grp-pos"><div class="dhd" id="hd-pos"></div>
       <div class="dgrid">
         <div class="drow" id="row-mu1"><span class="dlab" id="lbl-mu1"></span><input type="range" id="Rmu1" min="1" max="9" step="0.1" value="6.0"><input class="num" type="number" id="Nmu1" min="1" max="9" step="0.1" value="6.0"></div>
         <div class="drow" id="row-muy1"><span class="dlab" id="lbl-muy1"></span><input type="range" id="Rmuy1" min="1" max="9" step="0.1" value="6.0"><input class="num" type="number" id="Nmuy1" min="1" max="9" step="0.1" value="6.0"></div>
         <div class="drow" id="row-s1"><span class="dlab" id="lbl-s1"></span><input type="range" id="Rs1" min="0.4" max="2.5" step="0.1" value="1.0"><input class="num" type="number" id="Ns1" min="0.4" max="2.5" step="0.1" value="1.0"></div>
-      </div>
-      <div class="dhd" id="hd-neg"></div>
+      </div></div>
+      <div id="grp-neg"><div class="dhd" id="hd-neg"></div>
       <div class="dgrid">
         <div class="drow" id="row-mu0"><span class="dlab" id="lbl-mu0"></span><input type="range" id="Rmu0" min="1" max="9" step="0.1" value="3.0"><input class="num" type="number" id="Nmu0" min="1" max="9" step="0.1" value="3.0"></div>
         <div class="drow" id="row-muy0"><span class="dlab" id="lbl-muy0"></span><input type="range" id="Rmuy0" min="1" max="9" step="0.1" value="3.0"><input class="num" type="number" id="Nmuy0" min="1" max="9" step="0.1" value="3.0"></div>
         <div class="drow" id="row-s0"><span class="dlab" id="lbl-s0"></span><input type="range" id="Rs0" min="0.4" max="2.5" step="0.1" value="1.0"><input class="num" type="number" id="Ns0" min="0.4" max="2.5" step="0.1" value="1.0"></div>
-      </div>
-      <div class="dhd" id="hd-share"></div>
+      </div></div>
+      <!-- PDM case study (tab PDM univariate / bivariate) -->
+      <div id="grp-ds"><div class="dhd" id="hd-ds"></div>
+      <div class="seg2" id="dsSeg"><button data-ds="0" id="ds-0" class="on"></button><button data-ds="1" id="ds-1"></button></div></div>
+      <div id="grp-share"><div class="dhd" id="hd-share"></div>
       <div class="dgrid">
         <div class="drow" id="row-p1"><span class="dlab" id="lbl-p1"></span><input type="range" id="Rp1" min="0.05" max="0.95" step="0.01" value="0.50"><input class="num" type="number" id="Np1" min="0.05" max="0.95" step="0.01" value="0.50"></div>
         <div class="drow" id="row-n"><span class="dlab" id="lbl-n"></span><input type="range" id="Rn" min="20" max="400" step="10" value="120"><input class="num" type="number" id="Nn" min="20" max="400" step="10" value="120"></div>
-      </div>
+      </div></div>
       <div class="dhd" id="hd-model"></div>
       <div class="seg2" id="modelSeg">
         <button data-m="logistic" id="sb-logistic" class="on"></button><button data-m="nb" id="sb-nb"></button><button data-m="knn" id="sb-knn"></button><button data-m="tree" id="sb-tree"></button>
       </div>
+      <!-- Model setting: จองพื้นที่ 1 แถวเสมอ → แผงสูงคงที่ ทุกโมเดล plot จึงเท่ากัน -->
       <div class="dhd" id="hd-hp"></div>
       <div class="dgrid" id="grid-hp">
         <div class="drow" id="row-k"><span class="dlab" id="lbl-k"></span><input type="range" id="Rk" min="1" max="31" step="2" value="7"><input class="num" type="number" id="Nk" min="1" max="31" step="2" value="7"></div>
         <div class="drow" id="row-depth"><span class="dlab" id="lbl-depth"></span><input type="range" id="Rdepth" min="1" max="6" step="1" value="1"><input class="num" type="number" id="Ndepth" min="1" max="6" step="1" value="1"></div>
+        <div class="drow hid" id="row-hpblank"><span class="dlab">&nbsp;</span><input type="range" disabled><input class="num" type="number" disabled></div>
       </div>
       <div class="tgls"><button class="primary" id="resample" style="width:100%"></button></div>
     </div>
@@ -133,17 +141,32 @@
 <script>
 (function(){
   "use strict";
-  // ---------- rng (เหมือน 1-D Bayes) — Z*x สำหรับแกน x, Z*y สำหรับแกน y (bivariate) ----------
+  // ---------- rng ----------
   function mulberry32(a){return function(){a|=0;a=a+0x6D2B79F5|0;var t=Math.imul(a^a>>>15,1|a);
     t=t+Math.imul(t^t>>>7,61|t)^t;return((t^t>>>14)>>>0)/4294967296;};}
-  var MAXN=400, Z0=[],Z1=[],Z0y=[],Z1y=[];
+  var MAXN=400, Z0=[],Z1=[],Z0y=[],Z1y=[],PERM=[];
   function regen(seed){var rng=mulberry32(seed),i;function g(){var u=rng()||1e-9,v=rng();return Math.sqrt(-2*Math.log(u))*Math.cos(2*Math.PI*v);}
-    Z0=[];Z1=[];Z0y=[];Z1y=[];for(i=0;i<MAXN;i++){Z0.push(g());Z1.push(g());Z0y.push(g());Z1y.push(g());}}
+    Z0=[];Z1=[];Z0y=[];Z1y=[];for(i=0;i<MAXN;i++){Z0.push(g());Z1.push(g());Z0y.push(g());Z1y.push(g());}
+    PERM=[];for(i=0;i<1440;i++)PERM.push(i);for(i=1439;i>0;i--){var j=Math.floor(rng()*(i+1)),t=PERM[i];PERM[i]=PERM[j];PERM[j]=t;}}   // สุ่มลำดับชั่วโมง PDM
   var seed=12345; regen(seed);
   function sig(z){return 1/(1+Math.exp(-z));}
 
-  // ---------- estimators: input X = array of feature vectors (มิติ 1 หรือ 2), ys = 0/1 ----------
-  // ทุกตัวคืน post(v) = P̂(y=+|x); linear = true เมื่อ log-odds เชิงเส้น (มี W,B)
+  // ---------- PDM data (day4_data.js — ถอดรหัสแบบเดียวกับ playground_pdm_modes) ----------
+  var D4IDX=(function(){var a=new Int32Array(128);if(typeof D4A64!=='undefined')for(var i=0;i<D4A64.length;i++)a[D4A64.charCodeAt(i)]=i;return a;})();
+  var _cache={};
+  function dcol(c,n){var out=new Float64Array(n),w=c.w,b=c.b,sc=Math.pow(10,c.dp);
+    for(var i=0;i<n;i++){var x=0,o=i*w;for(var j=0;j<w;j++)x=x*64+D4IDX[b.charCodeAt(o+j)];out[i]=(x+c.lo)/sc;}return out;}
+  function SET(name){if(_cache[name])return _cache[name];if(typeof D4RAW==='undefined'||!D4RAW[name])return null;
+    var raw=D4RAW[name],n=raw.n,col={};Object.keys(raw.col).forEach(function(k){col[k]=dcol(raw.col[k],n);});
+    var bad=new Uint8Array(n);for(var i=0;i<n;i++)bad[i]=(raw.truth.charCodeAt(i)===49)?1:0;
+    return(_cache[name]={name:name,n:n,col:col,bad:bad});}
+  // case-study choices: [ชุดข้อมูล, ฟีเจอร์, ชื่อสั้น (KaTeX), ชื่อแกน]
+  var PDM1=[{ds:'obvious',    f:['vib_mm_s'],                    sym:['\\text{vib}'],           ax:['vibration (mm/s)'],                 lab:'Obvious'},
+            {ds:'overlapping',f:['vib_mm_s'],                    sym:['\\text{vib}'],           ax:['vibration (mm/s)'],                 lab:'Overlapping'}];
+  var PDM2=[{ds:'broken_relation',f:['flow_m3h','discharge_pressure_bar'],sym:['\\text{flow}','\\text{pressure}'],ax:['flow (m3/h)','discharge pressure (bar)'],lab:'Broken relation'},
+            {ds:'along_the_model',f:['flow_m3h','motor_current_a'],       sym:['\\text{flow}','\\text{current}'], ax:['flow (m3/h)','motor current (A)'],      lab:'Along the model'}];
+
+  // ---------- estimators: X = array of feature vectors, ys = 0/1 ----------
   function fitLogistic(X,ys){var n=X.length,D=X[0].length,i,d,mu=[],sd=[];
     for(d=0;d<D;d++){var m=0,s=0;for(i=0;i<n;i++)m+=X[i][d];m/=n;for(i=0;i<n;i++)s+=(X[i][d]-m)*(X[i][d]-m);mu.push(m);sd.push(Math.sqrt(s/n)||1);}
     var w=[],b=0,lr=0.8,it;for(d=0;d<D;d++)w.push(0);
@@ -152,17 +175,17 @@
       for(d=0;d<D;d++)w[d]-=lr*gw[d]/n;b-=lr*gb/n;}
     var W=[],B=b;for(d=0;d<D;d++){W.push(w[d]/sd[d]);B-=w[d]*mu[d]/sd[d];}
     return {post:function(v){var z=B;for(var d=0;d<W.length;d++)z+=W[d]*v[d];return sig(z);},W:W,B:B,linear:true};}
-  // Gaussian NB with shared (pooled) variance per feature → log-odds linear → σ(W·x+B)
   function fitNB(X,ys){var n=X.length,D=X[0].length,i,d,p=[],q=[];for(i=0;i<n;i++)(ys[i]?p:q).push(X[i]);
+    if(!p.length||!q.length)return fitLogistic(X,ys);
     var mp=[],mq=[],v=[];
     for(d=0;d<D;d++){var a=0,b=0,j;for(j=0;j<p.length;j++)a+=p[j][d];a/=p.length;for(j=0;j<q.length;j++)b+=q[j][d];b/=q.length;
       var s=0;for(j=0;j<p.length;j++)s+=(p[j][d]-a)*(p[j][d]-a);for(j=0;j<q.length;j++)s+=(q[j][d]-b)*(q[j][d]-b);
-      mp.push(a);mq.push(b);v.push(Math.max(0.0064,s/n));}
+      mp.push(a);mq.push(b);v.push(Math.max(1e-6,s/n));}
     var pi1=p.length/n,W=[],B=Math.log(pi1/(1-pi1));
     for(d=0;d<D;d++){W.push((mp[d]-mq[d])/v[d]);B+=(mq[d]*mq[d]-mp[d]*mp[d])/(2*v[d]);}
     return {post:function(x){var z=B;for(var d=0;d<W.length;d++)z+=W[d]*x[d];return sig(z);},W:W,B:B,linear:true};}
-  function fitKNN(X,ys,k){var n=X.length;k=Math.min(k,n);
-    return {post:function(v){var ds=new Array(n),i,d;for(i=0;i<n;i++){var s=0;for(d=0;d<v.length;d++){var t=X[i][d]-v[d];s+=t*t;}ds[i]=[s,ys[i]];}
+  function fitKNN(X,ys,k,scale){var n=X.length;k=Math.min(k,n);scale=scale||X[0].map(function(){return 1;});   // scale: ทำให้ระยะแต่ละแกนเทียบกันได้
+    return {post:function(v){var ds=new Array(n),i,d;for(i=0;i<n;i++){var s=0;for(d=0;d<v.length;d++){var t=(X[i][d]-v[d])/scale[d];s+=t*t;}ds[i]=[s,ys[i]];}
       ds.sort(function(a,b){return a[0]-b[0];});var c=0;for(i=0;i<k;i++)c+=ds[i][1];return c/k;},k:k,linear:false};}
   function gini(p){return 2*p*(1-p);}
   function fitTree(X,ys,depth){var n=X.length,D=X[0].length,i,all=[];for(i=0;i<n;i++)all.push(i);
@@ -177,8 +200,10 @@
       var L=[],R=[];for(j=0;j<m;j++)(X[idx[j]][best.f]<best.t?L:R).push(idx[j]);
       return {leaf:false,f:best.f,t:best.t,left:build(L,d+1),right:build(R,d+1)};}
     var root=build(all,0);
+    // รวมใบพี่น้องที่ทายคลาสเดียวกัน (กฎซ้ำ) → กฎสั้นลง ผลทำนายไม่เปลี่ยน
+    (function prune(nd){if(nd.leaf)return;prune(nd.left);prune(nd.right);
+      if(nd.left.leaf&&nd.right.leaf&&((nd.left.p>0.5)===(nd.right.p>0.5))){nd.leaf=true;nd.p=(nd.left.p+nd.right.p)/2;delete nd.left;delete nd.right;}})(root);
     var post=function(v){var nd=root;while(!nd.leaf)nd=(v[nd.f]<nd.t)?nd.left:nd.right;return nd.p;};
-    // leaves → rules: แต่ละใบ = เงื่อนไข AND ตามทางเดิน
     var leaves=[];(function walk(nd,cond){if(nd.leaf){leaves.push({cond:cond,p:nd.p});return;}
       walk(nd.left,cond.concat([{f:nd.f,lt:true,t:nd.t}]));walk(nd.right,cond.concat([{f:nd.f,lt:false,t:nd.t}]));})(root,[]);
     return {post:post,leaves:leaves,linear:false};}
@@ -190,10 +215,12 @@
 
   // ---------- state ----------
   var bases=['mu0','muy0','mu1','muy1','s0','s1','p1','n','k','depth'];
-  var modeM='logistic', curTab=0;
+  var modeM='logistic', curTab=0, dsIdx=0;
   var TABS=[
-    {n:'Univariate', dim:1, en:['mu1','s1','mu0','s0','p1','n']},
-    {n:'Bivariate',  dim:2, en:['mu1','muy1','s1','mu0','muy0','s0','p1','n']},
+    {n:'Univariate',     dim:1, sim:true, groups:['pos','neg','share'], rows:['mu1','s1','mu0','s0','p1','n']},
+    {n:'Bivariate',      dim:2, sim:true, groups:['pos','neg','share'], rows:['mu1','muy1','s1','mu0','muy0','s0','p1','n']},
+    {n:'PDM univariate', dim:1, pdm:PDM1, groups:['ds','share'], rows:['n']},
+    {n:'PDM bivariate',  dim:2, pdm:PDM2, groups:['ds','share'], rows:['n']},
     {n:'Summary', summary:true}];
   var Navy='#1e3a8a',G='#15803d',Pu='#a21caf',Or='#b45309',Rd='#B0503A',Bl='#3F6E99';
   var MODELS=[
@@ -202,15 +229,17 @@
     {key:'knn',     name:'KNN',                color:Pu},
     {key:'tree',    name:'Decision tree',      color:Or}];
   function gv(b){return parseFloat(document.getElementById('R'+b).value);}
-  function dim(){return TABS[curTab].dim||1;}
+  function T(){return TABS[curTab];}
+  function isPDM(){return !!T().pdm;}
+  function dim(){return T().dim||1;}
 
   // ---------- KaTeX static labels ----------
   var MT={'h1':'\\text{Intro to Classification}','resample':'\\text{Resample points}',
-    'hd-model':'\\text{Model}','hd-hp':'\\text{Model setting}',
+    'hd-model':'\\text{Model}','hd-hp':'\\text{Model setting}','hd-ds':'\\text{Case study (pump, 1440 h)}',
     'sb-logistic':'\\text{Logistic}','sb-nb':'\\text{Naive Bayes}','sb-knn':'\\text{KNN}','sb-tree':'\\text{Tree}',
-    'hd-pos':'\\textcolor{#B0503A}{\\text{Positive class}}','hd-neg':'\\textcolor{#3F6E99}{\\text{Negative class}}','hd-share':'\\text{Class balance \\& size}',
+    'hd-pos':'\\textcolor{#B0503A}{\\text{Positive class}}','hd-neg':'\\textcolor{#3F6E99}{\\text{Negative class}}',
     'lbl-muy1':'\\mu_{2+}','lbl-muy0':'\\mu_{2-}','lbl-s0':'\\sigma_-','lbl-s1':'\\sigma_+','lbl-p1':'\\pi_+','lbl-n':'n','lbl-k':'k','lbl-depth':'\\text{depth}',
-    'th-m':'\\text{model}','th-f':'\\hat P','th-r':'\\text{rule}','th-e':'\\text{accuracy}',
+    'th-m':'\\text{model}','th-f':'z','th-r':'\\text{rule}','th-e':'\\text{accuracy}',
     's-found':'\\text{1) Classification = estimate }P(y{=}+\\mid x)\\text{, then decide}',
     'fl-target':'\\text{target}','fe-target':'P(y{=}+\\mid x)\\quad\\text{(probability the object is positive given its feature; predicted class = }+\\text{ when it exceeds }\\tfrac12)',
     'fl-rule':'\\text{decision rule}','fe-rule':'\\hat y=+\\iff P(y{=}+\\mid x)>\\tfrac12',
@@ -221,7 +250,7 @@
     'th-disc':'\\text{discriminative}','th-gen':'\\text{generative}',
     'c-log':'\\hat P=\\sigma(\\mathbf w^{\\top}\\mathbf x+b)','c-knn':'\\hat P=\\tfrac1k\\sum_{i\\in N_k(\\mathbf x)}y_i',
     'c-nb':'\\hat P\\propto\\hat\\pi_c\\,\\mathcal N(\\mathbf x;\\hat{\\boldsymbol\\mu}_c,\\hat\\sigma^2 I)\\ \\Rightarrow\\ \\sigma(\\mathbf w^{\\top}\\mathbf x+b)','c-tree':'\\hat P=\\text{fraction of }+\\text{ in the leaf}',
-    'ref':'\\text{Ref: Hastie, Tibshirani \\& Friedman, ESL Ch.\\,2 \\& 4 · Bishop, PRML Ch.\\,4}'};
+    'ref':'\\text{Ref: Hastie, Tibshirani \\& Friedman, ESL Ch.\\,2 \\& 4 · Bishop, PRML Ch.\\,4 · PDM data: Day 4 pump set}'};
   var NOTES={
     'n-log':['\\text{one smooth S-curve;}','\\text{one threshold (1-D) / one line (2-D)}','\\text{— linear in }\\mathbf x\\text{.}'],
     'n-knn':['\\text{local vote of }k\\text{ neighbours;}','\\text{jagged, follows the data;}','\\text{small }k\\to\\text{overfit.}'],
@@ -233,11 +262,14 @@
     try{katex.render(p,s,{throwOnError:false});}catch(e){s.textContent=p;}el.appendChild(s);});}
   function renderTexts(){if(!window.katex)return;for(var id in MT){var el=document.getElementById(id);if(el)K(MT[id],el);}
     for(var nid in NOTES){var ne=document.getElementById(nid);if(ne)kxProse(ne,NOTES[nid]);}
-    K(dim()===2?'\\mu_{1+}':'\\mu_+',document.getElementById('lbl-mu1'));K(dim()===2?'\\mu_{1-}':'\\mu_-',document.getElementById('lbl-mu0'));}
+    K(dim()===2?'\\mu_{1+}':'\\mu_+',document.getElementById('lbl-mu1'));K(dim()===2?'\\mu_{1-}':'\\mu_-',document.getElementById('lbl-mu0'));
+    K(isPDM()?'\\text{Hours shown}':'\\text{Class balance \\& size}',document.getElementById('hd-share'));
+    if(isPDM()){K('\\text{'+T().pdm[0].lab+'}',document.getElementById('ds-0'));K('\\text{'+T().pdm[1].lab+'}',document.getElementById('ds-1'));}}
+  function posName(){return isPDM()?'fault':'positive';} function negName(){return isPDM()?'healthy':'negative';}
   function clLine(name,lc,tc,shape){return '<span class="cli"><i class="'+(shape||'ln')+'" style="background:'+lc+'"></i><span>'+kx('\\textcolor{'+tc+'}{\\text{'+name+'}}')+'</span></span>';}
   function fillLegend(){var el=document.getElementById('classleg');if(!el)return;
     var m=MODELS.filter(function(q){return q.key===modeM;})[0];
-    el.innerHTML=clLine('Positive class','#E07A5F',Rd,'ar')+clLine('Negative class','#5B8FB9',Bl,'ar')
+    el.innerHTML=clLine(isPDM()?'Fault hours (positive)':'Positive class','#E07A5F',Rd,'ar')+clLine(isPDM()?'Healthy hours (negative)':'Negative class','#5B8FB9',Bl,'ar')
       +clLine(dim()===2?'predicted region ('+m.name+')':'predicted class ('+m.name+')',m.color,m.color,dim()===2?'ar':'ln')+clLine('misclassified (ring)','#888','#666');}
 
   // ---------- canvas ----------
@@ -245,6 +277,8 @@
   var SC=2,W=640,H=286;
   function sizeCanvas(){if(!cv)return;var w=Math.round(cv.clientWidth)||640,h=Math.round(cv.clientHeight)||322,dpr=window.devicePixelRatio||1;
     W=w;H=h;SC=dpr;cv.width=Math.round(w*dpr);cv.height=Math.round(h*dpr);}
+  function niceStep(lo,hi){var raw=(hi-lo)/6,p=Math.pow(10,Math.floor(Math.log10(raw))),m=raw/p,s=(m<1.5?1:m<3.5?2:m<7.5?5:10)*p;
+    return {step:s,dec:Math.max(0,-Math.floor(Math.log10(s)+1e-9))};}
   function confLabels(xT,yTop,yBot,P){ctx.font='13px KaTeX_Main,serif';
     ctx.textAlign='left'; ctx.fillStyle='#B0503A'; ctx.fillText('TP '+P.TP, xT+12, yTop);
     ctx.textAlign='right';ctx.fillStyle='#8A6510'; ctx.fillText('FN '+P.FN, xT-12, yTop);
@@ -258,8 +292,9 @@
       if(p===0.5)ctx.setLineDash([5,4]);ctx.beginPath();ctx.moveTo(L,py(p));ctx.lineTo(L+pw,py(p));ctx.stroke();ctx.setLineDash([]);
       ctx.fillStyle='rgba(90,90,90,0.9)';ctx.textAlign='right';ctx.fillText(p===0.5?'0.5':String(p),L-7,py(p));});
     ctx.textBaseline='alphabetic';ctx.fillStyle='rgba(128,128,128,0.9)';ctx.textAlign='center';ctx.font='14px KaTeX_Main,serif';
-    var stp=(xmax-xmin>12?2:1);for(var a=Math.ceil(xmin);a<=xmax;a+=stp)ctx.fillText(a,px(a),py(0)+16);
+    var ns=niceStep(xmin,xmax);for(var a=Math.ceil(xmin/ns.step)*ns.step;a<=xmax+1e-9;a+=ns.step)ctx.fillText(a.toFixed(ns.dec),px(a),py(0)+16);
     ctx.textAlign='left';ctx.fillStyle='rgba(90,90,90,0.9)';ctx.font='13px KaTeX_Main,serif';ctx.fillText('P(y = + | x)',L+4,TOP-8);
+    ctx.textAlign='right';ctx.fillText(P.ax[0],L+pw,py(0)+31);
     var k;
     for(k=0;k<P.X.length;k++){var xv=P.X[k][0],yv=P.ys[k],xp=px(xv);if(xp<L-4||xp>L+pw+4)continue;
       var yp=yv?py(1)+9+(k%3)*7:py(0)-9-(k%3)*7;
@@ -271,24 +306,22 @@
     ctx.font='13px KaTeX_Main,serif';
     if(m.linear){ctx.strokeStyle='#111';ctx.fillStyle='#111';ctx.lineWidth=1.8;ctx.textAlign='center';
       m.xstar.forEach(function(r){if(r<xmin||r>xmax)return;ctx.setLineDash([5,4]);ctx.beginPath();ctx.moveTo(px(r),py(1)-6);ctx.lineTo(px(r),py(0)+4);ctx.stroke();ctx.setLineDash([]);
-        ctx.fillText('threshold '+r.toFixed(1),px(r),H-4);});}
+        ctx.fillText('threshold '+r.toFixed(ns.dec+1),px(r),H-4);});}
     confLabels(px(P.Tmain),TOP-8,py(0)+31,P);
   }
   function draw2(P){
-    var L=44,Rm=16,TOP=22,BOT=34,pw=W-L-Rm,ph=H-TOP-BOT,m=P.m,xmin=P.xmin,xmax=P.xmax,ymin=P.ymin,ymax=P.ymax;
-    var sc=Math.min(pw/(xmax-xmin),ph/(ymax-ymin)),ox=L+(pw-sc*(xmax-xmin))/2,oy=TOP+(ph-sc*(ymax-ymin))/2;
-    function px(x){return ox+(x-xmin)*sc;} function py(y){return oy+(ymax-y)*sc;}
-    var x0=px(xmin),x1=px(xmax),y0=py(ymax),y1=py(ymin);
-    // decision regions (grid)
+    var L=52,Rm=16,TOP=22,BOT=34,pw=W-L-Rm,ph=H-TOP-BOT,m=P.m,xmin=P.xmin,xmax=P.xmax,ymin=P.ymin,ymax=P.ymax;
+    var x0=L,x1=L+pw,y0=TOP,y1=TOP+ph;   // ใช้พื้นที่เต็ม (สเกลแกน x/y อิสระ — หน่วยต่างกัน)
+    function px(x){return x0+(x-xmin)/(xmax-xmin)*pw;} function py(y){return y1-(y-ymin)/(ymax-ymin)*ph;}
     var st=6,i,j;
-    for(i=x0;i<x1;i+=st)for(j=y0;j<y1;j+=st){var gx=xmin+(i+st/2-ox)/sc,gy=ymax-(j+st/2-oy)/sc;
+    for(i=x0;i<x1;i+=st)for(j=y0;j<y1;j+=st){var gx=xmin+(i+st/2-x0)/pw*(xmax-xmin),gy=ymin+(y1-(j+st/2))/ph*(ymax-ymin);
       ctx.fillStyle=m.post([gx,gy])>0.5?'rgba(224,122,95,0.16)':'rgba(91,143,185,0.16)';ctx.fillRect(i,j,Math.min(st,x1-i),Math.min(st,y1-j));}
-    ctx.strokeStyle='rgba(128,128,128,0.45)';ctx.lineWidth=1;ctx.strokeRect(x0,y0,x1-x0,y1-y0);
+    ctx.strokeStyle='rgba(128,128,128,0.45)';ctx.lineWidth=1;ctx.strokeRect(x0,y0,pw,ph);
     ctx.fillStyle='rgba(128,128,128,0.9)';ctx.font='13px KaTeX_Main,serif';ctx.textAlign='center';ctx.textBaseline='alphabetic';
-    for(var a=Math.ceil(xmin);a<=xmax;a+=2)ctx.fillText(a,px(a),y1+15);
-    ctx.textAlign='right';ctx.textBaseline='middle';for(var b=Math.ceil(ymin);b<=ymax;b+=2)ctx.fillText(b,x0-6,py(b));
-    ctx.textBaseline='alphabetic';ctx.textAlign='left';ctx.fillStyle='rgba(90,90,90,0.9)';ctx.fillText('x2',x0+4,y0-8);ctx.textAlign='right';ctx.fillText('x1',x1-2,y1+30);
-    // points
+    var nx=niceStep(xmin,xmax),ny=niceStep(ymin,ymax);
+    for(var a=Math.ceil(xmin/nx.step)*nx.step;a<=xmax+1e-9;a+=nx.step)ctx.fillText(a.toFixed(nx.dec),px(a),y1+15);
+    ctx.textAlign='right';ctx.textBaseline='middle';for(var b=Math.ceil(ymin/ny.step)*ny.step;b<=ymax+1e-9;b+=ny.step)ctx.fillText(b.toFixed(ny.dec),x0-6,py(b));
+    ctx.textBaseline='alphabetic';ctx.textAlign='left';ctx.fillStyle='rgba(90,90,90,0.9)';ctx.fillText(P.ax[1],x0+4,y0-8);ctx.textAlign='right';ctx.fillText(P.ax[0],x1,y1+30);
     var k;for(k=0;k<P.X.length;k++){var v=P.X[k],yv=P.ys[k],xp=px(v[0]),yp=py(v[1]);if(xp<x0-4||xp>x1+4||yp<y0-4||yp>y1+4)continue;
       ctx.fillStyle=yv?'rgba(224,122,95,0.9)':'rgba(91,143,185,0.84)';ctx.beginPath();ctx.arc(xp,yp,4,0,7);ctx.fill();
       var pr=m.post(v)>0.5?1:0;if(pr!==yv){ctx.strokeStyle=pr?'#E07A5F':'#5B8FB9';ctx.lineWidth=2;ctx.beginPath();ctx.arc(xp,yp,6,0,7);ctx.stroke();}}
@@ -299,78 +332,94 @@
 
   // ---------- ตารางโมเดล: P̂ (สมการ) · rule (y ชัด ๆ) ----------
   function fx(v,d){return (Math.abs(v)<1e-9?0:v).toFixed(d===undefined?2:d);}
-  function sgn(v){return (v>=0?'+':'-')+fx(Math.abs(v));}
+  function sgn(v,d){return (v>=0?'+':'-')+fx(Math.abs(v),d);}
   function lines(arr){return arr.map(function(t){return '<span class="ln">'+kx(t)+'</span>';}).join('');}
-  var POS='y=\\textcolor{#B0503A}{\\text{positive}}',NEG='y=\\textcolor{#3F6E99}{\\text{negative}}';
-  function linExpr(f){ // W·x + B as text, มิติ 1: Wx+B · มิติ 2: w1 x1 + w2 x2 + b
-    if(f.W.length===1)return fx(f.W[0])+'\\,x'+sgn(f.B);
-    return fx(f.W[0])+'\\,x_1'+sgn(f.W[1])+'\\,x_2'+sgn(f.B);}
-  function modelCell(key,f){if(f.linear)return lines(['\\sigma('+linExpr(f)+')']);return '';}   // KNN/tree: ไม่ใส่ model
-  function condTex(c,D){var nm=D===1?'x':'x_'+(c.f+1);return nm+(c.lt?'<':'\\ge ')+fx(c.t);}
-  function ruleCell(key,f,D){
+  function POS(){return 'y=\\textcolor{#B0503A}{\\text{'+posName()+'}}';} function NEG(){return 'y=\\textcolor{#3F6E99}{\\text{'+negName()+'}}';}
+  function linExpr(f,sym){var s='';for(var d=0;d<f.W.length;d++)s+=(d?sgn(f.W[d]):fx(f.W[d]))+'\\,'+sym[d];return s+sgn(f.B);}
+  // คอลัมน์ z = คะแนนเชิงเส้น w·x+b (P̂ = σ(z)) — KNN/tree ไม่มี
+  function modelCell(key,f,sym){if(f.linear)return lines(['z='+linExpr(f,sym)]);return '';}
+  function ruleCell(key,f,sym,dec){
     if(f.linear){
-      if(D===1){if(Math.abs(f.W[0])<1e-9)return lines(['\\text{always }'+(f.B>0?POS:NEG)]);
-        var t=-f.B/f.W[0];return lines(['\\text{if }x'+(f.W[0]>0?'>':'<')+fx(t)+'\\text{ then }'+POS,'\\text{else }'+NEG]);}
-      return lines(['\\text{if }'+linExpr(f)+'>0\\text{ then }'+POS,'\\text{else }'+NEG]);}
+      if(sym.length===1){if(Math.abs(f.W[0])<1e-9)return lines(['\\text{always }'+(f.B>0?POS():NEG())]);   // univariate: กฎบน x ตรง ๆ
+        var t=-f.B/f.W[0];return lines(['\\text{if }'+sym[0]+(f.W[0]>0?'>':'<')+fx(t,dec)+'\\text{ then }'+POS(),'\\text{else }'+NEG()]);}
+      return lines(['\\text{if }z>0\\text{ then }'+POS(),'\\text{else }'+NEG()]);}   // bivariate: ใช้ z
     if(key==='knn')return lines(['y=\\text{majority of the }'+f.k+'\\text{ nearest points}']);
-    var Ls=f.leaves;if(Ls.length===1)return lines(['\\text{always }'+(Ls[0].p>0.5?POS:NEG)]);
-    return lines(Ls.map(function(l,i){var c=l.cond.map(function(q){return condTex(q,D);}).join('\\ \\&\\ ');
-      var last=(i===Ls.length-1&&Ls.length===2);return (last?'\\text{else }':'\\text{if }'+c+'\\text{ then }')+(l.p>0.5?POS:NEG);}));}
-  function fillTable(F,D){var tb=document.getElementById('modbody');if(!tb)return;var h='';
+    var Ls=f.leaves;if(Ls.length===1)return lines(['\\text{always }'+(Ls[0].p>0.5?POS():NEG())]);
+    return lines(Ls.map(function(l,i){var c=l.cond.map(function(q){return sym[q.f]+(q.lt?'<':'\\ge ')+fx(q.t,dec);}).join('\\ \\&\\ ');
+      var last=(i===Ls.length-1&&Ls.length===2);return (last?'\\text{else }':'\\text{if }'+c+'\\text{ then }')+(l.p>0.5?POS():NEG());}));}
+  function fillTable(F,sym,dec){var tb=document.getElementById('modbody');if(!tb)return;var h='';
     MODELS.forEach(function(m){var f=F[m.key];
       h+='<tr class="'+((modeM===m.key)?'sel':'')+'"><td>'+kx('\\text{'+m.name+'}')+'</td>'
-        +'<td>'+modelCell(m.key,f)+'</td><td>'+ruleCell(m.key,f,D)+'</td><td>'+kx(((1-f.err)*100).toFixed(1)+'\\%')+'</td></tr>';});
+        +'<td>'+modelCell(m.key,f,sym)+'</td><td>'+ruleCell(m.key,f,sym,dec)+'</td><td>'+kx(((1-f.err)*100).toFixed(1)+'\\%')+'</td></tr>';});
     tb.innerHTML=h;}
+
+  // ---------- data for the current tab ----------
+  function dataset(){var D=dim(),n=Math.round(gv('n')),X=[],ys=[],k;
+    if(!isPDM()){var m0=gv('mu0'),m1=gv('mu1'),my0=gv('muy0'),my1=gv('muy1'),s0=gv('s0'),s1=gv('s1'),p1=gv('p1');
+      var n1=Math.max(1,Math.round(n*p1)),n0=Math.max(1,n-n1);
+      for(k=0;k<n1;k++){X.push(D===1?[m1+s1*Z1[k]]:[m1+s1*Z1[k],my1+s1*Z1y[k]]);ys.push(1);}
+      for(k=0;k<n0;k++){X.push(D===1?[m0+s0*Z0[k]]:[m0+s0*Z0[k],my0+s0*Z0y[k]]);ys.push(0);}
+      return {X:X,ys:ys,xmin:-2,xmax:14,ymin:-2,ymax:14,sym:D===1?['x']:['x_1','x_2'],ax:D===1?['x']:['x1','x2'],dec:2,mid:(m0+m1)/2};}
+    var c=T().pdm[dsIdx],S=SET(c.ds);if(!S)return {X:[[0],[1]],ys:[0,1],xmin:0,xmax:1,ymin:0,ymax:1,sym:['x'],ax:['x'],dec:2,mid:0.5};
+    var cols=c.f.map(function(f){return S.col[f];}),lo=[],hi=[];
+    cols.forEach(function(col){var a=Infinity,b=-Infinity;for(var i=0;i<S.n;i++){if(col[i]<a)a=col[i];if(col[i]>b)b=col[i];}var pad=(b-a)*0.06;lo.push(a-pad);hi.push(b+pad);});
+    for(k=0;k<Math.min(n,S.n);k++){var i=PERM[k];X.push(cols.map(function(col){return col[i];}));ys.push(S.bad[i]);}
+    return {X:X,ys:ys,xmin:lo[0],xmax:hi[0],ymin:D===2?lo[1]:0,ymax:D===2?hi[1]:1,sym:c.sym,ax:c.ax,dec:2,mid:(lo[0]+hi[0])/2,scale:cols.map(function(col,d){return (hi[d]-lo[d])||1;})};}
 
   // ---------- main update ----------
   function upd(){
-    if(TABS[curTab].summary)return;
-    var D=dim(),m0=gv('mu0'),m1=gv('mu1'),my0=gv('muy0'),my1=gv('muy1'),s0=gv('s0'),s1=gv('s1'),p1=gv('p1'),n=Math.round(gv('n')),kk=Math.round(gv('k')),dp=Math.round(gv('depth'));
-    var n1=Math.max(1,Math.round(n*p1)),n0=Math.max(1,n-n1),X=[],ys=[],k;
-    for(k=0;k<n1;k++){X.push(D===1?[m1+s1*Z1[k]]:[m1+s1*Z1[k],my1+s1*Z1y[k]]);ys.push(1);}
-    for(k=0;k<n0;k++){X.push(D===1?[m0+s0*Z0[k]]:[m0+s0*Z0[k],my0+s0*Z0y[k]]);ys.push(0);}
-    var xmin=-2,xmax=14,ymin=-2,ymax=14;
-    var F={logistic:fitLogistic(X,ys),nb:fitNB(X,ys),knn:fitKNN(X,ys,kk),tree:fitTree(X,ys,dp)};
-    MODELS.forEach(function(m){var f=F[m.key];f.err=trainErr(f.post,X,ys);f.color=m.color;f.name=m.name;f.xstar=(D===1&&f.linear)?crossings1(f.post,xmin,xmax):[];});
-    var f1=F[modeM],TP=0,FN=0,FP=0,TN=0,mid=(m0+m1)/2,Tmain=mid;
+    if(T().summary)return;
+    var D=dim(),S=dataset(),X=S.X,ys=S.ys,kk=Math.round(gv('k')),dp=Math.round(gv('depth')),k;
+    var F={logistic:fitLogistic(X,ys),nb:fitNB(X,ys),knn:fitKNN(X,ys,kk,S.scale),tree:fitTree(X,ys,dp)};
+    MODELS.forEach(function(m){var f=F[m.key];f.err=trainErr(f.post,X,ys);f.color=m.color;f.name=m.name;f.xstar=(D===1&&f.linear)?crossings1(f.post,S.xmin,S.xmax):[];});
+    var f1=F[modeM],TP=0,FN=0,FP=0,TN=0,Tmain=S.mid;
     for(k=0;k<X.length;k++){var pr=f1.post(X[k])>0.5;if(ys[k]){if(pr)TP++;else FN++;}else{if(pr)FP++;else TN++;}}
-    if(f1.xstar.length){Tmain=f1.xstar[0];for(k=1;k<f1.xstar.length;k++){if(Math.abs(f1.xstar[k]-mid)<Math.abs(Tmain-mid))Tmain=f1.xstar[k];}}
-    var DP={dim:D,xmin:xmin,xmax:xmax,ymin:ymin,ymax:ymax,X:X,ys:ys,m:f1,TP:TP,FN:FN,FP:FP,TN:TN,Tmain:Tmain};
-    draw(DP);fillTable(F,D);fillLegend();
-    if(fitPlot()){sizeCanvas();draw(DP);}   // ตารางเปลี่ยนความสูง → ปรับ plot ให้ล่างเสมอแผง control
+    if(f1.xstar.length){Tmain=f1.xstar[0];for(k=1;k<f1.xstar.length;k++){if(Math.abs(f1.xstar[k]-S.mid)<Math.abs(Tmain-S.mid))Tmain=f1.xstar[k];}}
+    var DP={dim:D,xmin:S.xmin,xmax:S.xmax,ymin:S.ymin,ymax:S.ymax,X:X,ys:ys,m:f1,TP:TP,FN:FN,FP:FP,TN:TN,Tmain:Tmain,ax:S.ax};
+    draw(DP);fillTable(F,S.sym,S.dec);fillLegend();
+    if(fitPlot()){sizeCanvas();draw(DP);}
   }
   // จัดหน้าให้พอดี: ความสูง plot = ความสูงแผง control − (legend + ตาราง + ช่องว่าง) — ล่างซ้าย/ขวาเสมอกัน (desktop)
   function fitPlot(){var pn=document.querySelector('.panel'),st=document.querySelector('.stage'),cb=document.querySelector('.canvasbox');
     if(!pn||!st||!cb||innerWidth<=820)return false;
     var cur=cb.getBoundingClientRect().height,others=st.getBoundingClientRect().height-cur;
-    var target=Math.max(200,Math.min(400,Math.round(pn.getBoundingClientRect().height-others)));
+    var target=Math.max(isPDM()?240:200,Math.min(400,Math.round(pn.getBoundingClientRect().height-others)));   // PDM: แผงสั้น ให้ plot อย่างน้อย 240
     if(Math.abs(target-cur)<2)return false;cb.style.height=target+'px';return true;}
 
   // ---------- controls ----------
   function setModelSeg(){var bs=document.querySelectorAll('#modelSeg button');for(var i=0;i<bs.length;i++)bs[i].className=(bs[i].getAttribute('data-m')===modeM)?'on':'';
-    var sk=(modeM==='knn'),sd=(modeM==='tree');
+    var sk=(modeM==='knn'),sd=(modeM==='tree');   // จองพื้นที่ 1 แถวเสมอ: k / depth / แถวว่าง
     document.getElementById('row-k').style.display=sk?'':'none';document.getElementById('row-depth').style.display=sd?'':'none';
-    document.getElementById('hd-hp').style.display=(sk||sd)?'':'none';document.getElementById('grid-hp').style.display=(sk||sd)?'':'none';}
-  function syncRows(){var T=TABS[curTab];['mu1','muy1','s1','mu0','muy0','s0','p1','n'].forEach(function(b){document.getElementById('row-'+b).style.display=(T.en.indexOf(b)>=0)?'':'none';});}
-  function applyTab(k){curTab=k;var T=TABS[k];
+    document.getElementById('row-hpblank').style.display=(sk||sd)?'none':'';
+    document.getElementById('hd-hp').className='dhd'+((sk||sd)?'':' hid');}
+  function setDsSeg(){var bs=document.querySelectorAll('#dsSeg button');for(var i=0;i<bs.length;i++)bs[i].className=(parseInt(bs[i].getAttribute('data-ds'),10)===dsIdx)?'on':'';}
+  function syncRows(){var t=T();['pos','neg','ds','share'].forEach(function(g){document.getElementById('grp-'+g).style.display=(t.groups.indexOf(g)>=0)?'':'none';});
+    ['mu1','muy1','s1','mu0','muy0','s0','p1','n'].forEach(function(b){document.getElementById('row-'+b).style.display=(t.rows.indexOf(b)>=0)?'':'none';});
+    var Rn=document.getElementById('Rn'),Nn=document.getElementById('Nn'),pd=isPDM();   // n จำแยกตามชนิด tab (sim / PDM)
+    Rn.min=pd?40:20;Rn.max=pd?1440:400;Rn.step=pd?40:10;Nn.min=Rn.min;Nn.max=Rn.max;Nn.step=Rn.step;
+    Rn.value=pd?nMem.pdm:nMem.sim;Nn.value=Rn.value;}
+  var nMem={sim:120,pdm:240};
+  function applyTab(k){curTab=k;var t=TABS[k];dsIdx=0;   // เปลี่ยน tab → กลับไปชุดข้อมูลแรกของ tab นั้น
     var btns=document.querySelectorAll('.tabbtn');for(var i=0;i<btns.length;i++)btns[i].className='tabbtn'+(i===k?' on':'');
-    if(T.summary){document.getElementById('mainPanel').style.display='none';document.getElementById('summaryPanel').className='summary on';renderTexts();return;}
+    if(t.summary){document.getElementById('mainPanel').style.display='none';document.getElementById('summaryPanel').className='summary on';renderTexts();return;}
     document.getElementById('mainPanel').style.display='grid';document.getElementById('summaryPanel').className='summary';
-    renderTexts();syncRows();setModelSeg();sizeCanvas();upd();}
+    renderTexts();syncRows();setDsSeg();setModelSeg();sizeCanvas();upd();}
   var tb=document.getElementById('tabs');
-  TABS.forEach(function(T,i){var el=document.createElement('button');el.className='tabbtn';K('\\text{'+T.n+'}',el);el.addEventListener('click',function(){applyTab(i);});tb.appendChild(el);});
+  TABS.forEach(function(t,i){var el=document.createElement('button');el.className='tabbtn';K('\\text{'+t.n+'}',el);el.addEventListener('click',function(){applyTab(i);});tb.appendChild(el);});
   bases.forEach(function(b){var Re=document.getElementById('R'+b),Ne=document.getElementById('N'+b);
-    Re.addEventListener('input',function(){Ne.value=Re.value;upd();});Ne.addEventListener('input',function(){Re.value=Ne.value;upd();});});
+    function rem(){if(b==='n')nMem[isPDM()?'pdm':'sim']=parseFloat(Re.value);}
+    Re.addEventListener('input',function(){Ne.value=Re.value;rem();upd();});Ne.addEventListener('input',function(){Re.value=Ne.value;rem();upd();});});
   document.querySelectorAll('#modelSeg button').forEach(function(b){b.addEventListener('click',function(){modeM=b.getAttribute('data-m');setModelSeg();upd();});});
+  document.querySelectorAll('#dsSeg button').forEach(function(b){b.addEventListener('click',function(){dsIdx=parseInt(b.getAttribute('data-ds'),10);setDsSeg();upd();});});
   document.getElementById('resample').addEventListener('click',function(){seed=(seed*1664525+1013904223)>>>0;regen(seed);upd();});
   window.addEventListener('resize',function(){sizeCanvas();upd();});
 
   function boot(){renderTexts();applyTab(0);}
   boot();
   requestAnimationFrame(function(){sizeCanvas();renderTexts();upd();});
-  setTimeout(function(){sizeCanvas();renderTexts();if(!TABS[curTab].summary)upd();},250);
-  setTimeout(function(){sizeCanvas();renderTexts();if(!TABS[curTab].summary)upd();},800);
-  if(document.fonts&&document.fonts.ready)document.fonts.ready.then(function(){if(!TABS[curTab].summary){sizeCanvas();upd();}});   // ฟอนต์ KaTeX พร้อม → fit ซ้ำ
+  setTimeout(function(){sizeCanvas();renderTexts();if(!T().summary)upd();},250);
+  setTimeout(function(){sizeCanvas();renderTexts();if(!T().summary)upd();},800);
+  if(document.fonts&&document.fonts.ready)document.fonts.ready.then(function(){if(!T().summary){sizeCanvas();upd();}});
 })();
 </script>
 </body>
