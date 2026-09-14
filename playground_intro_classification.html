@@ -144,10 +144,12 @@
       w-=lr*gw/n;b-=lr*gb/n;}
     var Wc=w/sx,Bc=b-w*mx/sx;
     return {post:function(x){return 1/(1+Math.exp(-(Wc*x+Bc)));},W:Wc,B:Bc};}
+  // Gaussian NB with a SHARED variance (pooled) → log-odds linear in x → σ(Wx+B), one x*  (assume linear)
   function fitNB(xs,ys){var i,n=xs.length,p=[],q=[];for(i=0;i<n;i++)(ys[i]?p:q).push(xs[i]);
-    function ms(a){var m=0,s=0,j;for(j=0;j<a.length;j++)m+=a[j];m/=a.length;for(j=0;j<a.length;j++)s+=(a[j]-m)*(a[j]-m);return [m,Math.max(0.08,Math.sqrt(s/a.length))];}
-    var A=ms(p),B=ms(q),pi1=p.length/n;
-    return {post:function(x){var a=pi1*pdf(x,A[0],A[1]),b=(1-pi1)*pdf(x,B[0],B[1]);return a/(a+b);},m1:A[0],s1:A[1],m0:B[0],s0:B[1],pi1:pi1};}
+    function mv(a){var m=0,s=0,j;for(j=0;j<a.length;j++)m+=a[j];m/=a.length;for(j=0;j<a.length;j++)s+=(a[j]-m)*(a[j]-m);return [m,s];}
+    var A=mv(p),B=mv(q),pi1=p.length/n,s=Math.max(0.08,Math.sqrt((A[1]+B[1])/n));
+    var W=(A[0]-B[0])/(s*s),Bc=(B[0]*B[0]-A[0]*A[0])/(2*s*s)+Math.log(pi1/(1-pi1));
+    return {post:function(x){return 1/(1+Math.exp(-(W*x+Bc)));},m1:A[0],m0:B[0],s:s,pi1:pi1,W:W,B:Bc};}
   function fitKNN(xs,ys,k){var n=xs.length,idx=[],i;for(i=0;i<n;i++)idx.push(i);idx.sort(function(a,b){return xs[a]-xs[b];});
     var sx=idx.map(function(i){return xs[i];}),sy=idx.map(function(i){return ys[i];});k=Math.min(k,n);
     return {post:function(x){var lo=0,hi=sx.length-1;while(lo<hi){var m=(lo+hi)>>1;if(sx[m]<x)lo=m+1;else hi=m;}
@@ -207,12 +209,12 @@
     'th-par':'\\text{parametric (a formula)}','th-npar':'\\text{non-parametric (the data itself)}',
     'th-disc':'\\text{discriminative}','th-gen':'\\text{generative}',
     'c-log':'\\hat P=\\sigma(Wx+B)','c-knn':'\\hat P=\\tfrac1k\\sum_{i\\in N_k(x)}y_i',
-    'c-nb':'\\hat P\\propto\\hat\\pi_c\\,\\mathcal N(x;\\hat\\mu_c,\\hat\\sigma_c^2)','c-tree':'\\hat P=\\text{fraction of }+\\text{ in the leaf}',
+    'c-nb':'\\hat P\\propto\\hat\\pi_c\\,\\mathcal N(x;\\hat\\mu_c,\\hat\\sigma^2)\\ \\Rightarrow\\ \\sigma(Wx+B)','c-tree':'\\hat P=\\text{fraction of }+\\text{ in the leaf}',
     'ref':'\\text{Ref: Hastie, Tibshirani \\& Friedman, ESL Ch.\\,2 \\& 4 · Bishop, PRML Ch.\\,4}'};
   var NOTES={
     'n-log':['\\text{one smooth S-curve;}','\\text{boundary = one }x^{*}','\\text{(linear in }x\\text{).}'],
     'n-knn':['\\text{local vote of }k\\text{ neighbours;}','\\text{jagged, follows the data;}','\\text{small }k\\to\\text{overfit.}'],
-    'n-nb':['\\text{fits a normal per class,}','\\text{then applies Bayes rule;}','\\text{unequal }\\hat\\sigma\\to\\text{two }x^{*}\\text{.}'],
+    'n-nb':['\\text{fits a normal per class}','\\text{(shared }\\hat\\sigma\\text{), then Bayes rule;}','\\text{log-odds linear}\\to\\text{one }x^{*}\\text{.}'],
     'n-tree':['\\text{axis splits }x<t','\\text{= if-then rules;}','\\text{posterior is a staircase.}']};
   function K(tex,el){try{katex.render(tex,el,{throwOnError:false});}catch(e){el.textContent=tex;}}
   function kx(t){try{return window.katex?katex.renderToString(t,{throwOnError:false}):t;}catch(e){return t;}}
@@ -265,9 +267,9 @@
   function lines(arr){return arr.map(function(t){return '<span class="ln">'+kx(t)+'</span>';}).join('');}
   function fittedCell(key,f){
     if(key==='logistic')return lines(['\\hat P=\\sigma('+fx(f.W)+'\\,x'+sgn(f.B)+')','\\sigma(z)=1/(1+e^{-z})']);
-    if(key==='nb')return lines(['\\hat P\\propto\\hat\\pi_c\\,\\mathcal N(x;\\hat\\mu_c,\\hat\\sigma_c^2)',
-      '\\hat\\pi_+='+fx(f.pi1)+',\\ \\hat\\mu_+='+fx(f.m1)+',\\ \\hat\\sigma_+='+fx(f.s1),
-      '\\hat\\pi_-='+fx(1-f.pi1)+',\\ \\hat\\mu_-='+fx(f.m0)+',\\ \\hat\\sigma_-='+fx(f.s0)]);
+    if(key==='nb')return lines(['\\hat P\\propto\\hat\\pi_c\\,\\mathcal N(x;\\hat\\mu_c,\\hat\\sigma^2)\\ \\ (\\text{shared }\\hat\\sigma)',
+      '\\hat\\mu_+='+fx(f.m1)+',\\ \\hat\\mu_-='+fx(f.m0)+',\\ \\hat\\sigma='+fx(f.s)+',\\ \\hat\\pi_+='+fx(f.pi1),
+      '\\Rightarrow\\ \\hat P=\\sigma('+fx(f.W)+'\\,x'+sgn(f.B)+')\\ \\ (\\text{linear})']);
     if(key==='knn')return lines(['\\hat P=\\tfrac{1}{'+f.k+'}\\sum_{i\\in N_{'+f.k+'}(x)}y_i','\\text{vote of the }'+f.k+'\\text{ nearest points}']);
     // tree → if-then rules
     var R=f.rules,out=[];
