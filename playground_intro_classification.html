@@ -21,8 +21,10 @@
   .tblbox{min-width:0;width:100%}
   .pg .mtab{margin:0}
   .pg .mtab th,.pg .mtab td{padding:4px 7px;font-size:13px}
-  .pg .mtab th{white-space:normal;line-height:1.25;vertical-align:bottom}
+  .pg .mtab th,.pg .mtab td{vertical-align:top;line-height:1.45}          /* หัวกับตัวจัดแนวเดียวกัน */
+  .pg .mtab th{white-space:normal}
   .pg .mtab th.num{text-align:right}                                   /* หัวคอลัมน์ตัวเลขชิดขวาเท่าตัวตาราง */
+  .pg .mtab td:first-child{text-align:left;font-weight:400;white-space:nowrap}   /* ชื่อโมเดลชิดซ้ายเท่าหัว */
   .pg .mtab td.txt{text-align:left;font-weight:400;color:var(--ink);line-height:1.45}   /* คอลัมน์กฎ = ข้อความ */
   .pg .mtab tr.sel th,.pg .mtab tr.sel td{background:#f4f7fb}
   .pg .mtab .katex{font-size:1em}
@@ -270,10 +272,7 @@
   function lines(arr){return arr.map(function(t){return '<span class="ln">'+kx(t)+'</span>';}).join('');}
   var POS='y=\\textcolor{#B0503A}{\\text{positive}}',NEG='y=\\textcolor{#3F6E99}{\\text{negative}}';
   function ruleCell(key,f){
-    if(f.linear){ // σ(Wx+B) > 1/2 ⇔ Wx+B > 0 ⇔ x ≷ -B/W
-      if(Math.abs(f.W)<1e-9)return lines(['\\text{always }'+(f.B>0?POS:NEG)]);
-      var t=-f.B/f.W, gt=f.W>0;   // W>0: x > t → positive
-      return lines(['\\text{if }x'+(gt?'>':'<')+fx(t)+'\\text{ then }'+POS,'\\text{else }'+NEG]);}
+    if(f.linear)return lines(['\\sigma('+fx(f.W)+'\\,x'+(f.B>=0?'+':'-')+fx(Math.abs(f.B))+')']);   // ตัวโมเดล; กฎของมัน = threshold (คอลัมน์ถัดไป)
     if(key==='knn')return lines(['y=\\text{majority of the }'+f.k+'\\text{ nearest points}']);
     var R=f.rules,out=[];
     R.forEach(function(r,i){var yy=(r.p>0.5)?POS:NEG;
@@ -283,8 +282,9 @@
   function fillTable(F){var tb=document.getElementById('modbody');if(!tb)return;var h='';
     MODELS.forEach(function(m){var f=F[m.key];
       var th=(f.linear&&f.xstar.length)?f.xstar.map(function(v){return fx(v,1);}).join(' · '):'';   // KNN/tree: ไม่แสดง threshold
+      // ทุกเซลล์เรนเดอร์ผ่าน KaTeX (ตัวเลขด้วย) → ฟอนต์ทั้งตารางเป็นชุดเดียว
       h+='<tr class="'+((modeM===m.key)?'sel':'')+'"><td>'+kx('\\text{'+m.name+'}')+'</td>'
-        +'<td class="txt">'+ruleCell(m.key,f)+'</td><td>'+th+'</td><td>'+((1-f.err)*100).toFixed(1)+'%</td></tr>';});
+        +'<td class="txt">'+ruleCell(m.key,f)+'</td><td>'+(th?kx(th.replace(/ · /g,'\\;\\cdot\\;')):'')+'</td><td>'+kx(((1-f.err)*100).toFixed(1)+'\\%')+'</td></tr>';});
     tb.innerHTML=h;}
 
   // ---------- main update ----------
