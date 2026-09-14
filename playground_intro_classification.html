@@ -1,0 +1,334 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Intro to Classification</title>
+<link rel="stylesheet" href="pg_style.css?v=24">
+<link rel="stylesheet" href="vendor/katex/katex.min.css">
+<script src="vendor/katex/katex.min.js"></script>
+<style>
+  /* intro-classification — โครง/ฟอนต์ = .distcls กลาง (เหมือน 1-D Bayes); เฉพาะที่นี่: seg โมเดล 5 ปุ่ม · ตารางโมเดล · summary */
+  .layout{align-items:start}
+  .panel{max-height:calc(100vh - 96px);overflow-y:auto;overflow-x:hidden}
+  .lcol .estep{font-size:14px;overflow:visible;min-height:0;line-height:1.35}
+  .lcol .estep>span{display:inline-block;margin-right:.26em}          /* prose = ชิ้น KaTeX ที่ตัดบรรทัดได้ */
+  .seg2{display:flex;flex-wrap:wrap;border:1px solid var(--line);border-radius:8px;overflow:hidden;margin-bottom:6px;background:#fff}
+  .seg2 button{flex:1 1 auto;font:inherit;font-size:14px;padding:6px 8px;border:0;background:#fff;color:#555;cursor:pointer;white-space:nowrap}
+  .seg2 button.on{background:var(--navy);color:#fff}
+  .seg2 .katex{font-size:1em}
+  .tgls{display:flex;flex-direction:column;gap:9px;margin-top:10px}
+  /* model table (แทน metric bars) — ฟอนต์ 13px = fs-sec เหมือน bar ของ 1-D */
+  .modtab{width:100%;border-collapse:collapse;font-size:13px}
+  .modtab th{text-align:left;color:var(--muted);font-weight:600;padding:4px 6px;border-bottom:1px solid var(--line);white-space:nowrap}
+  .modtab td{padding:5px 6px;border-bottom:1px solid var(--line);vertical-align:middle;color:var(--ink)}
+  .modtab td.num{text-align:right;font-variant-numeric:tabular-nums;font-weight:700;color:var(--navy);white-space:nowrap}
+  .modtab tr:last-child td{border-bottom:0}
+  .modtab tr.sel td{background:#eef2ff}
+  .modtab .katex{font-size:1em}
+  .modtab .sw{display:inline-block;width:10px;height:10px;border-radius:2px;margin-right:6px;vertical-align:-1px}
+  .modtab .mn{white-space:nowrap}
+  /* summary tab */
+  .summary{display:none;flex-direction:column;gap:16px;min-height:0;overflow:visible}
+  .summary.on{display:flex;flex:1}
+  .secttl{font-size:16px;font-weight:600;color:var(--navy)}
+  .found{display:flex;flex-direction:column;gap:9px;background:#fff;border:1px solid var(--line);border-radius:12px;padding:12px 16px}
+  .frow{display:flex;align-items:center;gap:16px}
+  .frow .fl{flex:0 0 176px;font-size:14px;color:var(--muted);text-align:right}
+  .frow .fe{flex:1;font-size:15px;overflow-x:auto;overflow-y:hidden}
+  .stab{border-collapse:separate;border-spacing:8px;width:100%}
+  .stab th{font-size:13px;color:var(--muted);font-weight:600;padding:4px}
+  .stab td{background:#fff;border:1px solid var(--line);border-radius:10px;padding:12px;vertical-align:top;width:50%}
+  .stab td .tag{font-size:13px;font-weight:700;letter-spacing:.04em;padding:2px 8px;border-radius:999px;display:inline-block;margin-bottom:8px;color:#fff}
+  .stab td .eq{font-size:15px;margin:6px 0}
+  .stab td .note{font-size:13px;color:var(--muted);margin-top:6px}
+  .stab td .note>span{display:inline-block;margin-right:.26em}
+  .ref{font-size:13px;color:#9ca3af}
+  @media(max-width:640px){.frow{flex-direction:column;align-items:flex-start;gap:2px}.frow .fl{text-align:left;flex:none}}
+</style>
+</head>
+<body class="pg distcls">
+<div class="wrap">
+  <div class="hdr"><h1 id="h1">Intro to Classification</h1><div class="tabs" id="tabs"></div></div>
+
+  <!-- ===== interactive ===== -->
+  <div class="layout" id="mainPanel">
+    <div class="stage">
+      <div class="canvasbox"><canvas id="cv"></canvas></div>
+      <div class="classleg" id="classleg"></div>
+      <div class="below">
+        <div class="lcol" id="eqcol">
+          <div class="lhd" id="eqhd"></div>
+          <div class="estep"><span id="eq1"></span></div>
+          <div class="estep" id="eq2"></div>
+          <div class="estep" id="eq3"></div>
+        </div>
+        <div class="mcol">
+          <div class="mhd" id="tabhd"></div>
+          <table class="modtab" id="modtab">
+            <thead><tr><th id="th-m"></th><th id="th-f"></th><th id="th-b"></th><th id="th-e"></th></tr></thead>
+            <tbody id="modbody"></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <!-- CONTROL -->
+    <div class="panel">
+      <div class="dhd" id="hd-model"></div>
+      <div class="seg2" id="modelSeg">
+        <button data-m="logistic" id="sb-logistic" class="on"></button><button data-m="nb" id="sb-nb"></button><button data-m="knn" id="sb-knn"></button><button data-m="tree" id="sb-tree"></button><button data-m="all" id="sb-all"></button>
+      </div>
+      <div class="dhd" id="hd-hp"></div>
+      <div class="dgrid" id="grid-hp">
+        <div class="drow" id="row-k"><span class="dlab" id="lbl-k"></span><input type="range" id="Rk" min="1" max="31" step="2" value="7"><input class="num" type="number" id="Nk" min="1" max="31" step="2" value="7"></div>
+        <div class="drow" id="row-depth"><span class="dlab" id="lbl-depth"></span><input type="range" id="Rdepth" min="1" max="6" step="1" value="2"><input class="num" type="number" id="Ndepth" min="1" max="6" step="1" value="2"></div>
+      </div>
+      <div class="dhd" id="hd-pos"></div>
+      <div class="dgrid">
+        <div class="drow" id="row-mu1"><span class="dlab" id="lbl-mu1"></span><input type="range" id="Rmu1" min="1" max="9" step="0.1" value="6.0"><input class="num" type="number" id="Nmu1" min="1" max="9" step="0.1" value="6.0"></div>
+        <div class="drow" id="row-s1"><span class="dlab" id="lbl-s1"></span><input type="range" id="Rs1" min="0.4" max="2.5" step="0.1" value="1.0"><input class="num" type="number" id="Ns1" min="0.4" max="2.5" step="0.1" value="1.0"></div>
+      </div>
+      <div class="dhd" id="hd-neg"></div>
+      <div class="dgrid">
+        <div class="drow" id="row-mu0"><span class="dlab" id="lbl-mu0"></span><input type="range" id="Rmu0" min="1" max="9" step="0.1" value="3.0"><input class="num" type="number" id="Nmu0" min="1" max="9" step="0.1" value="3.0"></div>
+        <div class="drow" id="row-s0"><span class="dlab" id="lbl-s0"></span><input type="range" id="Rs0" min="0.4" max="2.5" step="0.1" value="1.0"><input class="num" type="number" id="Ns0" min="0.4" max="2.5" step="0.1" value="1.0"></div>
+      </div>
+      <div class="dhd" id="hd-share"></div>
+      <div class="dgrid">
+        <div class="drow" id="row-p1"><span class="dlab" id="lbl-p1"></span><input type="range" id="Rp1" min="0.05" max="0.95" step="0.01" value="0.50"><input class="num" type="number" id="Np1" min="0.05" max="0.95" step="0.01" value="0.50"></div>
+        <div class="drow" id="row-n"><span class="dlab" id="lbl-n"></span><input type="range" id="Rn" min="20" max="400" step="10" value="120"><input class="num" type="number" id="Nn" min="20" max="400" step="10" value="120"></div>
+      </div>
+      <div class="tgls"><button class="primary" id="resample" style="width:100%"></button></div>
+    </div>
+  </div>
+
+  <!-- ===== summary ===== -->
+  <div class="summary" id="summaryPanel">
+    <div class="secttl" id="s-found"></div>
+    <div class="found">
+      <div class="frow"><span class="fl" id="fl-target"></span><span class="fe" id="fe-target"></span></div>
+      <div class="frow"><span class="fl" id="fl-rule"></span><span class="fe" id="fe-rule"></span></div>
+      <div class="frow"><span class="fl" id="fl-bayes"></span><span class="fe" id="fe-bayes"></span></div>
+      <div class="frow"><span class="fl" id="fl-est"></span><span class="fe" id="fe-est"></span></div>
+    </div>
+    <div class="secttl" id="s-split"></div>
+    <table class="stab">
+      <tr><th></th><th id="th-par"></th><th id="th-npar"></th></tr>
+      <tr>
+        <th id="th-disc" style="text-align:right;white-space:nowrap"></th>
+        <td><span class="tag" style="background:#1e3a8a">Logistic</span><div class="eq" id="c-log"></div><div class="note" id="n-log"></div></td>
+        <td><span class="tag" style="background:#a21caf">KNN</span><div class="eq" id="c-knn"></div><div class="note" id="n-knn"></div></td>
+      </tr>
+      <tr>
+        <th id="th-gen" style="text-align:right;white-space:nowrap"></th>
+        <td><span class="tag" style="background:#15803d">Naive Bayes</span><div class="eq" id="c-nb"></div><div class="note" id="n-nb"></div></td>
+        <td><span class="tag" style="background:#b45309">Tree</span><div class="eq" id="c-tree"></div><div class="note" id="n-tree"></div></td>
+      </tr>
+    </table>
+    <p class="ref" id="ref"></p>
+  </div>
+</div>
+
+<script>
+(function(){
+  "use strict";
+  // ---------- math / rng (เหมือน 1-D Bayes) ----------
+  var SQ2PI=Math.sqrt(2*Math.PI);
+  function pdf(x,m,s){return Math.exp(-0.5*((x-m)/s)*((x-m)/s))/(s*SQ2PI);}
+  function mulberry32(a){return function(){a|=0;a=a+0x6D2B79F5|0;var t=Math.imul(a^a>>>15,1|a);
+    t=t+Math.imul(t^t>>>7,61|t)^t;return((t^t>>>14)>>>0)/4294967296;};}
+  var MAXN=400, Z0=[],Z1=[];
+  function regen(seed){var rng=mulberry32(seed),i,u,v;Z0=[];Z1=[];
+    for(i=0;i<MAXN;i++){u=rng()||1e-9;v=rng();Z0.push(Math.sqrt(-2*Math.log(u))*Math.cos(2*Math.PI*v));
+      u=rng()||1e-9;v=rng();Z1.push(Math.sqrt(-2*Math.log(u))*Math.cos(2*Math.PI*v));}}
+  var seed=12345; regen(seed);
+
+  // ---------- 4 posterior estimators (ทุกตัวคืน post(x) = P̂(y=+|x)) ----------
+  function fitLogistic(xs,ys){var n=xs.length,i,mx=0,sx=0;
+    for(i=0;i<n;i++)mx+=xs[i];mx/=n;for(i=0;i<n;i++)sx+=(xs[i]-mx)*(xs[i]-mx);sx=Math.sqrt(sx/n)||1;
+    var w=0,b=0,lr=0.8,it;
+    for(it=0;it<600;it++){var gw=0,gb=0;for(i=0;i<n;i++){var z=(xs[i]-mx)/sx,p=1/(1+Math.exp(-(w*z+b))),e=p-ys[i];gw+=e*z;gb+=e;}
+      w-=lr*gw/n;b-=lr*gb/n;}
+    var Wc=w/sx,Bc=b-w*mx/sx;
+    return {post:function(x){return 1/(1+Math.exp(-(Wc*x+Bc)));},W:Wc,B:Bc};}
+  function fitNB(xs,ys){var i,n=xs.length,p=[],q=[];for(i=0;i<n;i++)(ys[i]?p:q).push(xs[i]);
+    function ms(a){var m=0,s=0,j;for(j=0;j<a.length;j++)m+=a[j];m/=a.length;for(j=0;j<a.length;j++)s+=(a[j]-m)*(a[j]-m);return [m,Math.max(0.08,Math.sqrt(s/a.length))];}
+    var A=ms(p),B=ms(q),pi1=p.length/n;
+    return {post:function(x){var a=pi1*pdf(x,A[0],A[1]),b=(1-pi1)*pdf(x,B[0],B[1]);return a/(a+b);},m1:A[0],s1:A[1],m0:B[0],s0:B[1],pi1:pi1};}
+  function fitKNN(xs,ys,k){var n=xs.length,idx=[],i;for(i=0;i<n;i++)idx.push(i);idx.sort(function(a,b){return xs[a]-xs[b];});
+    var sx=idx.map(function(i){return xs[i];}),sy=idx.map(function(i){return ys[i];});k=Math.min(k,n);
+    return {post:function(x){ // two-pointer window on sorted x
+      var lo=0,hi=sx.length-1;while(lo<hi){var m=(lo+hi)>>1;if(sx[m]<x)lo=m+1;else hi=m;}
+      var a=lo-1,b=lo,s=0,c=0;
+      while(c<k){if(a<0){s+=sy[b++];}else if(b>=sx.length){s+=sy[a--];}else if(x-sx[a]<=sx[b]-x){s+=sy[a--];}else{s+=sy[b++];}c++;}
+      return s/k;},k:k};}
+  function gini(p){return 2*p*(1-p);}
+  function fitTree(xs,ys,depth){var n=xs.length,i,all=[];for(i=0;i<n;i++)all.push(i);var splits=[];
+    function build(idx,d){var m=idx.length,pos=0,j;for(j=0;j<m;j++)pos+=ys[idx[j]];var p=pos/m;
+      if(d>=depth||m<4||pos===0||pos===m)return {leaf:true,p:p};
+      idx.sort(function(a,b){return xs[a]-xs[b];});var best=null,lp=0;
+      for(j=1;j<m;j++){lp+=ys[idx[j-1]];if(xs[idx[j]]===xs[idx[j-1]])continue;
+        var nl=j,nr=m-j,g=(nl*gini(lp/nl)+nr*gini((pos-lp)/nr))/m;
+        if(best===null||g<best.g)best={g:g,t:(xs[idx[j-1]]+xs[idx[j]])/2,j:j};}
+      if(!best||best.g>=gini(p)-1e-9)return {leaf:true,p:p};
+      splits.push(best.t);
+      return {leaf:false,t:best.t,left:build(idx.slice(0,best.j),d+1),right:build(idx.slice(best.j),d+1)};}
+    var root=build(all,0);splits.sort(function(a,b){return a-b;});
+    return {post:function(x){var nd=root;while(!nd.leaf)nd=(x<nd.t)?nd.left:nd.right;return nd.p;},splits:splits};}
+  function crossings(post,xmin,xmax){var N=400,dx=(xmax-xmin)/N,out=[],i,prev=post(xmin)-0.5;
+    for(i=1;i<=N;i++){var x=xmin+i*dx,cur=post(x)-0.5;
+      if((prev<0&&cur>=0)||(prev>0&&cur<=0)){var x0=x-dx,t=Math.abs(prev)/(Math.abs(prev)+Math.abs(cur)||1);out.push(x0+t*dx);}
+      prev=cur;if(out.length>=6)break;}return out;}
+  function trainErr(post,xs,ys){var e=0,i;for(i=0;i<xs.length;i++){if((post(xs[i])>0.5?1:0)!==ys[i])e++;}return e/xs.length;}
+
+  // ---------- state ----------
+  var bases=['mu0','mu1','s0','s1','p1','n','k','depth'];
+  var modeM='logistic', curTab=0;
+  var TABS=[{n:'Compare models'},{n:'Summary',summary:true}];
+  var Navy='#1e3a8a',G='#15803d',Pu='#a21caf',Or='#b45309',Rd='#B0503A',Bl='#3F6E99';
+  var MODELS=[
+    {key:'logistic',name:'Logistic regression',color:Navy,form:'\\sigma(Wx+B)'},
+    {key:'nb',      name:'Naive Bayes',        color:G,   form:'\\propto\\hat\\pi_c\\,\\mathcal N(x;\\hat\\mu_c,\\hat\\sigma_c^2)'},
+    {key:'knn',     name:'KNN',                color:Pu,  form:'\\tfrac1k\\sum_{i\\in N_k(x)}y_i'},
+    {key:'tree',    name:'Decision tree',      color:Or,  form:'\\text{leaf fraction}'}];
+  function gv(b){return parseFloat(document.getElementById('R'+b).value);}
+  function sv(b,v){document.getElementById('R'+b).value=v;document.getElementById('N'+b).value=v;}
+
+  // ---------- KaTeX static labels ----------
+  var MT={'h1':'\\text{Intro to Classification}','resample':'\\text{Resample points}',
+    'hd-model':'\\text{Model}','hd-hp':'\\text{Model setting}',
+    'sb-logistic':'\\text{Logistic}','sb-nb':'\\text{Naive Bayes}','sb-knn':'\\text{KNN}','sb-tree':'\\text{Tree}','sb-all':'\\text{All}',
+    'hd-pos':'\\textcolor{#B0503A}{\\text{Positive class}}','hd-neg':'\\textcolor{#3F6E99}{\\text{Negative class}}','hd-share':'\\text{Class balance \\& size}',
+    'lbl-mu0':'\\mu_-','lbl-mu1':'\\mu_+','lbl-s0':'\\sigma_-','lbl-s1':'\\sigma_+','lbl-p1':'\\pi_+','lbl-n':'n','lbl-k':'k','lbl-depth':'\\text{depth}',
+    'eqhd':'\\text{Fitted posterior}','tabhd':'\\text{Models on the same data}',
+    'th-m':'\\text{model}','th-f':'P(y{=}+\\mid x)','th-b':'x^{*}','th-e':'\\text{train error}',
+    's-found':'\\text{1) Classification = estimate }P(y{=}+\\mid x)\\text{, then decide}',
+    'fl-target':'\\text{target}','fe-target':'P(y{=}+\\mid x)\\quad\\text{(posterior — the probability the object is positive, given its feature)}',
+    'fl-rule':'\\text{decision rule}','fe-rule':'\\hat y=+\\iff P(y{=}+\\mid x)>\\tfrac12',
+    'fl-bayes':'\\text{Bayes optimal}','fe-bayes':'\\text{if the true }P(y{=}+\\mid x)\\text{ were known, this rule has the lowest possible error}',
+    'fl-est':'\\text{in practice}','fe-est':'P\\text{ is unknown — every classifier is a different }\\textbf{estimator}\\ \\hat P(y{=}+\\mid x)\\text{ from the same points}',
+    's-split':'\\text{2) Four estimators — two questions: model }P\\text{ directly or via }p(x\\mid c)\\text{? parametric or local?}',
+    'th-par':'\\text{parametric (a formula)}','th-npar':'\\text{non-parametric (the data itself)}',
+    'th-disc':'\\text{discriminative}','th-gen':'\\text{generative}',
+    'c-log':'\\hat P=\\sigma(Wx+B)','c-knn':'\\hat P=\\tfrac1k\\sum_{i\\in N_k(x)}y_i',
+    'c-nb':'\\hat P\\propto\\hat\\pi_c\\,\\mathcal N(x;\\hat\\mu_c,\\hat\\sigma_c^2)','c-tree':'\\hat P=\\text{fraction of }+\\text{ in the leaf}',
+    'ref':'\\text{Ref: Hastie, Tibshirani \\& Friedman, ESL Ch.\\,2 \\& 4 · Bishop, PRML Ch.\\,4}'};
+  var NOTES={
+    'n-log':['\\text{one smooth S-curve;}','\\text{boundary = one }x^{*}','\\text{(linear in }x\\text{).}'],
+    'n-knn':['\\text{local vote of }k\\text{ neighbours;}','\\text{jagged, follows the data;}','\\text{small }k\\to\\text{overfit.}'],
+    'n-nb':['\\text{fits a normal per class,}','\\text{then applies Bayes rule;}','\\text{unequal }\\hat\\sigma\\to\\text{two }x^{*}\\text{.}'],
+    'n-tree':['\\text{axis splits }x<t;','\\text{posterior is a staircase;}','\\text{deeper}\\to\\text{overfit.}']};
+  function K(tex,el){try{katex.render(tex,el,{throwOnError:false});}catch(e){el.textContent=tex;}}
+  function kx(t){try{return window.katex?katex.renderToString(t,{throwOnError:false}):t;}catch(e){return t;}}
+  function kxProse(el,parts){if(!el)return;el.innerHTML='';parts.forEach(function(p){var s=document.createElement('span');
+    try{katex.render(p,s,{throwOnError:false});}catch(e){s.textContent=p;}el.appendChild(s);});}
+  function renderTexts(){if(!window.katex)return;for(var id in MT){var el=document.getElementById(id);if(el)K(MT[id],el);}
+    for(var nid in NOTES){var ne=document.getElementById(nid);if(ne)kxProse(ne,NOTES[nid]);}}
+  function clLine(name,lc,tc,shape){return '<span class="cli"><i class="'+(shape||'ln')+'" style="background:'+lc+'"></i><span>'+kx('\\textcolor{'+tc+'}{\\text{'+name+'}}')+'</span></span>';}
+  function fillLegend(){var el=document.getElementById('classleg');if(!el)return;
+    var h=clLine('Positive class','#E07A5F',Rd,'ar')+clLine('Negative class','#5B8FB9',Bl,'ar');
+    if(modeM==='all'){MODELS.forEach(function(m){h+=clLine(m.name,m.color,m.color);});}
+    else{var m=MODELS.filter(function(q){return q.key===modeM;})[0];h+=clLine('posterior '+m.name,m.color,m.color)+clLine('misclassified (ring)','#888','#666');}
+    el.innerHTML=h;}
+
+  // ---------- canvas ----------
+  var cv=document.getElementById('cv'),ctx=cv.getContext('2d');
+  var SC=2,W=640,H=286;
+  function sizeCanvas(){if(!cv)return;var w=Math.round(cv.clientWidth)||640,h=Math.round(cv.clientHeight)||322,dpr=window.devicePixelRatio||1;
+    W=w;H=h;SC=dpr;cv.width=Math.round(w*dpr);cv.height=Math.round(h*dpr);}
+  function draw(P){
+    try{
+      ctx.setTransform(SC,0,0,SC,0,0);ctx.clearRect(0,0,W,H);
+      var L=44,Rm=16,pw=W-L-Rm,TOP=22,BOT=34,ph=H-TOP-BOT,xmin=P.xmin,xmax=P.xmax,i,x;
+      function px(x){return L+(x-xmin)/(xmax-xmin)*pw;} function py(p){return TOP+(1-p)*ph;}
+      // frame: 0 / 0.5 / 1
+      ctx.font='13px KaTeX_Main,serif';ctx.textBaseline='middle';
+      [0,0.5,1].forEach(function(p){ctx.strokeStyle=p===0.5?'rgba(17,17,17,0.55)':'rgba(128,128,128,0.35)';ctx.lineWidth=1;
+        if(p===0.5)ctx.setLineDash([5,4]);ctx.beginPath();ctx.moveTo(L,py(p));ctx.lineTo(L+pw,py(p));ctx.stroke();ctx.setLineDash([]);
+        ctx.fillStyle='rgba(90,90,90,0.9)';ctx.textAlign='right';ctx.fillText(p===0.5?'0.5':String(p),L-7,py(p));});
+      ctx.textBaseline='alphabetic';ctx.fillStyle='rgba(128,128,128,0.9)';ctx.textAlign='center';ctx.font='14px KaTeX_Main,serif';
+      var stp=(xmax-xmin>12?2:1);for(var a=Math.ceil(xmin);a<=xmax;a+=stp)ctx.fillText(a,px(a),py(0)+16);
+      ctx.textAlign='left';ctx.fillStyle='rgba(90,90,90,0.9)';ctx.font='13px KaTeX_Main,serif';ctx.fillText('P(y = + | x)',L+4,TOP-8);
+      // rugs: + ใต้เส้น 1 · − เหนือเส้น 0 (ซ้อน 3 แถวเหมือน 1-D)
+      var single=P.show.length===1?P.show[0]:null,k;
+      for(k=0;k<P.xs.length;k++){var xv=P.xs[k],yv=P.ys[k],xp=px(xv);if(xp<L-4||xp>L+pw+4)continue;
+        var yp=yv?py(1)+9+(k%3)*7:py(0)-9-(k%3)*7;
+        ctx.fillStyle=yv?'rgba(224,122,95,0.9)':'rgba(91,143,185,0.84)';ctx.beginPath();ctx.arc(xp,yp,4,0,7);ctx.fill();
+        if(single){var pr=single.post(xv)>0.5?1:0;if(pr!==yv){ctx.strokeStyle=pr?'#E07A5F':'#5B8FB9';ctx.lineWidth=2;ctx.beginPath();ctx.arc(xp,yp,6,0,7);ctx.stroke();}}}
+      // posterior curves
+      var N=320,dx=(xmax-xmin)/N;
+      P.show.forEach(function(m){ctx.strokeStyle=m.color;ctx.lineWidth=single?2.4:2;ctx.beginPath();
+        for(i=0;i<=N;i++){x=xmin+i*dx;var Y=py(Math.max(0,Math.min(1,m.post(x))));i===0?ctx.moveTo(px(x),Y):ctx.lineTo(px(x),Y);}ctx.stroke();
+        m.xstar.forEach(function(r){if(r<xmin||r>xmax)return;ctx.strokeStyle=m.color;ctx.lineWidth=1.4;ctx.setLineDash([4,4]);
+          ctx.beginPath();ctx.moveTo(px(r),py(1));ctx.lineTo(px(r),py(0)+4);ctx.stroke();ctx.setLineDash([]);});});
+      if(single){ctx.fillStyle=single.color;ctx.font='13px KaTeX_Main,serif';ctx.textAlign='center';
+        single.xstar.forEach(function(r){if(r>=xmin&&r<=xmax)ctx.fillText('x* '+r.toFixed(2),px(r),H-4);});ctx.textAlign='left';}
+    }catch(e){ctx.setTransform(SC,0,0,SC,0,0);ctx.fillStyle='#c0392b';ctx.font='15px KaTeX_Main,serif';ctx.textAlign='left';ctx.fillText('draw err: '+e.message,10,20);}
+  }
+
+  // ---------- live equation (ตัวเลขจริง) ----------
+  function fx(v,d){return (Math.abs(v)<1e-9?0:v).toFixed(d===undefined?2:d);}
+  function sgn(v){return (v>=0?'+':'-')+fx(Math.abs(v));}
+  function liveEq(F,xs){var e1=document.getElementById('eq1'),e2=document.getElementById('eq2'),e3=document.getElementById('eq3');
+    if(!window.katex)return;
+    if(modeM==='logistic'){K('\\hat P=\\sigma('+fx(F.logistic.W)+'\\,x'+sgn(F.logistic.B)+')',e1);
+      kxProse(e2,['\\sigma(z)=\\tfrac{1}{1+e^{-z}}','\\text{— one S-curve}']);}
+    else if(modeM==='nb'){var nb=F.nb;K('\\hat P\\propto\\hat\\pi_+\\,\\mathcal N(x;\\hat\\mu_+,\\hat\\sigma_+^2)',e1);
+      kxProse(e2,['\\hat\\mu_+='+fx(nb.m1)+',','\\hat\\sigma_+='+fx(nb.s1)+',','\\hat\\pi_+='+fx(nb.pi1)]);
+      kxProse(e3,['\\hat\\mu_-='+fx(nb.m0)+',','\\hat\\sigma_-='+fx(nb.s0)]);return;}
+    else if(modeM==='knn'){K('\\hat P=\\tfrac{1}{k}\\sum_{i\\in N_k(x)} y_i',e1);kxProse(e2,['k='+F.knn.k,'\\text{— vote of the }k\\text{ nearest points}']);}
+    else if(modeM==='tree'){K('\\hat P=\\text{fraction of }+\\text{ in the leaf}',e1);
+      var sp=F.tree.splits;kxProse(e2,sp.length?sp.map(function(t){return 'x\\lessgtr'+fx(t);}):['\\text{no split (one leaf)}']);}
+    else{K('P(y{=}+\\mid x)',e1);kxProse(e2,['\\text{four estimates}','\\text{of the same posterior,}','\\text{same points}']);}
+    e3.innerHTML='';
+    var xs1=modeM==='all'?[]:F[modeM].xstar;
+    if(xs1.length)kxProse(e3,['x^{*}\\in\\{'+xs1.map(function(v){return fx(v);}).join(',\\;')+'\\}']);
+  }
+  function fillTable(F){var tb=document.getElementById('modbody');if(!tb)return;var h='';
+    MODELS.forEach(function(m){var f=F[m.key],xs=f.xstar.length?f.xstar.map(function(v){return fx(v,1);}).join(' · '):'—';
+      h+='<tr class="'+((modeM===m.key)?'sel':'')+'"><td class="mn"><span class="sw" style="background:'+m.color+'"></span>'+kx('\\text{'+m.name+'}')+'</td>'
+        +'<td>'+kx(m.form)+'</td><td class="num">'+xs+'</td><td class="num">'+(f.err*100).toFixed(1)+'%</td></tr>';});
+    tb.innerHTML=h;}
+
+  // ---------- main update ----------
+  function upd(){
+    if(TABS[curTab].summary)return;
+    var m0=gv('mu0'),m1=gv('mu1'),s0=gv('s0'),s1=gv('s1'),p1=gv('p1'),n=Math.round(gv('n')),kk=Math.round(gv('k')),dp=Math.round(gv('depth'));
+    var n1=Math.max(1,Math.round(n*p1)),n0=Math.max(1,n-n1),xs=[],ys=[],k;
+    for(k=0;k<n1;k++){xs.push(m1+s1*Z1[k]);ys.push(1);} for(k=0;k<n0;k++){xs.push(m0+s0*Z0[k]);ys.push(0);}
+    var xmin=-2,xmax=14;
+    var F={logistic:fitLogistic(xs,ys),nb:fitNB(xs,ys),knn:fitKNN(xs,ys,kk),tree:fitTree(xs,ys,dp)};
+    MODELS.forEach(function(m){var f=F[m.key];f.xstar=crossings(f.post,xmin,xmax);f.err=trainErr(f.post,xs,ys);f.color=m.color;f.name=m.name;});
+    var show=modeM==='all'?MODELS.map(function(m){return F[m.key];}):[F[modeM]];
+    draw({xmin:xmin,xmax:xmax,xs:xs,ys:ys,show:show});
+    liveEq(F,xs);fillTable(F);fillLegend();
+  }
+
+  // ---------- controls ----------
+  function setModelSeg(){var bs=document.querySelectorAll('#modelSeg button');for(var i=0;i<bs.length;i++)bs[i].className=(bs[i].getAttribute('data-m')===modeM)?'on':'';
+    var sk=(modeM==='knn'||modeM==='all'),sd=(modeM==='tree'||modeM==='all');
+    document.getElementById('row-k').style.display=sk?'':'none';document.getElementById('row-depth').style.display=sd?'':'none';
+    document.getElementById('hd-hp').style.display=(sk||sd)?'':'none';document.getElementById('grid-hp').style.display=(sk||sd)?'':'none';}
+  function applyTab(k){curTab=k;var T=TABS[k];
+    var btns=document.querySelectorAll('.tabbtn');for(var i=0;i<btns.length;i++)btns[i].className='tabbtn'+(i===k?' on':'');
+    if(T.summary){document.getElementById('mainPanel').style.display='none';document.getElementById('summaryPanel').className='summary on';renderTexts();return;}
+    document.getElementById('mainPanel').style.display='grid';document.getElementById('summaryPanel').className='summary';
+    setModelSeg();sizeCanvas();upd();}
+  var tb=document.getElementById('tabs');
+  TABS.forEach(function(T,i){var el=document.createElement('button');el.className='tabbtn';K('\\text{'+T.n+'}',el);el.addEventListener('click',function(){applyTab(i);});tb.appendChild(el);});
+  bases.forEach(function(b){var Re=document.getElementById('R'+b),Ne=document.getElementById('N'+b);
+    Re.addEventListener('input',function(){Ne.value=Re.value;upd();});Ne.addEventListener('input',function(){Re.value=Ne.value;upd();});});
+  document.querySelectorAll('#modelSeg button').forEach(function(b){b.addEventListener('click',function(){modeM=b.getAttribute('data-m');setModelSeg();upd();});});
+  document.getElementById('resample').addEventListener('click',function(){seed=(seed*1664525+1013904223)>>>0;regen(seed);upd();});
+  window.addEventListener('resize',function(){sizeCanvas();upd();});
+
+  function boot(){renderTexts();applyTab(0);}
+  boot();
+  requestAnimationFrame(function(){sizeCanvas();renderTexts();upd();});
+  setTimeout(function(){sizeCanvas();renderTexts();if(!TABS[curTab].summary)upd();},250);
+  setTimeout(function(){sizeCanvas();renderTexts();if(!TABS[curTab].summary)upd();},800);
+})();
+</script>
+</body>
+</html>
