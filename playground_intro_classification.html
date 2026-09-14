@@ -8,33 +8,31 @@
 <link rel="stylesheet" href="vendor/katex/katex.min.css">
 <script src="vendor/katex/katex.min.js"></script>
 <style>
-  /* intro-classification — โครง/ฟอนต์ = .distcls กลาง (เหมือน 1-D Bayes); ตาราง = .mtab กลาง แต่งเหมือน Baseline methods */
+  /* intro-classification — โครง/ฟอนต์ = .distcls กลาง (เหมือน 1-D Bayes); ตาราง = .mtab กลาง 15px */
   .layout{align-items:start}
+  /* จัดหน้าให้พอดี: plot เริ่มเตี้ย แล้ว JS (fitPlot) ปรับให้ล่างซ้ายเสมอแผง control */
+  .pg.distcls .canvasbox{height:clamp(210px,28vh,250px)}
+  .distcls .stage{gap:6px}
   .panel{max-height:calc(100vh - 96px);overflow-y:auto;overflow-x:hidden}
   .seg2{display:flex;flex-wrap:wrap;border:1px solid var(--line);border-radius:8px;overflow:hidden;margin-bottom:6px;background:#fff}
   .seg2 button{flex:1 1 auto;font:inherit;font-size:14px;padding:6px 8px;border:0;background:#fff;color:#555;cursor:pointer;white-space:nowrap}
   .seg2 button.on{background:var(--navy);color:#fff}
   .seg2 .katex{font-size:1em}
   .tgls{display:flex;flex-direction:column;gap:9px;margin-top:10px}
-  /* ตาราง (เหมือน pdm_baseline): .mtab กลาง + padding 4px 7px / 13px / แถวที่เลือกพื้นฟ้าอ่อน */
+  /* ตาราง: .mtab กลาง — 15px (เท่า 1-D Bayes), ทุกเซลล์ KaTeX น้ำหนัก 400, หัว/ตัวแนวเดียวกัน */
   .distcls .below{min-height:0;padding:6px 14px 8px}
   .tblbox{min-width:0;width:100%}
   .pg .mtab{margin:0}
-  .pg .mtab th,.pg .mtab td{padding:7px 10px;font-size:15px}   /* = ขนาด .mtab กลางที่ 1-D Bayes ใช้ (15px) */
-  .pg .mtab th,.pg .mtab td{vertical-align:top;line-height:1.45}          /* หัวกับตัวจัดแนวเดียวกัน */
+  .pg .mtab th,.pg .mtab td{padding:7px 10px;font-size:15px;vertical-align:top;line-height:1.45}
   .pg .mtab th{white-space:normal}
-  .pg .mtab th.r{text-align:right}                                   /* หัวคอลัมน์ตัวเลขชิดขวาเท่าตัวตาราง */
-  .pg .mtab td:first-child{text-align:left;white-space:nowrap}   /* ชื่อโมเดลชิดซ้ายเท่าหัว */
-  /* ยกเลิกสไตล์ตัวเลขของ .mtab กลาง (หนา/น้ำเงิน) → ทุกเซลล์น้ำหนัก 400 สีเดียวกัน ฟอนต์ KaTeX ขนาดเดียวกับหัว */
-  .pg .mtab td{font-weight:400;color:var(--ink);font-variant-numeric:normal}
-  .pg .mtab td.num,.pg .mtab td:last-child{text-align:right}
+  .pg .mtab th.r{text-align:right}
+  .pg .mtab td{font-weight:400;color:var(--ink);font-variant-numeric:normal;text-align:left}
+  .pg .mtab td:first-child{white-space:nowrap}
+  .pg .mtab td:last-child{text-align:right}
+  .pg .mtab tr.sel th,.pg .mtab tr.sel td{background:#f4f7fb}
   .pg .mtab th .katex,.pg .mtab td .katex{font-size:1em;line-height:1.2;vertical-align:baseline}
-  /* คอลัมน์ตัวเลข: กล่อง KaTeX เป็น block ชิดขวา ทั้งหัวและตัว → ขอบขวาตรงกันเป๊ะ (ไม่ขึ้นกับ inline-box ของ KaTeX) */
   .pg .mtab th.r .katex,.pg .mtab td:last-child .katex{display:block;text-align:right}
   .pg .mtab th.r .katex-html,.pg .mtab td:last-child .katex-html{display:inline-block}
-  .pg .mtab td.txt{text-align:left;font-weight:400;color:var(--ink);line-height:1.45}   /* คอลัมน์กฎ = ข้อความ */
-  .pg .mtab tr.sel th,.pg .mtab tr.sel td{background:#f4f7fb}
-  .pg .mtab .katex{font-size:1em}
   .pg .mtab .ln{display:block}
   .pg .mtab .ln .katex{white-space:nowrap}
   /* summary tab */
@@ -60,7 +58,7 @@
 <div class="wrap">
   <div class="hdr"><h1 id="h1">Intro to Classification</h1><div class="tabs" id="tabs"></div></div>
 
-  <!-- ===== interactive ===== -->
+  <!-- ===== interactive (Univariate / Bivariate) ===== -->
   <div class="layout" id="mainPanel">
     <div class="stage">
       <div class="canvasbox"><canvas id="cv"></canvas></div>
@@ -73,16 +71,18 @@
       </div>
     </div>
 
-    <!-- CONTROL: ข้อมูล (sim เดิมของ 1-D Bayes) → โมเดล → ค่าตั้งของโมเดล -->
+    <!-- CONTROL: ข้อมูล → โมเดล → ค่าตั้งของโมเดล -->
     <div class="panel">
       <div class="dhd" id="hd-pos"></div>
       <div class="dgrid">
         <div class="drow" id="row-mu1"><span class="dlab" id="lbl-mu1"></span><input type="range" id="Rmu1" min="1" max="9" step="0.1" value="6.0"><input class="num" type="number" id="Nmu1" min="1" max="9" step="0.1" value="6.0"></div>
+        <div class="drow" id="row-muy1"><span class="dlab" id="lbl-muy1"></span><input type="range" id="Rmuy1" min="1" max="9" step="0.1" value="6.0"><input class="num" type="number" id="Nmuy1" min="1" max="9" step="0.1" value="6.0"></div>
         <div class="drow" id="row-s1"><span class="dlab" id="lbl-s1"></span><input type="range" id="Rs1" min="0.4" max="2.5" step="0.1" value="1.0"><input class="num" type="number" id="Ns1" min="0.4" max="2.5" step="0.1" value="1.0"></div>
       </div>
       <div class="dhd" id="hd-neg"></div>
       <div class="dgrid">
         <div class="drow" id="row-mu0"><span class="dlab" id="lbl-mu0"></span><input type="range" id="Rmu0" min="1" max="9" step="0.1" value="3.0"><input class="num" type="number" id="Nmu0" min="1" max="9" step="0.1" value="3.0"></div>
+        <div class="drow" id="row-muy0"><span class="dlab" id="lbl-muy0"></span><input type="range" id="Rmuy0" min="1" max="9" step="0.1" value="3.0"><input class="num" type="number" id="Nmuy0" min="1" max="9" step="0.1" value="3.0"></div>
         <div class="drow" id="row-s0"><span class="dlab" id="lbl-s0"></span><input type="range" id="Rs0" min="0.4" max="2.5" step="0.1" value="1.0"><input class="num" type="number" id="Ns0" min="0.4" max="2.5" step="0.1" value="1.0"></div>
       </div>
       <div class="dhd" id="hd-share"></div>
@@ -133,64 +133,68 @@
 <script>
 (function(){
   "use strict";
-  // ---------- math / rng (เหมือน 1-D Bayes) ----------
-  var SQ2PI=Math.sqrt(2*Math.PI);
-  function pdf(x,m,s){return Math.exp(-0.5*((x-m)/s)*((x-m)/s))/(s*SQ2PI);}
+  // ---------- rng (เหมือน 1-D Bayes) — Z*x สำหรับแกน x, Z*y สำหรับแกน y (bivariate) ----------
   function mulberry32(a){return function(){a|=0;a=a+0x6D2B79F5|0;var t=Math.imul(a^a>>>15,1|a);
     t=t+Math.imul(t^t>>>7,61|t)^t;return((t^t>>>14)>>>0)/4294967296;};}
-  var MAXN=400, Z0=[],Z1=[];
-  function regen(seed){var rng=mulberry32(seed),i,u,v;Z0=[];Z1=[];
-    for(i=0;i<MAXN;i++){u=rng()||1e-9;v=rng();Z0.push(Math.sqrt(-2*Math.log(u))*Math.cos(2*Math.PI*v));
-      u=rng()||1e-9;v=rng();Z1.push(Math.sqrt(-2*Math.log(u))*Math.cos(2*Math.PI*v));}}
+  var MAXN=400, Z0=[],Z1=[],Z0y=[],Z1y=[];
+  function regen(seed){var rng=mulberry32(seed),i;function g(){var u=rng()||1e-9,v=rng();return Math.sqrt(-2*Math.log(u))*Math.cos(2*Math.PI*v);}
+    Z0=[];Z1=[];Z0y=[];Z1y=[];for(i=0;i<MAXN;i++){Z0.push(g());Z1.push(g());Z0y.push(g());Z1y.push(g());}}
   var seed=12345; regen(seed);
+  function sig(z){return 1/(1+Math.exp(-z));}
 
-  // ---------- 4 estimators (ทุกตัวคืน post(x) = P̂(y=+|x); linear = มี threshold เดียว) ----------
-  function fitLogistic(xs,ys){var n=xs.length,i,mx=0,sx=0;
-    for(i=0;i<n;i++)mx+=xs[i];mx/=n;for(i=0;i<n;i++)sx+=(xs[i]-mx)*(xs[i]-mx);sx=Math.sqrt(sx/n)||1;
-    var w=0,b=0,lr=0.8,it;
-    for(it=0;it<600;it++){var gw=0,gb=0;for(i=0;i<n;i++){var z=(xs[i]-mx)/sx,p=1/(1+Math.exp(-(w*z+b))),e=p-ys[i];gw+=e*z;gb+=e;}
-      w-=lr*gw/n;b-=lr*gb/n;}
-    var Wc=w/sx,Bc=b-w*mx/sx;
-    return {post:function(x){return 1/(1+Math.exp(-(Wc*x+Bc)));},W:Wc,B:Bc,linear:true};}
-  // Gaussian NB with a SHARED variance (pooled) → log-odds linear in x → σ(Wx+B), one threshold
-  function fitNB(xs,ys){var i,n=xs.length,p=[],q=[];for(i=0;i<n;i++)(ys[i]?p:q).push(xs[i]);
-    function mv(a){var m=0,s=0,j;for(j=0;j<a.length;j++)m+=a[j];m/=a.length;for(j=0;j<a.length;j++)s+=(a[j]-m)*(a[j]-m);return [m,s];}
-    var A=mv(p),B=mv(q),pi1=p.length/n,s=Math.max(0.08,Math.sqrt((A[1]+B[1])/n));
-    var W=(A[0]-B[0])/(s*s),Bc=(B[0]*B[0]-A[0]*A[0])/(2*s*s)+Math.log(pi1/(1-pi1));
-    return {post:function(x){return 1/(1+Math.exp(-(W*x+Bc)));},W:W,B:Bc,linear:true};}
-  function fitKNN(xs,ys,k){var n=xs.length,idx=[],i;for(i=0;i<n;i++)idx.push(i);idx.sort(function(a,b){return xs[a]-xs[b];});
-    var sx=idx.map(function(i){return xs[i];}),sy=idx.map(function(i){return ys[i];});k=Math.min(k,n);
-    return {post:function(x){var lo=0,hi=sx.length-1;while(lo<hi){var m=(lo+hi)>>1;if(sx[m]<x)lo=m+1;else hi=m;}
-      var a=lo-1,b=lo,s=0,c=0;
-      while(c<k){if(a<0){s+=sy[b++];}else if(b>=sx.length){s+=sy[a--];}else if(x-sx[a]<=sx[b]-x){s+=sy[a--];}else{s+=sy[b++];}c++;}
-      return s/k;},k:k,linear:false};}
+  // ---------- estimators: input X = array of feature vectors (มิติ 1 หรือ 2), ys = 0/1 ----------
+  // ทุกตัวคืน post(v) = P̂(y=+|x); linear = true เมื่อ log-odds เชิงเส้น (มี W,B)
+  function fitLogistic(X,ys){var n=X.length,D=X[0].length,i,d,mu=[],sd=[];
+    for(d=0;d<D;d++){var m=0,s=0;for(i=0;i<n;i++)m+=X[i][d];m/=n;for(i=0;i<n;i++)s+=(X[i][d]-m)*(X[i][d]-m);mu.push(m);sd.push(Math.sqrt(s/n)||1);}
+    var w=[],b=0,lr=0.8,it;for(d=0;d<D;d++)w.push(0);
+    for(it=0;it<600;it++){var gw=[],gb=0;for(d=0;d<D;d++)gw.push(0);
+      for(i=0;i<n;i++){var z=b;for(d=0;d<D;d++)z+=w[d]*(X[i][d]-mu[d])/sd[d];var e=sig(z)-ys[i];for(d=0;d<D;d++)gw[d]+=e*(X[i][d]-mu[d])/sd[d];gb+=e;}
+      for(d=0;d<D;d++)w[d]-=lr*gw[d]/n;b-=lr*gb/n;}
+    var W=[],B=b;for(d=0;d<D;d++){W.push(w[d]/sd[d]);B-=w[d]*mu[d]/sd[d];}
+    return {post:function(v){var z=B;for(var d=0;d<W.length;d++)z+=W[d]*v[d];return sig(z);},W:W,B:B,linear:true};}
+  // Gaussian NB with shared (pooled) variance per feature → log-odds linear → σ(W·x+B)
+  function fitNB(X,ys){var n=X.length,D=X[0].length,i,d,p=[],q=[];for(i=0;i<n;i++)(ys[i]?p:q).push(X[i]);
+    var mp=[],mq=[],v=[];
+    for(d=0;d<D;d++){var a=0,b=0,j;for(j=0;j<p.length;j++)a+=p[j][d];a/=p.length;for(j=0;j<q.length;j++)b+=q[j][d];b/=q.length;
+      var s=0;for(j=0;j<p.length;j++)s+=(p[j][d]-a)*(p[j][d]-a);for(j=0;j<q.length;j++)s+=(q[j][d]-b)*(q[j][d]-b);
+      mp.push(a);mq.push(b);v.push(Math.max(0.0064,s/n));}
+    var pi1=p.length/n,W=[],B=Math.log(pi1/(1-pi1));
+    for(d=0;d<D;d++){W.push((mp[d]-mq[d])/v[d]);B+=(mq[d]*mq[d]-mp[d]*mp[d])/(2*v[d]);}
+    return {post:function(x){var z=B;for(var d=0;d<W.length;d++)z+=W[d]*x[d];return sig(z);},W:W,B:B,linear:true};}
+  function fitKNN(X,ys,k){var n=X.length;k=Math.min(k,n);
+    return {post:function(v){var ds=new Array(n),i,d;for(i=0;i<n;i++){var s=0;for(d=0;d<v.length;d++){var t=X[i][d]-v[d];s+=t*t;}ds[i]=[s,ys[i]];}
+      ds.sort(function(a,b){return a[0]-b[0];});var c=0;for(i=0;i<k;i++)c+=ds[i][1];return c/k;},k:k,linear:false};}
   function gini(p){return 2*p*(1-p);}
-  function fitTree(xs,ys,depth){var n=xs.length,i,all=[];for(i=0;i<n;i++)all.push(i);var splits=[];
+  function fitTree(X,ys,depth){var n=X.length,D=X[0].length,i,all=[];for(i=0;i<n;i++)all.push(i);
     function build(idx,d){var m=idx.length,pos=0,j;for(j=0;j<m;j++)pos+=ys[idx[j]];var p=pos/m;
       if(d>=depth||m<4||pos===0||pos===m)return {leaf:true,p:p};
-      idx.sort(function(a,b){return xs[a]-xs[b];});var best=null,lp=0;
-      for(j=1;j<m;j++){lp+=ys[idx[j-1]];if(xs[idx[j]]===xs[idx[j-1]])continue;
-        var nl=j,nr=m-j,g=(nl*gini(lp/nl)+nr*gini((pos-lp)/nr))/m;
-        if(best===null||g<best.g)best={g:g,t:(xs[idx[j-1]]+xs[idx[j]])/2,j:j};}
+      var best=null,f;
+      for(f=0;f<D;f++){var srt=idx.slice().sort(function(a,b){return X[a][f]-X[b][f];}),lp=0;
+        for(j=1;j<m;j++){lp+=ys[srt[j-1]];if(X[srt[j]][f]===X[srt[j-1]][f])continue;
+          var nl=j,nr=m-j,g=(nl*gini(lp/nl)+nr*gini((pos-lp)/nr))/m;
+          if(best===null||g<best.g)best={g:g,f:f,t:(X[srt[j-1]][f]+X[srt[j]][f])/2};}}
       if(!best||best.g>=gini(p)-1e-9)return {leaf:true,p:p};
-      splits.push(best.t);
-      return {leaf:false,t:best.t,left:build(idx.slice(0,best.j),d+1),right:build(idx.slice(best.j),d+1)};}
-    var root=build(all,0);splits.sort(function(a,b){return a-b;});
-    var post=function(x){var nd=root;while(!nd.leaf)nd=(x<nd.t)?nd.left:nd.right;return nd.p;};
-    var rules=[],lo=-1e9;
-    for(i=0;i<=splits.length;i++){var hi=(i<splits.length)?splits[i]:1e9,mid=(i===0)?(hi-1):(i===splits.length?(lo+1):(lo+hi)/2);
-      rules.push({lo:lo,hi:hi,p:post(mid)});lo=hi;}
-    return {post:post,splits:splits,rules:rules,linear:false};}
-  function crossings(post,xmin,xmax){var N=400,dx=(xmax-xmin)/N,out=[],i,prev=post(xmin)-0.5;
-    for(i=1;i<=N;i++){var x=xmin+i*dx,cur=post(x)-0.5;
+      var L=[],R=[];for(j=0;j<m;j++)(X[idx[j]][best.f]<best.t?L:R).push(idx[j]);
+      return {leaf:false,f:best.f,t:best.t,left:build(L,d+1),right:build(R,d+1)};}
+    var root=build(all,0);
+    var post=function(v){var nd=root;while(!nd.leaf)nd=(v[nd.f]<nd.t)?nd.left:nd.right;return nd.p;};
+    // leaves → rules: แต่ละใบ = เงื่อนไข AND ตามทางเดิน
+    var leaves=[];(function walk(nd,cond){if(nd.leaf){leaves.push({cond:cond,p:nd.p});return;}
+      walk(nd.left,cond.concat([{f:nd.f,lt:true,t:nd.t}]));walk(nd.right,cond.concat([{f:nd.f,lt:false,t:nd.t}]));})(root,[]);
+    return {post:post,leaves:leaves,linear:false};}
+  function trainErr(post,X,ys){var e=0,i;for(i=0;i<X.length;i++){if((post(X[i])>0.5?1:0)!==ys[i])e++;}return e/X.length;}
+  function crossings1(post,xmin,xmax){var N=400,dx=(xmax-xmin)/N,out=[],i,prev=post([xmin])-0.5;
+    for(i=1;i<=N;i++){var x=xmin+i*dx,cur=post([x])-0.5;
       if((prev<0&&cur>=0)||(prev>0&&cur<=0)){var x0=x-dx,t=Math.abs(prev)/(Math.abs(prev)+Math.abs(cur)||1);out.push(x0+t*dx);}
       prev=cur;if(out.length>=6)break;}return out;}
-  function trainErr(post,xs,ys){var e=0,i;for(i=0;i<xs.length;i++){if((post(xs[i])>0.5?1:0)!==ys[i])e++;}return e/xs.length;}
 
   // ---------- state ----------
-  var bases=['mu0','mu1','s0','s1','p1','n','k','depth'];
+  var bases=['mu0','muy0','mu1','muy1','s0','s1','p1','n','k','depth'];
   var modeM='logistic', curTab=0;
-  var TABS=[{n:'Compare models'},{n:'Summary',summary:true}];
+  var TABS=[
+    {n:'Univariate', dim:1, en:['mu1','s1','mu0','s0','p1','n']},
+    {n:'Bivariate',  dim:2, en:['mu1','muy1','s1','mu0','muy0','s0','p1','n']},
+    {n:'Summary', summary:true}];
   var Navy='#1e3a8a',G='#15803d',Pu='#a21caf',Or='#b45309',Rd='#B0503A',Bl='#3F6E99';
   var MODELS=[
     {key:'logistic',name:'Logistic regression',color:Navy},
@@ -198,13 +202,14 @@
     {key:'knn',     name:'KNN',                color:Pu},
     {key:'tree',    name:'Decision tree',      color:Or}];
   function gv(b){return parseFloat(document.getElementById('R'+b).value);}
+  function dim(){return TABS[curTab].dim||1;}
 
   // ---------- KaTeX static labels ----------
   var MT={'h1':'\\text{Intro to Classification}','resample':'\\text{Resample points}',
     'hd-model':'\\text{Model}','hd-hp':'\\text{Model setting}',
     'sb-logistic':'\\text{Logistic}','sb-nb':'\\text{Naive Bayes}','sb-knn':'\\text{KNN}','sb-tree':'\\text{Tree}',
     'hd-pos':'\\textcolor{#B0503A}{\\text{Positive class}}','hd-neg':'\\textcolor{#3F6E99}{\\text{Negative class}}','hd-share':'\\text{Class balance \\& size}',
-    'lbl-mu0':'\\mu_-','lbl-mu1':'\\mu_+','lbl-s0':'\\sigma_-','lbl-s1':'\\sigma_+','lbl-p1':'\\pi_+','lbl-n':'n','lbl-k':'k','lbl-depth':'\\text{depth}',
+    'lbl-muy1':'\\mu_{2+}','lbl-muy0':'\\mu_{2-}','lbl-s0':'\\sigma_-','lbl-s1':'\\sigma_+','lbl-p1':'\\pi_+','lbl-n':'n','lbl-k':'k','lbl-depth':'\\text{depth}',
     'th-m':'\\text{model}','th-f':'\\hat P','th-r':'\\text{rule}','th-e':'\\text{accuracy}',
     's-found':'\\text{1) Classification = estimate }P(y{=}+\\mid x)\\text{, then decide}',
     'fl-target':'\\text{target}','fe-target':'P(y{=}+\\mid x)\\quad\\text{(probability the object is positive given its feature; predicted class = }+\\text{ when it exceeds }\\tfrac12)',
@@ -214,120 +219,144 @@
     's-split':'\\text{2) Four estimators — two questions: model }P\\text{ directly or via }p(x\\mid c)\\text{? parametric or local?}',
     'th-par':'\\text{parametric (a formula)}','th-npar':'\\text{non-parametric (the data itself)}',
     'th-disc':'\\text{discriminative}','th-gen':'\\text{generative}',
-    'c-log':'\\hat P=\\sigma(Wx+B)','c-knn':'\\hat P=\\tfrac1k\\sum_{i\\in N_k(x)}y_i',
-    'c-nb':'\\hat P\\propto\\hat\\pi_c\\,\\mathcal N(x;\\hat\\mu_c,\\hat\\sigma^2)\\ \\Rightarrow\\ \\sigma(Wx+B)','c-tree':'\\hat P=\\text{fraction of }+\\text{ in the leaf}',
+    'c-log':'\\hat P=\\sigma(\\mathbf w^{\\top}\\mathbf x+b)','c-knn':'\\hat P=\\tfrac1k\\sum_{i\\in N_k(\\mathbf x)}y_i',
+    'c-nb':'\\hat P\\propto\\hat\\pi_c\\,\\mathcal N(\\mathbf x;\\hat{\\boldsymbol\\mu}_c,\\hat\\sigma^2 I)\\ \\Rightarrow\\ \\sigma(\\mathbf w^{\\top}\\mathbf x+b)','c-tree':'\\hat P=\\text{fraction of }+\\text{ in the leaf}',
     'ref':'\\text{Ref: Hastie, Tibshirani \\& Friedman, ESL Ch.\\,2 \\& 4 · Bishop, PRML Ch.\\,4}'};
   var NOTES={
-    'n-log':['\\text{one smooth S-curve;}','\\text{one threshold}','\\text{(linear in }x\\text{).}'],
+    'n-log':['\\text{one smooth S-curve;}','\\text{one threshold (1-D) / one line (2-D)}','\\text{— linear in }\\mathbf x\\text{.}'],
     'n-knn':['\\text{local vote of }k\\text{ neighbours;}','\\text{jagged, follows the data;}','\\text{small }k\\to\\text{overfit.}'],
-    'n-nb':['\\text{fits a normal per class}','\\text{(shared }\\hat\\sigma\\text{), then Bayes rule;}','\\text{log-odds linear}\\to\\text{one threshold.}'],
-    'n-tree':['\\text{axis splits }x<t','\\text{= if-then rules;}','\\text{predicted class is a staircase.}']};
+    'n-nb':['\\text{fits a normal per class}','\\text{(shared }\\hat\\sigma\\text{), then Bayes rule;}','\\text{log-odds linear}\\to\\text{one threshold / line.}'],
+    'n-tree':['\\text{axis splits }x_j<t','\\text{= if-then rules;}','\\text{predicted class is a staircase / boxes.}']};
   function K(tex,el){try{katex.render(tex,el,{throwOnError:false});}catch(e){el.textContent=tex;}}
   function kx(t){try{return window.katex?katex.renderToString(t,{throwOnError:false}):t;}catch(e){return t;}}
   function kxProse(el,parts){if(!el)return;el.innerHTML='';parts.forEach(function(p){var s=document.createElement('span');
     try{katex.render(p,s,{throwOnError:false});}catch(e){s.textContent=p;}el.appendChild(s);});}
   function renderTexts(){if(!window.katex)return;for(var id in MT){var el=document.getElementById(id);if(el)K(MT[id],el);}
-    for(var nid in NOTES){var ne=document.getElementById(nid);if(ne)kxProse(ne,NOTES[nid]);}}
+    for(var nid in NOTES){var ne=document.getElementById(nid);if(ne)kxProse(ne,NOTES[nid]);}
+    K(dim()===2?'\\mu_{1+}':'\\mu_+',document.getElementById('lbl-mu1'));K(dim()===2?'\\mu_{1-}':'\\mu_-',document.getElementById('lbl-mu0'));}
   function clLine(name,lc,tc,shape){return '<span class="cli"><i class="'+(shape||'ln')+'" style="background:'+lc+'"></i><span>'+kx('\\textcolor{'+tc+'}{\\text{'+name+'}}')+'</span></span>';}
   function fillLegend(){var el=document.getElementById('classleg');if(!el)return;
     var m=MODELS.filter(function(q){return q.key===modeM;})[0];
     el.innerHTML=clLine('Positive class','#E07A5F',Rd,'ar')+clLine('Negative class','#5B8FB9',Bl,'ar')
-      +clLine('predicted class ('+m.name+')',m.color,m.color)+clLine('misclassified (ring)','#888','#666');}
+      +clLine(dim()===2?'predicted region ('+m.name+')':'predicted class ('+m.name+')',m.color,m.color,dim()===2?'ar':'ln')+clLine('misclassified (ring)','#888','#666');}
 
   // ---------- canvas ----------
   var cv=document.getElementById('cv'),ctx=cv.getContext('2d');
   var SC=2,W=640,H=286;
   function sizeCanvas(){if(!cv)return;var w=Math.round(cv.clientWidth)||640,h=Math.round(cv.clientHeight)||322,dpr=window.devicePixelRatio||1;
     W=w;H=h;SC=dpr;cv.width=Math.round(w*dpr);cv.height=Math.round(h*dpr);}
-  function draw(P){
-    try{
-      ctx.setTransform(SC,0,0,SC,0,0);ctx.clearRect(0,0,W,H);
-      var L=44,Rm=16,pw=W-L-Rm,TOP=22,BOT=50,ph=H-TOP-BOT,xmin=P.xmin,xmax=P.xmax,i,x,m=P.m;
-      function px(x){return L+(x-xmin)/(xmax-xmin)*pw;} function py(p){return TOP+(1-p)*ph;}
-      ctx.font='13px KaTeX_Main,serif';ctx.textBaseline='middle';
-      [0,0.5,1].forEach(function(p){ctx.strokeStyle=p===0.5?'rgba(17,17,17,0.55)':'rgba(128,128,128,0.35)';ctx.lineWidth=1;
-        if(p===0.5)ctx.setLineDash([5,4]);ctx.beginPath();ctx.moveTo(L,py(p));ctx.lineTo(L+pw,py(p));ctx.stroke();ctx.setLineDash([]);
-        ctx.fillStyle='rgba(90,90,90,0.9)';ctx.textAlign='right';ctx.fillText(p===0.5?'0.5':String(p),L-7,py(p));});
-      ctx.textBaseline='alphabetic';ctx.fillStyle='rgba(128,128,128,0.9)';ctx.textAlign='center';ctx.font='14px KaTeX_Main,serif';
-      var stp=(xmax-xmin>12?2:1);for(var a=Math.ceil(xmin);a<=xmax;a+=stp)ctx.fillText(a,px(a),py(0)+16);
-      ctx.textAlign='left';ctx.fillStyle='rgba(90,90,90,0.9)';ctx.font='13px KaTeX_Main,serif';ctx.fillText('P(y = + | x)',L+4,TOP-8);
-      var k;
-      for(k=0;k<P.xs.length;k++){var xv=P.xs[k],yv=P.ys[k],xp=px(xv);if(xp<L-4||xp>L+pw+4)continue;
-        var yp=yv?py(1)+9+(k%3)*7:py(0)-9-(k%3)*7;
-        ctx.fillStyle=yv?'rgba(224,122,95,0.9)':'rgba(91,143,185,0.84)';ctx.beginPath();ctx.arc(xp,yp,4,0,7);ctx.fill();
-        var pr=m.post(xv)>0.5?1:0;if(pr!==yv){ctx.strokeStyle=pr?'#E07A5F':'#5B8FB9';ctx.lineWidth=2;ctx.beginPath();ctx.arc(xp,yp,6,0,7);ctx.stroke();}}
-      var N=320,dx=(xmax-xmin)/N;
-      ctx.strokeStyle=m.color;ctx.lineWidth=2.4;ctx.beginPath();
-      for(i=0;i<=N;i++){x=xmin+i*dx;var Y=py(Math.max(0,Math.min(1,m.post(x))));i===0?ctx.moveTo(px(x),Y):ctx.lineTo(px(x),Y);}ctx.stroke();
-      // threshold (เฉพาะโมเดลเชิงเส้น) = ดำ ประ + ป้าย เหมือน 1-D Bayes
-      ctx.font='13px KaTeX_Main,serif';
-      if(m.linear){ctx.strokeStyle='#111';ctx.fillStyle='#111';ctx.lineWidth=1.8;ctx.textAlign='center';
-        m.xstar.forEach(function(r){if(r<xmin||r>xmax)return;ctx.setLineDash([5,4]);ctx.beginPath();ctx.moveTo(px(r),py(1)-6);ctx.lineTo(px(r),py(0)+4);ctx.stroke();ctx.setLineDash([]);
-          ctx.fillText('threshold '+r.toFixed(1),px(r),H-4);});}
-      // TP/FN (บน) · FP/TN (ล่าง)
-      var xT=px(P.Tmain), yTop=TOP-8, yBot=py(0)+31;
-      ctx.textAlign='left'; ctx.fillStyle='#B0503A'; ctx.fillText('TP '+P.TP, xT+12, yTop);
-      ctx.textAlign='right';ctx.fillStyle='#8A6510'; ctx.fillText('FN '+P.FN, xT-12, yTop);
-      ctx.textAlign='left'; ctx.fillStyle='#2E7D70'; ctx.fillText('FP '+P.FP, xT+12, yBot);
-      ctx.textAlign='right';ctx.fillStyle='#3F6E99'; ctx.fillText('TN '+P.TN, xT-12, yBot);
-      ctx.textAlign='left';
-    }catch(e){ctx.setTransform(SC,0,0,SC,0,0);ctx.fillStyle='#c0392b';ctx.font='15px KaTeX_Main,serif';ctx.textAlign='left';ctx.fillText('draw err: '+e.message,10,20);}
+  function confLabels(xT,yTop,yBot,P){ctx.font='13px KaTeX_Main,serif';
+    ctx.textAlign='left'; ctx.fillStyle='#B0503A'; ctx.fillText('TP '+P.TP, xT+12, yTop);
+    ctx.textAlign='right';ctx.fillStyle='#8A6510'; ctx.fillText('FN '+P.FN, xT-12, yTop);
+    ctx.textAlign='left'; ctx.fillStyle='#2E7D70'; ctx.fillText('FP '+P.FP, xT+12, yBot);
+    ctx.textAlign='right';ctx.fillStyle='#3F6E99'; ctx.fillText('TN '+P.TN, xT-12, yBot);ctx.textAlign='left';}
+  function draw1(P){
+    var L=44,Rm=16,pw=W-L-Rm,TOP=22,BOT=50,ph=H-TOP-BOT,xmin=P.xmin,xmax=P.xmax,i,x,m=P.m;
+    function px(x){return L+(x-xmin)/(xmax-xmin)*pw;} function py(p){return TOP+(1-p)*ph;}
+    ctx.font='13px KaTeX_Main,serif';ctx.textBaseline='middle';
+    [0,0.5,1].forEach(function(p){ctx.strokeStyle=p===0.5?'rgba(17,17,17,0.55)':'rgba(128,128,128,0.35)';ctx.lineWidth=1;
+      if(p===0.5)ctx.setLineDash([5,4]);ctx.beginPath();ctx.moveTo(L,py(p));ctx.lineTo(L+pw,py(p));ctx.stroke();ctx.setLineDash([]);
+      ctx.fillStyle='rgba(90,90,90,0.9)';ctx.textAlign='right';ctx.fillText(p===0.5?'0.5':String(p),L-7,py(p));});
+    ctx.textBaseline='alphabetic';ctx.fillStyle='rgba(128,128,128,0.9)';ctx.textAlign='center';ctx.font='14px KaTeX_Main,serif';
+    var stp=(xmax-xmin>12?2:1);for(var a=Math.ceil(xmin);a<=xmax;a+=stp)ctx.fillText(a,px(a),py(0)+16);
+    ctx.textAlign='left';ctx.fillStyle='rgba(90,90,90,0.9)';ctx.font='13px KaTeX_Main,serif';ctx.fillText('P(y = + | x)',L+4,TOP-8);
+    var k;
+    for(k=0;k<P.X.length;k++){var xv=P.X[k][0],yv=P.ys[k],xp=px(xv);if(xp<L-4||xp>L+pw+4)continue;
+      var yp=yv?py(1)+9+(k%3)*7:py(0)-9-(k%3)*7;
+      ctx.fillStyle=yv?'rgba(224,122,95,0.9)':'rgba(91,143,185,0.84)';ctx.beginPath();ctx.arc(xp,yp,4,0,7);ctx.fill();
+      var pr=m.post([xv])>0.5?1:0;if(pr!==yv){ctx.strokeStyle=pr?'#E07A5F':'#5B8FB9';ctx.lineWidth=2;ctx.beginPath();ctx.arc(xp,yp,6,0,7);ctx.stroke();}}
+    var N=320,dx=(xmax-xmin)/N;
+    ctx.strokeStyle=m.color;ctx.lineWidth=2.4;ctx.beginPath();
+    for(i=0;i<=N;i++){x=xmin+i*dx;var Y=py(Math.max(0,Math.min(1,m.post([x]))));i===0?ctx.moveTo(px(x),Y):ctx.lineTo(px(x),Y);}ctx.stroke();
+    ctx.font='13px KaTeX_Main,serif';
+    if(m.linear){ctx.strokeStyle='#111';ctx.fillStyle='#111';ctx.lineWidth=1.8;ctx.textAlign='center';
+      m.xstar.forEach(function(r){if(r<xmin||r>xmax)return;ctx.setLineDash([5,4]);ctx.beginPath();ctx.moveTo(px(r),py(1)-6);ctx.lineTo(px(r),py(0)+4);ctx.stroke();ctx.setLineDash([]);
+        ctx.fillText('threshold '+r.toFixed(1),px(r),H-4);});}
+    confLabels(px(P.Tmain),TOP-8,py(0)+31,P);
   }
+  function draw2(P){
+    var L=44,Rm=16,TOP=22,BOT=34,pw=W-L-Rm,ph=H-TOP-BOT,m=P.m,xmin=P.xmin,xmax=P.xmax,ymin=P.ymin,ymax=P.ymax;
+    var sc=Math.min(pw/(xmax-xmin),ph/(ymax-ymin)),ox=L+(pw-sc*(xmax-xmin))/2,oy=TOP+(ph-sc*(ymax-ymin))/2;
+    function px(x){return ox+(x-xmin)*sc;} function py(y){return oy+(ymax-y)*sc;}
+    var x0=px(xmin),x1=px(xmax),y0=py(ymax),y1=py(ymin);
+    // decision regions (grid)
+    var st=6,i,j;
+    for(i=x0;i<x1;i+=st)for(j=y0;j<y1;j+=st){var gx=xmin+(i+st/2-ox)/sc,gy=ymax-(j+st/2-oy)/sc;
+      ctx.fillStyle=m.post([gx,gy])>0.5?'rgba(224,122,95,0.16)':'rgba(91,143,185,0.16)';ctx.fillRect(i,j,Math.min(st,x1-i),Math.min(st,y1-j));}
+    ctx.strokeStyle='rgba(128,128,128,0.45)';ctx.lineWidth=1;ctx.strokeRect(x0,y0,x1-x0,y1-y0);
+    ctx.fillStyle='rgba(128,128,128,0.9)';ctx.font='13px KaTeX_Main,serif';ctx.textAlign='center';ctx.textBaseline='alphabetic';
+    for(var a=Math.ceil(xmin);a<=xmax;a+=2)ctx.fillText(a,px(a),y1+15);
+    ctx.textAlign='right';ctx.textBaseline='middle';for(var b=Math.ceil(ymin);b<=ymax;b+=2)ctx.fillText(b,x0-6,py(b));
+    ctx.textBaseline='alphabetic';ctx.textAlign='left';ctx.fillStyle='rgba(90,90,90,0.9)';ctx.fillText('x2',x0+4,y0-8);ctx.textAlign='right';ctx.fillText('x1',x1-2,y1+30);
+    // points
+    var k;for(k=0;k<P.X.length;k++){var v=P.X[k],yv=P.ys[k],xp=px(v[0]),yp=py(v[1]);if(xp<x0-4||xp>x1+4||yp<y0-4||yp>y1+4)continue;
+      ctx.fillStyle=yv?'rgba(224,122,95,0.9)':'rgba(91,143,185,0.84)';ctx.beginPath();ctx.arc(xp,yp,4,0,7);ctx.fill();
+      var pr=m.post(v)>0.5?1:0;if(pr!==yv){ctx.strokeStyle=pr?'#E07A5F':'#5B8FB9';ctx.lineWidth=2;ctx.beginPath();ctx.arc(xp,yp,6,0,7);ctx.stroke();}}
+    confLabels(px((xmin+xmax)/2),TOP-8,y1+30,P);
+  }
+  function draw(P){try{ctx.setTransform(SC,0,0,SC,0,0);ctx.clearRect(0,0,W,H);(P.dim===2?draw2:draw1)(P);}
+    catch(e){ctx.setTransform(SC,0,0,SC,0,0);ctx.fillStyle='#c0392b';ctx.font='15px KaTeX_Main,serif';ctx.textAlign='left';ctx.fillText('draw err: '+e.message,10,20);}}
 
-  // ---------- ตารางโมเดล: กฎทำนาย ŷ (if … then y = positive / negative) ----------
+  // ---------- ตารางโมเดล: P̂ (สมการ) · rule (y ชัด ๆ) ----------
   function fx(v,d){return (Math.abs(v)<1e-9?0:v).toFixed(d===undefined?2:d);}
+  function sgn(v){return (v>=0?'+':'-')+fx(Math.abs(v));}
   function lines(arr){return arr.map(function(t){return '<span class="ln">'+kx(t)+'</span>';}).join('');}
   var POS='y=\\textcolor{#B0503A}{\\text{positive}}',NEG='y=\\textcolor{#3F6E99}{\\text{negative}}';
-  // คอลัมน์ P̂ = ตัวโมเดลที่ fit ได้ (สมการ)
-  function modelCell(key,f){
-    if(f.linear)return lines(['\\sigma('+fx(f.W)+'\\,x'+(f.B>=0?'+':'-')+fx(Math.abs(f.B))+')']);
-    return '';   // KNN / tree: ไม่ใส่ model — ใช้ rule อย่างเดียว
-  }
-  // คอลัมน์ rule = กฎตัดสิน y ชัด ๆ (if … then y = positive / else y = negative)
-  function ruleCell(key,f){
-    if(f.linear){ // σ(Wx+B) > 1/2 ⇔ Wx+B > 0 ⇔ x ≷ -B/W
-      if(Math.abs(f.W)<1e-9)return lines(['\\text{always }'+(f.B>0?POS:NEG)]);
-      var t=-f.B/f.W, gt=f.W>0;
-      return lines(['\\text{if }x'+(gt?'>':'<')+fx(t)+'\\text{ then }'+POS,'\\text{else }'+NEG]);}
+  function linExpr(f){ // W·x + B as text, มิติ 1: Wx+B · มิติ 2: w1 x1 + w2 x2 + b
+    if(f.W.length===1)return fx(f.W[0])+'\\,x'+sgn(f.B);
+    return fx(f.W[0])+'\\,x_1'+sgn(f.W[1])+'\\,x_2'+sgn(f.B);}
+  function modelCell(key,f){if(f.linear)return lines(['\\sigma('+linExpr(f)+')']);return '';}   // KNN/tree: ไม่ใส่ model
+  function condTex(c,D){var nm=D===1?'x':'x_'+(c.f+1);return nm+(c.lt?'<':'\\ge ')+fx(c.t);}
+  function ruleCell(key,f,D){
+    if(f.linear){
+      if(D===1){if(Math.abs(f.W[0])<1e-9)return lines(['\\text{always }'+(f.B>0?POS:NEG)]);
+        var t=-f.B/f.W[0];return lines(['\\text{if }x'+(f.W[0]>0?'>':'<')+fx(t)+'\\text{ then }'+POS,'\\text{else }'+NEG]);}
+      return lines(['\\text{if }'+linExpr(f)+'>0\\text{ then }'+POS,'\\text{else }'+NEG]);}
     if(key==='knn')return lines(['y=\\text{majority of the }'+f.k+'\\text{ nearest points}']);
-    var R=f.rules,out=[];
-    R.forEach(function(r,i){var yy=(r.p>0.5)?POS:NEG;
-      out.push(((i===0)?'\\text{if }x<'+fx(r.hi):(i===R.length-1)?'\\text{else}':'\\text{else if }x<'+fx(r.hi))+((i===R.length-1)?'\\ ':'\\text{ then }')+yy);});
-    if(R.length===1)out=['\\text{always }'+(R[0].p>0.5?POS:NEG)];
-    return lines(out);}
-  function fillTable(F){var tb=document.getElementById('modbody');if(!tb)return;var h='';
+    var Ls=f.leaves;if(Ls.length===1)return lines(['\\text{always }'+(Ls[0].p>0.5?POS:NEG)]);
+    return lines(Ls.map(function(l,i){var c=l.cond.map(function(q){return condTex(q,D);}).join('\\ \\&\\ ');
+      var last=(i===Ls.length-1&&Ls.length===2);return (last?'\\text{else }':'\\text{if }'+c+'\\text{ then }')+(l.p>0.5?POS:NEG);}));}
+  function fillTable(F,D){var tb=document.getElementById('modbody');if(!tb)return;var h='';
     MODELS.forEach(function(m){var f=F[m.key];
-      // ทุกเซลล์เรนเดอร์ผ่าน KaTeX (ตัวเลขด้วย) → ฟอนต์ทั้งตารางเป็นชุดเดียว
       h+='<tr class="'+((modeM===m.key)?'sel':'')+'"><td>'+kx('\\text{'+m.name+'}')+'</td>'
-        +'<td class="txt">'+modelCell(m.key,f)+'</td><td class="txt">'+ruleCell(m.key,f)+'</td><td>'+kx(((1-f.err)*100).toFixed(1)+'\\%')+'</td></tr>';});
+        +'<td>'+modelCell(m.key,f)+'</td><td>'+ruleCell(m.key,f,D)+'</td><td>'+kx(((1-f.err)*100).toFixed(1)+'\\%')+'</td></tr>';});
     tb.innerHTML=h;}
 
   // ---------- main update ----------
   function upd(){
     if(TABS[curTab].summary)return;
-    var m0=gv('mu0'),m1=gv('mu1'),s0=gv('s0'),s1=gv('s1'),p1=gv('p1'),n=Math.round(gv('n')),kk=Math.round(gv('k')),dp=Math.round(gv('depth'));
-    var n1=Math.max(1,Math.round(n*p1)),n0=Math.max(1,n-n1),xs=[],ys=[],k;
-    for(k=0;k<n1;k++){xs.push(m1+s1*Z1[k]);ys.push(1);} for(k=0;k<n0;k++){xs.push(m0+s0*Z0[k]);ys.push(0);}
-    var xmin=-2,xmax=14;
-    var F={logistic:fitLogistic(xs,ys),nb:fitNB(xs,ys),knn:fitKNN(xs,ys,kk),tree:fitTree(xs,ys,dp)};
-    MODELS.forEach(function(m){var f=F[m.key];f.xstar=crossings(f.post,xmin,xmax);f.err=trainErr(f.post,xs,ys);f.color=m.color;f.name=m.name;});
+    var D=dim(),m0=gv('mu0'),m1=gv('mu1'),my0=gv('muy0'),my1=gv('muy1'),s0=gv('s0'),s1=gv('s1'),p1=gv('p1'),n=Math.round(gv('n')),kk=Math.round(gv('k')),dp=Math.round(gv('depth'));
+    var n1=Math.max(1,Math.round(n*p1)),n0=Math.max(1,n-n1),X=[],ys=[],k;
+    for(k=0;k<n1;k++){X.push(D===1?[m1+s1*Z1[k]]:[m1+s1*Z1[k],my1+s1*Z1y[k]]);ys.push(1);}
+    for(k=0;k<n0;k++){X.push(D===1?[m0+s0*Z0[k]]:[m0+s0*Z0[k],my0+s0*Z0y[k]]);ys.push(0);}
+    var xmin=-2,xmax=14,ymin=-2,ymax=14;
+    var F={logistic:fitLogistic(X,ys),nb:fitNB(X,ys),knn:fitKNN(X,ys,kk),tree:fitTree(X,ys,dp)};
+    MODELS.forEach(function(m){var f=F[m.key];f.err=trainErr(f.post,X,ys);f.color=m.color;f.name=m.name;f.xstar=(D===1&&f.linear)?crossings1(f.post,xmin,xmax):[];});
     var f1=F[modeM],TP=0,FN=0,FP=0,TN=0,mid=(m0+m1)/2,Tmain=mid;
-    for(k=0;k<xs.length;k++){var pr=f1.post(xs[k])>0.5;if(ys[k]){if(pr)TP++;else FN++;}else{if(pr)FP++;else TN++;}}
-    if(f1.linear&&f1.xstar.length){Tmain=f1.xstar[0];for(k=1;k<f1.xstar.length;k++){if(Math.abs(f1.xstar[k]-mid)<Math.abs(Tmain-mid))Tmain=f1.xstar[k];}}
-    draw({xmin:xmin,xmax:xmax,xs:xs,ys:ys,m:f1,TP:TP,FN:FN,FP:FP,TN:TN,Tmain:Tmain});
-    fillTable(F);fillLegend();
+    for(k=0;k<X.length;k++){var pr=f1.post(X[k])>0.5;if(ys[k]){if(pr)TP++;else FN++;}else{if(pr)FP++;else TN++;}}
+    if(f1.xstar.length){Tmain=f1.xstar[0];for(k=1;k<f1.xstar.length;k++){if(Math.abs(f1.xstar[k]-mid)<Math.abs(Tmain-mid))Tmain=f1.xstar[k];}}
+    var DP={dim:D,xmin:xmin,xmax:xmax,ymin:ymin,ymax:ymax,X:X,ys:ys,m:f1,TP:TP,FN:FN,FP:FP,TN:TN,Tmain:Tmain};
+    draw(DP);fillTable(F,D);fillLegend();
+    if(fitPlot()){sizeCanvas();draw(DP);}   // ตารางเปลี่ยนความสูง → ปรับ plot ให้ล่างเสมอแผง control
   }
+  // จัดหน้าให้พอดี: ความสูง plot = ความสูงแผง control − (legend + ตาราง + ช่องว่าง) — ล่างซ้าย/ขวาเสมอกัน (desktop)
+  function fitPlot(){var pn=document.querySelector('.panel'),st=document.querySelector('.stage'),cb=document.querySelector('.canvasbox');
+    if(!pn||!st||!cb||innerWidth<=820)return false;
+    var cur=cb.getBoundingClientRect().height,others=st.getBoundingClientRect().height-cur;
+    var target=Math.max(200,Math.min(400,Math.round(pn.getBoundingClientRect().height-others)));
+    if(Math.abs(target-cur)<2)return false;cb.style.height=target+'px';return true;}
 
   // ---------- controls ----------
   function setModelSeg(){var bs=document.querySelectorAll('#modelSeg button');for(var i=0;i<bs.length;i++)bs[i].className=(bs[i].getAttribute('data-m')===modeM)?'on':'';
     var sk=(modeM==='knn'),sd=(modeM==='tree');
     document.getElementById('row-k').style.display=sk?'':'none';document.getElementById('row-depth').style.display=sd?'':'none';
     document.getElementById('hd-hp').style.display=(sk||sd)?'':'none';document.getElementById('grid-hp').style.display=(sk||sd)?'':'none';}
+  function syncRows(){var T=TABS[curTab];['mu1','muy1','s1','mu0','muy0','s0','p1','n'].forEach(function(b){document.getElementById('row-'+b).style.display=(T.en.indexOf(b)>=0)?'':'none';});}
   function applyTab(k){curTab=k;var T=TABS[k];
     var btns=document.querySelectorAll('.tabbtn');for(var i=0;i<btns.length;i++)btns[i].className='tabbtn'+(i===k?' on':'');
     if(T.summary){document.getElementById('mainPanel').style.display='none';document.getElementById('summaryPanel').className='summary on';renderTexts();return;}
     document.getElementById('mainPanel').style.display='grid';document.getElementById('summaryPanel').className='summary';
-    setModelSeg();sizeCanvas();upd();}
+    renderTexts();syncRows();setModelSeg();sizeCanvas();upd();}
   var tb=document.getElementById('tabs');
   TABS.forEach(function(T,i){var el=document.createElement('button');el.className='tabbtn';K('\\text{'+T.n+'}',el);el.addEventListener('click',function(){applyTab(i);});tb.appendChild(el);});
   bases.forEach(function(b){var Re=document.getElementById('R'+b),Ne=document.getElementById('N'+b);
@@ -341,6 +370,7 @@
   requestAnimationFrame(function(){sizeCanvas();renderTexts();upd();});
   setTimeout(function(){sizeCanvas();renderTexts();if(!TABS[curTab].summary)upd();},250);
   setTimeout(function(){sizeCanvas();renderTexts();if(!TABS[curTab].summary)upd();},800);
+  if(document.fonts&&document.fonts.ready)document.fonts.ready.then(function(){if(!TABS[curTab].summary){sizeCanvas();upd();}});   // ฟอนต์ KaTeX พร้อม → fit ซ้ำ
 })();
 </script>
 </body>
