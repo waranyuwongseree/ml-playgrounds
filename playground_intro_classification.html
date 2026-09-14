@@ -63,6 +63,7 @@
   .pg .mtab th.r .katex-html,.pg .mtab td:last-child .katex-html{display:inline-block}
   .pg .mtab .ln{display:block}
   .pg .mtab .ln .katex{white-space:nowrap}
+  .pg .mtab .cw{min-height:2.9em}   /* อย่างน้อย 2 บรรทัด → แถวสูงเท่ากันทุกโมเดล */
   /* summary tab */
   .summary{display:none;flex-direction:column;gap:16px;min-height:0;overflow:visible}
   .summary.on{display:flex;flex:1}
@@ -452,10 +453,11 @@
     var Ls=f.leaves;if(Ls.length===1)return lines(['\\text{always }'+(Ls[0].p>0.5?POS():NEG())]);
     return lines(Ls.map(function(l,i){var c=l.cond.map(function(q){return sym[q.f]+(q.lt?'<':'\\ge ')+fx(q.t,dec);}).join('\\ \\&\\ ');
       var last=(i===Ls.length-1&&Ls.length===2);return (last?'\\text{else }':'\\text{if }'+c+'\\text{ then }')+(l.p>0.5?POS():NEG());}));}
+  // ตารางแสดงเฉพาะโมเดลที่เลือก (แถวเดียว) — เซลล์ .cw สูงอย่างน้อย 2 บรรทัด ให้ plot สูงเท่ากันทุกโมเดล
   function fillTable(F,sym,dec){var tb=document.getElementById('modbody');if(!tb)return;var h='';
-    MODELS.forEach(function(m){var f=F[m.key];
-      h+='<tr class="'+((modeM===m.key)?'sel':'')+'"><td>'+kx('\\text{'+m.name+'}')+'</td>'
-        +'<td>'+modelCell(m.key,f,sym)+'</td><td>'+ruleCell(m.key,f,sym,dec)+'</td><td>'+kx(((1-f.err)*100).toFixed(1)+'\\%')+'</td></tr>';});
+    MODELS.filter(function(m){return m.key===modeM;}).forEach(function(m){var f=F[m.key];
+      h+='<tr><td>'+kx('\\text{'+m.name+'}')+'</td>'
+        +'<td><div class="cw">'+modelCell(m.key,f,sym)+'</div></td><td><div class="cw">'+ruleCell(m.key,f,sym,dec)+'</div></td><td>'+kx(((1-f.err)*100).toFixed(1)+'\\%')+'</td></tr>';});
     tb.innerHTML=h;}
 
   // ---------- data for the current tab ----------
