@@ -8,7 +8,7 @@
 <link rel="stylesheet" href="vendor/katex/katex.min.css">
 <script src="vendor/katex/katex.min.js"></script>
 <style>
-  /* intro-classification — โครง/ฟอนต์ = .distcls กลาง (เหมือน 1-D Bayes); เฉพาะที่นี่: seg โมเดล · ตารางโมเดล · summary */
+  /* intro-classification — โครง/ฟอนต์ = .distcls กลาง (เหมือน 1-D Bayes); ตาราง = .mtab กลาง แต่งเหมือน Baseline methods */
   .layout{align-items:start}
   .panel{max-height:calc(100vh - 96px);overflow-y:auto;overflow-x:hidden}
   .seg2{display:flex;flex-wrap:wrap;border:1px solid var(--line);border-radius:8px;overflow:hidden;margin-bottom:6px;background:#fff}
@@ -16,19 +16,18 @@
   .seg2 button.on{background:var(--navy);color:#fff}
   .seg2 .katex{font-size:1em}
   .tgls{display:flex;flex-direction:column;gap:9px;margin-top:10px}
-  /* ตารางโมเดล = ทั้ง panel ล่าง — หัวตารางกับตัวตาราง format เดียวกัน (13px, padding เท่ากัน, ตัวเลขชิดขวาทั้ง th/td) */
-  .distcls .below{min-height:0}
-  .modtab{width:100%;border-collapse:collapse;font-size:13px}
-  .modtab th,.modtab td{padding:5px 8px;border-bottom:1px solid var(--line);vertical-align:top;text-align:left;line-height:1.45}
-  .modtab th{color:var(--muted);font-weight:600;white-space:nowrap}
-  .modtab td{color:var(--ink)}
-  .modtab th.num,.modtab td.num{text-align:right;font-variant-numeric:tabular-nums;white-space:nowrap}
-  .modtab tr:last-child td{border-bottom:0}
-  .modtab tr.sel td{background:#eef2ff}
-  .modtab .katex{font-size:1em}
-  .modtab .mn{white-space:nowrap}
-  .modtab .ln{display:block}                    /* สมการหลายบรรทัด (if-then) */
-  .modtab .ln .katex{white-space:nowrap}
+  /* ตาราง (เหมือน pdm_baseline): .mtab กลาง + padding 4px 7px / 13px / แถวที่เลือกพื้นฟ้าอ่อน */
+  .distcls .below{min-height:0;padding:6px 14px 8px}
+  .tblbox{min-width:0;width:100%}
+  .pg .mtab{margin:0}
+  .pg .mtab th,.pg .mtab td{padding:4px 7px;font-size:13px}
+  .pg .mtab th{white-space:normal;line-height:1.25;vertical-align:bottom}
+  .pg .mtab th.num{text-align:right}                                   /* หัวคอลัมน์ตัวเลขชิดขวาเท่าตัวตาราง */
+  .pg .mtab td.txt{text-align:left;font-weight:400;color:var(--ink);line-height:1.45}   /* คอลัมน์กฎ = ข้อความ */
+  .pg .mtab tr.sel th,.pg .mtab tr.sel td{background:#f4f7fb}
+  .pg .mtab .katex{font-size:1em}
+  .pg .mtab .ln{display:block}
+  .pg .mtab .ln .katex{white-space:nowrap}
   /* summary tab */
   .summary{display:none;flex-direction:column;gap:16px;min-height:0;overflow:visible}
   .summary.on{display:flex;flex:1}
@@ -58,13 +57,10 @@
       <div class="canvasbox"><canvas id="cv"></canvas></div>
       <div class="classleg" id="classleg"></div>
       <div class="below">
-        <div class="mcol">
-          <div class="mhd" id="tabhd"></div>
-          <table class="modtab" id="modtab">
-            <thead><tr><th id="th-m"></th><th id="th-f"></th><th class="num" id="th-b"></th><th class="num" id="th-e"></th></tr></thead>
-            <tbody id="modbody"></tbody>
-          </table>
-        </div>
+        <div class="tblbox"><table class="mtab" id="modtab">
+          <thead><tr><th id="th-m"></th><th id="th-f"></th><th class="num" id="th-b"></th><th class="num" id="th-e"></th></tr></thead>
+          <tbody id="modbody"></tbody>
+        </table></div>
       </div>
     </div>
 
@@ -139,26 +135,26 @@
       u=rng()||1e-9;v=rng();Z1.push(Math.sqrt(-2*Math.log(u))*Math.cos(2*Math.PI*v));}}
   var seed=12345; regen(seed);
 
-  // ---------- 4 estimators (ทุกตัวคืน post(x) = P̂(y=+|x)) ----------
+  // ---------- 4 estimators (ทุกตัวคืน post(x) = P̂(y=+|x); linear = มี threshold เดียว) ----------
   function fitLogistic(xs,ys){var n=xs.length,i,mx=0,sx=0;
     for(i=0;i<n;i++)mx+=xs[i];mx/=n;for(i=0;i<n;i++)sx+=(xs[i]-mx)*(xs[i]-mx);sx=Math.sqrt(sx/n)||1;
     var w=0,b=0,lr=0.8,it;
     for(it=0;it<600;it++){var gw=0,gb=0;for(i=0;i<n;i++){var z=(xs[i]-mx)/sx,p=1/(1+Math.exp(-(w*z+b))),e=p-ys[i];gw+=e*z;gb+=e;}
       w-=lr*gw/n;b-=lr*gb/n;}
     var Wc=w/sx,Bc=b-w*mx/sx;
-    return {post:function(x){return 1/(1+Math.exp(-(Wc*x+Bc)));},W:Wc,B:Bc};}
+    return {post:function(x){return 1/(1+Math.exp(-(Wc*x+Bc)));},W:Wc,B:Bc,linear:true};}
   // Gaussian NB with a SHARED variance (pooled) → log-odds linear in x → σ(Wx+B), one threshold
   function fitNB(xs,ys){var i,n=xs.length,p=[],q=[];for(i=0;i<n;i++)(ys[i]?p:q).push(xs[i]);
     function mv(a){var m=0,s=0,j;for(j=0;j<a.length;j++)m+=a[j];m/=a.length;for(j=0;j<a.length;j++)s+=(a[j]-m)*(a[j]-m);return [m,s];}
     var A=mv(p),B=mv(q),pi1=p.length/n,s=Math.max(0.08,Math.sqrt((A[1]+B[1])/n));
     var W=(A[0]-B[0])/(s*s),Bc=(B[0]*B[0]-A[0]*A[0])/(2*s*s)+Math.log(pi1/(1-pi1));
-    return {post:function(x){return 1/(1+Math.exp(-(W*x+Bc)));},m1:A[0],m0:B[0],s:s,pi1:pi1,W:W,B:Bc};}
+    return {post:function(x){return 1/(1+Math.exp(-(W*x+Bc)));},W:W,B:Bc,linear:true};}
   function fitKNN(xs,ys,k){var n=xs.length,idx=[],i;for(i=0;i<n;i++)idx.push(i);idx.sort(function(a,b){return xs[a]-xs[b];});
     var sx=idx.map(function(i){return xs[i];}),sy=idx.map(function(i){return ys[i];});k=Math.min(k,n);
     return {post:function(x){var lo=0,hi=sx.length-1;while(lo<hi){var m=(lo+hi)>>1;if(sx[m]<x)lo=m+1;else hi=m;}
       var a=lo-1,b=lo,s=0,c=0;
       while(c<k){if(a<0){s+=sy[b++];}else if(b>=sx.length){s+=sy[a--];}else if(x-sx[a]<=sx[b]-x){s+=sy[a--];}else{s+=sy[b++];}c++;}
-      return s/k;},k:k};}
+      return s/k;},k:k,linear:false};}
   function gini(p){return 2*p*(1-p);}
   function fitTree(xs,ys,depth){var n=xs.length,i,all=[];for(i=0;i<n;i++)all.push(i);var splits=[];
     function build(idx,d){var m=idx.length,pos=0,j;for(j=0;j<m;j++)pos+=ys[idx[j]];var p=pos/m;
@@ -175,7 +171,7 @@
     var rules=[],lo=-1e9;
     for(i=0;i<=splits.length;i++){var hi=(i<splits.length)?splits[i]:1e9,mid=(i===0)?(hi-1):(i===splits.length?(lo+1):(lo+hi)/2);
       rules.push({lo:lo,hi:hi,p:post(mid)});lo=hi;}
-    return {post:post,splits:splits,rules:rules};}
+    return {post:post,splits:splits,rules:rules,linear:false};}
   function crossings(post,xmin,xmax){var N=400,dx=(xmax-xmin)/N,out=[],i,prev=post(xmin)-0.5;
     for(i=1;i<=N;i++){var x=xmin+i*dx,cur=post(x)-0.5;
       if((prev<0&&cur>=0)||(prev>0&&cur<=0)){var x0=x-dx,t=Math.abs(prev)/(Math.abs(prev)+Math.abs(cur)||1);out.push(x0+t*dx);}
@@ -200,8 +196,7 @@
     'sb-logistic':'\\text{Logistic}','sb-nb':'\\text{Naive Bayes}','sb-knn':'\\text{KNN}','sb-tree':'\\text{Tree}',
     'hd-pos':'\\textcolor{#B0503A}{\\text{Positive class}}','hd-neg':'\\textcolor{#3F6E99}{\\text{Negative class}}','hd-share':'\\text{Class balance \\& size}',
     'lbl-mu0':'\\mu_-','lbl-mu1':'\\mu_+','lbl-s0':'\\sigma_-','lbl-s1':'\\sigma_+','lbl-p1':'\\pi_+','lbl-n':'n','lbl-k':'k','lbl-depth':'\\text{depth}',
-    'tabhd':'\\text{Fitted models on the same data}',
-    'th-m':'\\text{model}','th-f':'\\hat P','th-b':'\\text{threshold}','th-e':'\\text{accuracy}',
+    'th-m':'\\text{model}','th-f':'\\hat y','th-b':'\\text{threshold}','th-e':'\\text{accuracy}',
     's-found':'\\text{1) Classification = estimate }P(y{=}+\\mid x)\\text{, then decide}',
     'fl-target':'\\text{target}','fe-target':'P(y{=}+\\mid x)\\quad\\text{(probability the object is positive given its feature; predicted class = }+\\text{ when it exceeds }\\tfrac12)',
     'fl-rule':'\\text{decision rule}','fe-rule':'\\hat y=+\\iff P(y{=}+\\mid x)>\\tfrac12',
@@ -255,11 +250,12 @@
       var N=320,dx=(xmax-xmin)/N;
       ctx.strokeStyle=m.color;ctx.lineWidth=2.4;ctx.beginPath();
       for(i=0;i<=N;i++){x=xmin+i*dx;var Y=py(Math.max(0,Math.min(1,m.post(x))));i===0?ctx.moveTo(px(x),Y):ctx.lineTo(px(x),Y);}ctx.stroke();
-      // threshold = ดำ ประ + ป้าย เหมือน 1-D Bayes
-      ctx.strokeStyle='#111';ctx.fillStyle='#111';ctx.lineWidth=1.8;ctx.font='13px KaTeX_Main,serif';ctx.textAlign='center';
-      m.xstar.forEach(function(r){if(r<xmin||r>xmax)return;ctx.setLineDash([5,4]);ctx.beginPath();ctx.moveTo(px(r),py(1)-6);ctx.lineTo(px(r),py(0)+4);ctx.stroke();ctx.setLineDash([]);
-        ctx.fillText('threshold '+r.toFixed(1),px(r),H-4);});
-      // TP/FN (บน) · FP/TN (ล่าง) รอบ threshold หลัก
+      // threshold (เฉพาะโมเดลเชิงเส้น) = ดำ ประ + ป้าย เหมือน 1-D Bayes
+      ctx.font='13px KaTeX_Main,serif';
+      if(m.linear){ctx.strokeStyle='#111';ctx.fillStyle='#111';ctx.lineWidth=1.8;ctx.textAlign='center';
+        m.xstar.forEach(function(r){if(r<xmin||r>xmax)return;ctx.setLineDash([5,4]);ctx.beginPath();ctx.moveTo(px(r),py(1)-6);ctx.lineTo(px(r),py(0)+4);ctx.stroke();ctx.setLineDash([]);
+          ctx.fillText('threshold '+r.toFixed(1),px(r),H-4);});}
+      // TP/FN (บน) · FP/TN (ล่าง)
       var xT=px(P.Tmain), yTop=TOP-8, yBot=py(0)+31;
       ctx.textAlign='left'; ctx.fillStyle='#B0503A'; ctx.fillText('TP '+P.TP, xT+12, yTop);
       ctx.textAlign='right';ctx.fillStyle='#8A6510'; ctx.fillText('FN '+P.FN, xT-12, yTop);
@@ -269,21 +265,26 @@
     }catch(e){ctx.setTransform(SC,0,0,SC,0,0);ctx.fillStyle='#c0392b';ctx.font='15px KaTeX_Main,serif';ctx.textAlign='left';ctx.fillText('draw err: '+e.message,10,20);}
   }
 
-  // ---------- ตารางโมเดล: สมการที่ fit ได้ (ไม่มี P̂= นำหน้า) ----------
+  // ---------- ตารางโมเดล: กฎทำนาย ŷ (if … then y = positive / negative) ----------
   function fx(v,d){return (Math.abs(v)<1e-9?0:v).toFixed(d===undefined?2:d);}
-  function sgn(v){return (v>=0?'+':'-')+fx(Math.abs(v));}
   function lines(arr){return arr.map(function(t){return '<span class="ln">'+kx(t)+'</span>';}).join('');}
-  function fittedCell(key,f){
-    if(key==='logistic'||key==='nb')return lines(['\\sigma('+fx(f.W)+'\\,x'+sgn(f.B)+')']);   // รูปเดียวกัน ต่างแค่วิธีหา W,B
-    if(key==='knn')return lines(['\\tfrac{1}{'+f.k+'}\\sum_{i\\in N_{'+f.k+'}(x)}y_i']);
+  var POS='y=\\textcolor{#B0503A}{\\text{positive}}',NEG='y=\\textcolor{#3F6E99}{\\text{negative}}';
+  function ruleCell(key,f){
+    if(f.linear){ // σ(Wx+B) > 1/2 ⇔ Wx+B > 0 ⇔ x ≷ -B/W
+      if(Math.abs(f.W)<1e-9)return lines(['\\text{always }'+(f.B>0?POS:NEG)]);
+      var t=-f.B/f.W, gt=f.W>0;   // W>0: x > t → positive
+      return lines(['\\text{if }x'+(gt?'>':'<')+fx(t)+'\\text{ then }'+POS,'\\text{else }'+NEG]);}
+    if(key==='knn')return lines(['y=\\text{majority of the }'+f.k+'\\text{ nearest points}']);
     var R=f.rules,out=[];
-    R.forEach(function(r,i){var head=(i===0)?'\\text{if }x<'+fx(r.hi):(i===R.length-1)?'\\text{else}':'\\text{else if }x<'+fx(r.hi);out.push(head+':\\ '+fx(r.p));});
-    if(R.length===1)out=['\\text{no split: }'+fx(R[0].p)];
+    R.forEach(function(r,i){var yy=(r.p>0.5)?POS:NEG;
+      out.push(((i===0)?'\\text{if }x<'+fx(r.hi):(i===R.length-1)?'\\text{else}':'\\text{else if }x<'+fx(r.hi))+((i===R.length-1)?'\\ ':'\\text{ then }')+yy);});
+    if(R.length===1)out=['\\text{always }'+(R[0].p>0.5?POS:NEG)];
     return lines(out);}
   function fillTable(F){var tb=document.getElementById('modbody');if(!tb)return;var h='';
-    MODELS.forEach(function(m){var f=F[m.key],xs=f.xstar.length?f.xstar.map(function(v){return fx(v,1);}).join(' · '):'—';
-      h+='<tr class="'+((modeM===m.key)?'sel':'')+'"><td class="mn">'+kx('\\text{'+m.name+'}')+'</td>'
-        +'<td>'+fittedCell(m.key,f)+'</td><td class="num">'+xs+'</td><td class="num">'+((1-f.err)*100).toFixed(1)+'%</td></tr>';});
+    MODELS.forEach(function(m){var f=F[m.key];
+      var th=(f.linear&&f.xstar.length)?f.xstar.map(function(v){return fx(v,1);}).join(' · '):'';   // KNN/tree: ไม่แสดง threshold
+      h+='<tr class="'+((modeM===m.key)?'sel':'')+'"><td>'+kx('\\text{'+m.name+'}')+'</td>'
+        +'<td class="txt">'+ruleCell(m.key,f)+'</td><td>'+th+'</td><td>'+((1-f.err)*100).toFixed(1)+'%</td></tr>';});
     tb.innerHTML=h;}
 
   // ---------- main update ----------
@@ -297,7 +298,7 @@
     MODELS.forEach(function(m){var f=F[m.key];f.xstar=crossings(f.post,xmin,xmax);f.err=trainErr(f.post,xs,ys);f.color=m.color;f.name=m.name;});
     var f1=F[modeM],TP=0,FN=0,FP=0,TN=0,mid=(m0+m1)/2,Tmain=mid;
     for(k=0;k<xs.length;k++){var pr=f1.post(xs[k])>0.5;if(ys[k]){if(pr)TP++;else FN++;}else{if(pr)FP++;else TN++;}}
-    if(f1.xstar.length){Tmain=f1.xstar[0];for(k=1;k<f1.xstar.length;k++){if(Math.abs(f1.xstar[k]-mid)<Math.abs(Tmain-mid))Tmain=f1.xstar[k];}}
+    if(f1.linear&&f1.xstar.length){Tmain=f1.xstar[0];for(k=1;k<f1.xstar.length;k++){if(Math.abs(f1.xstar[k]-mid)<Math.abs(Tmain-mid))Tmain=f1.xstar[k];}}
     draw({xmin:xmin,xmax:xmax,xs:xs,ys:ys,m:f1,TP:TP,FN:FN,FP:FP,TN:TN,Tmain:Tmain});
     fillTable(F);fillLegend();
   }
