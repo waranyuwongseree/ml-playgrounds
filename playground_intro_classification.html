@@ -199,9 +199,9 @@
     'hd-pos':'\\textcolor{#B0503A}{\\text{Positive class}}','hd-neg':'\\textcolor{#3F6E99}{\\text{Negative class}}','hd-share':'\\text{Class balance \\& size}',
     'lbl-mu0':'\\mu_-','lbl-mu1':'\\mu_+','lbl-s0':'\\sigma_-','lbl-s1':'\\sigma_+','lbl-p1':'\\pi_+','lbl-n':'n',
     'tabhd':'\\text{Fitted models on the same data}',
-    'th-m':'\\text{model}','th-f':'\\hat P(y{=}+\\mid x)\\ \\text{(fitted)}','th-b':'x^{*}','th-e':'\\text{train error}',
+    'th-m':'\\text{model}','th-f':'\\hat P(y{=}+\\mid x)\\ \\text{(fitted)}','th-b':'\\text{threshold}','th-e':'\\text{accuracy}',
     's-found':'\\text{1) Classification = estimate }P(y{=}+\\mid x)\\text{, then decide}',
-    'fl-target':'\\text{target}','fe-target':'P(y{=}+\\mid x)\\quad\\text{(posterior — the probability the object is positive, given its feature)}',
+    'fl-target':'\\text{target}','fe-target':'P(y{=}+\\mid x)\\quad\\text{(probability the object is positive given its feature; predicted class = }+\\text{ when it exceeds }\\tfrac12)',
     'fl-rule':'\\text{decision rule}','fe-rule':'\\hat y=+\\iff P(y{=}+\\mid x)>\\tfrac12',
     'fl-bayes':'\\text{Bayes optimal}','fe-bayes':'\\text{if the true }P(y{=}+\\mid x)\\text{ were known, this rule has the lowest possible error}',
     'fl-est':'\\text{in practice}','fe-est':'P\\text{ is unknown — every classifier is a different }\\textbf{estimator}\\ \\hat P(y{=}+\\mid x)\\text{ from the same points}',
@@ -212,10 +212,10 @@
     'c-nb':'\\hat P\\propto\\hat\\pi_c\\,\\mathcal N(x;\\hat\\mu_c,\\hat\\sigma^2)\\ \\Rightarrow\\ \\sigma(Wx+B)','c-tree':'\\hat P=\\text{fraction of }+\\text{ in the leaf}',
     'ref':'\\text{Ref: Hastie, Tibshirani \\& Friedman, ESL Ch.\\,2 \\& 4 · Bishop, PRML Ch.\\,4}'};
   var NOTES={
-    'n-log':['\\text{one smooth S-curve;}','\\text{boundary = one }x^{*}','\\text{(linear in }x\\text{).}'],
+    'n-log':['\\text{one smooth S-curve;}','\\text{one threshold}','\\text{(linear in }x\\text{).}'],
     'n-knn':['\\text{local vote of }k\\text{ neighbours;}','\\text{jagged, follows the data;}','\\text{small }k\\to\\text{overfit.}'],
-    'n-nb':['\\text{fits a normal per class}','\\text{(shared }\\hat\\sigma\\text{), then Bayes rule;}','\\text{log-odds linear}\\to\\text{one }x^{*}\\text{.}'],
-    'n-tree':['\\text{axis splits }x<t','\\text{= if-then rules;}','\\text{posterior is a staircase.}']};
+    'n-nb':['\\text{fits a normal per class}','\\text{(shared }\\hat\\sigma\\text{), then Bayes rule;}','\\text{log-odds linear}\\to\\text{one threshold.}'],
+    'n-tree':['\\text{axis splits }x<t','\\text{= if-then rules;}','\\text{predicted class is a staircase.}']};
   function K(tex,el){try{katex.render(tex,el,{throwOnError:false});}catch(e){el.textContent=tex;}}
   function kx(t){try{return window.katex?katex.renderToString(t,{throwOnError:false}):t;}catch(e){return t;}}
   function kxProse(el,parts){if(!el)return;el.innerHTML='';parts.forEach(function(p){var s=document.createElement('span');
@@ -226,7 +226,7 @@
   function fillLegend(){var el=document.getElementById('classleg');if(!el)return;
     var h=clLine('Positive class','#E07A5F',Rd,'ar')+clLine('Negative class','#5B8FB9',Bl,'ar');
     if(modeM==='all'){MODELS.forEach(function(m){h+=clLine(m.name,m.color,m.color);});}
-    else{var m=MODELS.filter(function(q){return q.key===modeM;})[0];h+=clLine('posterior '+m.name,m.color,m.color)+clLine('misclassified (ring)','#888','#666');}
+    else{var m=MODELS.filter(function(q){return q.key===modeM;})[0];h+=clLine('predicted class ('+m.name+')',m.color,m.color)+clLine('misclassified (ring)','#888','#666');}
     el.innerHTML=h;}
 
   // ---------- canvas ----------
@@ -237,7 +237,7 @@
   function draw(P){
     try{
       ctx.setTransform(SC,0,0,SC,0,0);ctx.clearRect(0,0,W,H);
-      var L=44,Rm=16,pw=W-L-Rm,TOP=22,BOT=34,ph=H-TOP-BOT,xmin=P.xmin,xmax=P.xmax,i,x;
+      var L=44,Rm=16,pw=W-L-Rm,TOP=22,BOT=50,ph=H-TOP-BOT,xmin=P.xmin,xmax=P.xmax,i,x;   // BOT เผื่อแถว FP/TN + threshold
       function px(x){return L+(x-xmin)/(xmax-xmin)*pw;} function py(p){return TOP+(1-p)*ph;}
       ctx.font='13px KaTeX_Main,serif';ctx.textBaseline='middle';
       [0,0.5,1].forEach(function(p){ctx.strokeStyle=p===0.5?'rgba(17,17,17,0.55)':'rgba(128,128,128,0.35)';ctx.lineWidth=1;
@@ -254,10 +254,18 @@
       var N=320,dx=(xmax-xmin)/N;
       P.show.forEach(function(m){ctx.strokeStyle=m.color;ctx.lineWidth=single?2.4:2;ctx.beginPath();
         for(i=0;i<=N;i++){x=xmin+i*dx;var Y=py(Math.max(0,Math.min(1,m.post(x))));i===0?ctx.moveTo(px(x),Y):ctx.lineTo(px(x),Y);}ctx.stroke();
-        m.xstar.forEach(function(r){if(r<xmin||r>xmax)return;ctx.strokeStyle=m.color;ctx.lineWidth=1.4;ctx.setLineDash([4,4]);
-          ctx.beginPath();ctx.moveTo(px(r),py(1));ctx.lineTo(px(r),py(0)+4);ctx.stroke();ctx.setLineDash([]);});});
-      if(single){ctx.fillStyle=single.color;ctx.font='13px KaTeX_Main,serif';ctx.textAlign='center';
-        single.xstar.forEach(function(r){if(r>=xmin&&r<=xmax)ctx.fillText('x* '+r.toFixed(2),px(r),H-4);});ctx.textAlign='left';}
+        var tc=single?'#111':m.color;   // threshold = ดำ เหมือน 1-D Bayes (โหมด All ใช้สีโมเดล)
+        m.xstar.forEach(function(r){if(r<xmin||r>xmax)return;ctx.strokeStyle=tc;ctx.lineWidth=1.8;ctx.setLineDash([5,4]);
+          ctx.beginPath();ctx.moveTo(px(r),py(1)-6);ctx.lineTo(px(r),py(0)+4);ctx.stroke();ctx.setLineDash([]);});});
+      if(single){ctx.fillStyle='#111';ctx.font='13px KaTeX_Main,serif';ctx.textAlign='center';
+        single.xstar.forEach(function(r){if(r>=xmin&&r<=xmax)ctx.fillText('threshold '+r.toFixed(1),px(r),H-4);});
+        // TP/FN (บน) · FP/TN (ล่าง) รอบ threshold หลัก — เหมือน 1-D Bayes
+        var xT=px(P.Tmain), yTop=TOP-8, yBot=py(0)+31;
+        ctx.textAlign='left'; ctx.fillStyle='#B0503A'; ctx.fillText('TP '+P.TP, xT+12, yTop);
+        ctx.textAlign='right';ctx.fillStyle='#8A6510'; ctx.fillText('FN '+P.FN, xT-12, yTop);
+        ctx.textAlign='left'; ctx.fillStyle='#2E7D70'; ctx.fillText('FP '+P.FP, xT+12, yBot);
+        ctx.textAlign='right';ctx.fillStyle='#3F6E99'; ctx.fillText('TN '+P.TN, xT-12, yBot);
+        ctx.textAlign='left';}
     }catch(e){ctx.setTransform(SC,0,0,SC,0,0);ctx.fillStyle='#c0392b';ctx.font='15px KaTeX_Main,serif';ctx.textAlign='left';ctx.fillText('draw err: '+e.message,10,20);}
   }
 
@@ -266,10 +274,8 @@
   function sgn(v){return (v>=0?'+':'-')+fx(Math.abs(v));}
   function lines(arr){return arr.map(function(t){return '<span class="ln">'+kx(t)+'</span>';}).join('');}
   function fittedCell(key,f){
-    if(key==='logistic')return lines(['\\hat P=\\sigma('+fx(f.W)+'\\,x'+sgn(f.B)+')','\\sigma(z)=1/(1+e^{-z})']);
-    if(key==='nb')return lines(['\\hat P\\propto\\hat\\pi_c\\,\\mathcal N(x;\\hat\\mu_c,\\hat\\sigma^2)\\ \\ (\\text{shared }\\hat\\sigma)',
-      '\\hat\\mu_+='+fx(f.m1)+',\\ \\hat\\mu_-='+fx(f.m0)+',\\ \\hat\\sigma='+fx(f.s)+',\\ \\hat\\pi_+='+fx(f.pi1),
-      '\\Rightarrow\\ \\hat P=\\sigma('+fx(f.W)+'\\,x'+sgn(f.B)+')\\ \\ (\\text{linear})']);
+    // logistic & Naive Bayes share the same form σ(Wx+B) — show only that (ต่างกันแค่วิธีหา W,B)
+    if(key==='logistic'||key==='nb')return lines(['\\hat P=\\sigma('+fx(f.W)+'\\,x'+sgn(f.B)+')']);
     if(key==='knn')return lines(['\\hat P=\\tfrac{1}{'+f.k+'}\\sum_{i\\in N_{'+f.k+'}(x)}y_i','\\text{vote of the }'+f.k+'\\text{ nearest points}']);
     // tree → if-then rules
     var R=f.rules,out=[];
@@ -280,7 +286,7 @@
   function fillTable(F){var tb=document.getElementById('modbody');if(!tb)return;var h='';
     MODELS.forEach(function(m){var f=F[m.key],xs=f.xstar.length?f.xstar.map(function(v){return fx(v,1);}).join(' · '):'—';
       h+='<tr class="'+((modeM===m.key)?'sel':'')+'"><td class="mn"><span class="sw" style="background:'+m.color+'"></span>'+kx('\\text{'+m.name+'}')+'</td>'
-        +'<td>'+fittedCell(m.key,f)+'</td><td class="num">'+xs+'</td><td class="num">'+(f.err*100).toFixed(1)+'%</td></tr>';});
+        +'<td>'+fittedCell(m.key,f)+'</td><td class="num">'+xs+'</td><td class="num">'+((1-f.err)*100).toFixed(1)+'%</td></tr>';});
     tb.innerHTML=h;}
 
   // ---------- main update ----------
@@ -293,7 +299,11 @@
     var F={logistic:fitLogistic(xs,ys),nb:fitNB(xs,ys),knn:fitKNN(xs,ys,K_FIXED),tree:fitTree(xs,ys,D_FIXED)};
     MODELS.forEach(function(m){var f=F[m.key];f.xstar=crossings(f.post,xmin,xmax);f.err=trainErr(f.post,xs,ys);f.color=m.color;f.name=m.name;});
     var show=modeM==='all'?MODELS.map(function(m){return F[m.key];}):[F[modeM]];
-    draw({xmin:xmin,xmax:xmax,xs:xs,ys:ys,show:show});
+    // confusion (TP/FN/FP/TN) ของโมเดลที่เลือก + threshold หลัก (ใกล้กึ่งกลางระหว่างค่าเฉลี่ย) — เหมือน 1-D Bayes
+    var TP=0,FN=0,FP=0,TN=0,mid=(m0+m1)/2,Tmain=mid;
+    if(show.length===1){var f1=show[0];for(k=0;k<xs.length;k++){var pr=f1.post(xs[k])>0.5;if(ys[k]){if(pr)TP++;else FN++;}else{if(pr)FP++;else TN++;}}
+      if(f1.xstar.length){Tmain=f1.xstar[0];for(k=1;k<f1.xstar.length;k++){if(Math.abs(f1.xstar[k]-mid)<Math.abs(Tmain-mid))Tmain=f1.xstar[k];}}}
+    draw({xmin:xmin,xmax:xmax,xs:xs,ys:ys,show:show,TP:TP,FN:FN,FP:FP,TN:TN,Tmain:Tmain});
     fillTable(F);fillLegend();
   }
 
