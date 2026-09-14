@@ -1,0 +1,534 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Split methods</title>
+<link rel="stylesheet" href="pg_style.css?v=24">
+<link rel="stylesheet" href="vendor/katex/katex.min.css">
+<script src="vendor/katex/katex.min.js"></script>
+<script src="vendor/katex/auto-render.min.js"></script>
+<style>
+  :root{--panel-h:250px}   /* the fullest control column, not a round number: the token is
+                            per-file by the standard, and a bigger one leaves the rail empty */
+  .pg .layout>.stage{align-self:start}
+  .pg .layout>.rail{grid-column:2;min-width:0;align-self:start;display:flex;flex-direction:column;align-items:stretch;
+    /* the control column stays one height across tabs (UD trap 4) but never taller than
+       the window (RIT 2026-09-04: a rail taller than the screen is itself what pushes the
+       page into scrolling) */
+    min-height:min(var(--panel-h),calc(100vh - 150px))}
+  .pg .rail>.panel{width:100%;min-width:0;align-self:stretch;min-height:0}
+  /* THE SAME TWO OVERRIDES THE OTHER pdm PAGES CARRY (playground_pdm_baseline.html:17,58 ·
+     playground_pdm_modes.html:17,51 · playground_pdm_kmeans.html · playground_pdm_multivariate
+     .html:34,36), so this page is not a fifth size inside one course. The written standard says
+     clamp(260px,44vh,400px) for a figure and pg_style gives a table 15px; Day 3 deviates from
+     both ON PURPOSE, with the reason in its own comment -- the labels moved inside the figure,
+     so the height that used to go to text goes to the chart, and the table is tightened to 13px
+     to pay for it. A page in that family follows the family. */
+  /* THE FIGURE YIELDS TO THE TABLE. The clamp alone answers only to the viewport; on a short
+     window it keeps asking for 360-560px and the numbers go off the bottom. min() adds the
+     other constraint -- the height actually left once the header and the table have theirs. */
+  .pg .canvasbox{height:min(clamp(360px,62vh,560px),calc(100vh - 250px))}
+  .pg .mtab{margin:0}
+  .pg .mtab th,.pg .mtab td{padding:4px 7px;font-size:13px}
+  .pg .mtab th{white-space:normal;line-height:1.25;vertical-align:bottom}
+  /* the row counts are a list of equals, one per line: a control sized unlike its neighbours
+     reads as a caption over them (Day 4 S1, RIT 2026-09-03) */
+  .pg .panel .seg[data-for="rows"]{
+    display:grid;grid-template-columns:1fr;width:100%;min-width:0;
+    border:1px solid #e6e6e0;border-radius:8px;overflow:hidden}
+  .pg .panel .seg[data-for="rows"] button{
+    font-size:14px;padding:6px 3px;cursor:pointer;border:0!important;text-align:center}
+  .pg .panel .seg[data-for="rows"] button+button{border-top:1px solid #e6e6e0!important}
+  .pg #kNum{width:56px;flex:0 0 auto;font:inherit;font-size:14px;padding:2px 4px;
+    border:1px solid #cfd4dc;border-radius:6px;text-align:center;color:#1e3a8a}
+  .pg .mtab td.win,.pg .mtab th.win{color:#1E7A56;font-weight:600}
+  .pg .mtab td.bad{color:#B0503A}
+  .pg .mtab tr.sel th,.pg .mtab tr.sel td{background:#f4f7fb}
+  .pg .drow.off{display:none!important}
+  .pg .drow.lock{opacity:.45;pointer-events:none}
+  @media (max-width:820px){
+    .pg .layout{display:block}
+    .pg .layout>.rail{grid-column:auto;width:auto;min-height:0;display:block}
+    .pg .panel{position:fixed;left:0;right:0;bottom:0;margin:0;max-height:50vh;overflow-y:auto;
+      border:1px solid var(--line);border-bottom:0;border-radius:14px 14px 0 0;box-shadow:0 -3px 14px rgba(0,0,0,.10);z-index:50}
+  }
+</style>
+</head>
+<body class="pg">
+<h2 class="sr-only" style="position:absolute;width:1px;height:1px;overflow:hidden">One k-NN recipe on one table of bearings, scored three ways: on the rows it was fitted on, on a hold-out third it never saw, and by cross-validation where every row is scored once by a model that did not see it. The first tab is the data and the boundary the model draws through it. The second keeps the boundary but scores only the hold-out rows. The third repeats the split forty times, so how far a single split's number can travel is a picture and not an opinion.</h2>
+<div class="wrap">
+  <div class="hdr">
+    <h1 id="__pgt" data-tex="\text{Split methods}">Split methods</h1>
+    <div class="tabs" id="tabs"></div>
+  </div>
+  <div class="layout">
+    <div class="stage">
+      <div class="canvasbox" id="boxM"><canvas id="mC"></canvas></div>
+      <div class="tblbox"><table class="mtab" id="tbl"><thead><tr id="thr"></tr></thead><tbody id="tbb"></tbody></table></div>
+    </div>
+    <div class="rail">
+    <div class="panel">
+      <div class="drow" id="c-rows">
+        <span class="dlab" style="flex:0 0 auto;color:#475569;font-size:15px;font-weight:600">\(\text{Rows}\)</span>
+        <div class="seg" data-for="rows">
+          <button type="button" data-val="400">\(400\)</button>
+          <button type="button" data-val="120">\(120\)</button>
+          <button type="button" data-val="40">\(40\)</button>
+        </div>
+      </div>
+      <div class="drow" id="c-k">
+        <span class="dlab" style="flex:0 0 auto;color:#475569;font-size:15px;font-weight:600">\(\text{Neighbours }(k)\)</span>
+        <input type="range" id="kRange" min="1" max="15" step="2" value="1"
+               aria-label="number of neighbours, k, an odd number from 1 to 15">
+        <input type="number" id="kNum" min="1" max="15" step="2" value="1"
+               inputmode="numeric" aria-label="number of neighbours, k, type an odd value from 1 to 15">
+      </div>
+      <div class="row" id="rowRun">
+        <button id="resetBtn" title="draw a new batch of bearings from the same production line">\(\text{New data}\)</button>
+      </div>
+    </div>
+    </div>
+  </div>
+</div>
+<script src="pg_engine.js?v=5"></script>
+<script>
+/* ============================================================================================
+   SPLIT METHODS  ·  Day 5 Session 1 of the KNIME PdM course, on the Day 3 shell
+
+   ONE QUESTION ONLY: the recipe is fixed, the data is fixed, and the only thing that changes is
+   WHICH ROWS THE SCORE IS TAKEN ON. The workflow (D:\KNIME_WORKFLOW\Day5\Day5_S1_Split_Methods)
+   runs the same k-NN three times, and the three blocks of its stage 2 are the three rows of the
+   table on every tab here:
+
+     training rows      nodes 5-6.  The wiring is 4:1 -> 5:1 AND 4:1 -> 5:2 -- the same
+                        normalized table into both ports of the k-NN. Every row is its own
+                        nearest neighbour at distance zero, so k = 1 scores 100% and always will
+     hold-out           nodes 12-14. Table Partitioner, stratified, 70/30, seed 42
+     cross-validation   nodes 15-18. X-Partitioner 10 folds, stratified; X-Aggregator puts the
+                        folds back together and ONE Scorer reads the lot, so every row is scored
+                        exactly once by a model that never saw it
+
+   THE DATA IS NOT THE COURSE'S FILE (RIT 2026-09-04: "เอาแค่ไอเดียการ gen data ไปใช้ ไม่ต้องใช้
+   filed ตาม workflow"). It is bearing.csv's SHAPE, measured from the file the workflow reads:
+   two classes that overlap heavily, OK 225 to NG 175, each a correlated pair of vibration and
+   temperature rise. The overlap is the point -- on the real file a 1-NN scored honestly gets
+   66%, and on the same rows scored as training rows it gets 100%.
+
+   NORMALIZATION IS THE WORKFLOW'S. Normalizer #4 sits BEFORE the Table Partitioner and the
+   X-Partitioner, so the z-scores come from the whole table in every block. That is what the
+   workflow does; this page is not the place to open that subject.
+   ========================================================================================== */
+const CLS=[{mx:2.55,sx:1.17,my:14.75,sy:4.31,rho:0.74},    /* OK: measured on bearing.csv */
+           {mx:4.35,sx:1.20,my:18.90,sy:4.46,rho:0.68}];   /* NG: measured on bearing.csv */
+const SHARE_OK=0.5625;                 /* 225 of the file's 400 rows */
+const ROWSET=[400,120,40];
+const HOLD=0.7, FOLDS=10, SPLITS=40;   /* the Partitioner's fraction · the X-Partitioner's folds */
+const KMIN=1,KMAX=15;
+/* the plot window: the deployment grid of the workflow is 60 x 60 (bearing_grid.csv), and the
+   boundary here is painted on a grid of the same resolution */
+const XMIN=0,XMAX=9.5,YMIN=0,YMAX=36,GRID=60;
+const T_DATA=0,T_HOLD=1,T_CV=2;
+const METHODS=['train','hold','cv'];
+/* the workflow's own block names, not renamed here */
+const MNAME={train:'training rows',hold:'hold-out',cv:'cross-validation'};
+const C={ok:'#33618D',ng:'#C07E00',train:'#B0503A',hold:'#33618D',cv:'#1E7A56',
+         ghost:'#c9ced6',ax:'#94a3b8',axtx:'#64748b',grid:'#eef1f5',wrong:'#B0503A'};
+let tab=T_DATA,nrows=400,K=1,seed=1;
+let X=[],Y=[],Z=[];
+
+function K_(t,el,d){if(!el)return;if(window.katex){try{katex.render(String(t),el,{throwOnError:false,displayMode:!!d});return;}catch(e){}}el.textContent=t;}
+/* half up, never to even: Math.round and python's round() disagree at .5 and 0.5625 x 40 is
+   exactly 22.5, which would be two different datasets on the page and in the reference */
+function halfUp(x){return Math.floor(x+0.5);}
+function nOK(n){return halfUp(SHARE_OK*n);}
+
+/* ---------------- the production line ----------------
+   Vibration and temperature rise both climb with wear and climb together, so each class is a
+   correlated pair; the NG units sit higher on both without ever leaving the OK cloud. The floor
+   is the file's own: bearing.csv bottoms out at vib 0.20 and temp 2.0, which is the lower
+   corner of bearing_grid.csv exactly -- an instrument does not read below zero. */
+function dataset(n,sk){
+  const r=PG.rng(sk*7919+29);
+  const g=function(){let s=0;for(let i=0;i<12;i++)s+=r.next();return s-6;};
+  const kok=nOK(n);X=[];Y=[];
+  for(let i=0;i<n;i++){
+    const lab=i<kok?0:1,d=CLS[lab],u=g(),v=g();
+    X.push([Math.max(0.2,d.mx+d.sx*u),
+            Math.max(2.0,d.my+d.sy*(d.rho*u+Math.sqrt(1-d.rho*d.rho)*v))]);
+    Y.push(lab);}
+  /* Normalizer #4: mean and sd of the WHOLE table, added left to right the way the reference
+     adds them, then k-NN measures its distances on these */
+  Z=[];
+  for(let c=0;c<2;c++){let t=0;for(let i=0;i<n;i++)t+=X[i][c];MU[c]=t/n;
+    let q=0;for(let i=0;i<n;i++)q+=(X[i][c]-MU[c])*(X[i][c]-MU[c]);SD[c]=Math.sqrt(q/(n-1));}
+  for(let i=0;i<n;i++)Z.push([(X[i][0]-MU[0])/SD[0],(X[i][1]-MU[1])/SD[1]]);
+}
+/* kept beside the rows they were measured on, so a grid point can be put into the model's
+   units without normalizing anything a second time */
+let MU=[0,0],SD=[1,1];
+
+/* ---------------- the recipe: k-NN on the normalized pair ----------------
+   The k nearest by squared Euclidean distance vote. Ties in distance are broken by row order,
+   which is what a stable sort of the distances does; k is always odd, so two classes can never
+   tie in the vote. Fitting is nothing but keeping the rows -- that is why scoring the fitted
+   rows themselves finds each row sitting on top of itself. */
+function classify(fit,pt,k){
+  const kk=Math.min(k,fit.length),bd=[],bi=[];
+  for(let b=0;b<fit.length;b++){
+    const q=Z[fit[b]],dx=pt[0]-q[0],dy=pt[1]-q[1],d=dx*dx+dy*dy;
+    if(bd.length<kk){let j=bd.length;bd.push(d);bi.push(fit[b]);
+      while(j>0&&bd[j-1]>d){bd[j]=bd[j-1];bi[j]=bi[j-1];j--;}
+      bd[j]=d;bi[j]=fit[b];}
+    else if(d<bd[kk-1]){let j=kk-1;
+      while(j>0&&bd[j-1]>d){bd[j]=bd[j-1];bi[j]=bi[j-1];j--;}
+      bd[j]=d;bi[j]=fit[b];}}
+  let ng=0;for(let j=0;j<kk;j++)ng+=Y[bi[j]];
+  return (ng*2>kk)?1:0;
+}
+function predict(fit,score,k){
+  const o=new Array(score.length);
+  for(let a=0;a<score.length;a++)o[a]=classify(fit,Z[score[a]],k);
+  return o;}
+function hits(fit,score,k){
+  const p=predict(fit,score,k);let c=0;
+  for(let a=0;a<score.length;a++)if(p[a]===Y[score[a]])c++;
+  return c;}
+
+/* ---------------- the three ways of splitting ----------------
+   Both partitioners are stratified, so both shuffle inside each class and then cut; the fold
+   assignment deals the shuffled rows round the ten folds. One shuffle, two ways of cutting it. */
+function shuf(a,r){for(let i=a.length-1;i>0;i--){const j=Math.floor(r.next()*(i+1));
+  const t=a[i];a[i]=a[j];a[j]=t;}return a;}
+function classIdx(c){const o=[];for(let i=0;i<Y.length;i++)if(Y[i]===c)o.push(i);return o;}
+function num(a,b){return a-b;}
+function partsOf(ss){
+  const r=PG.rng(ss*104729+7),tr=[],te=[];
+  for(const c of [0,1]){const idx=shuf(classIdx(c),r),cut=halfUp(HOLD*idx.length);
+    for(let i=0;i<idx.length;i++)(i<cut?tr:te).push(idx[i]);}
+  return {tr:tr.sort(num),te:te.sort(num)};}
+function foldsOf(ss){
+  const r=PG.rng(ss*104729+7),f=[];
+  for(let i=0;i<FOLDS;i++)f.push([]);
+  for(const c of [0,1]){const idx=shuf(classIdx(c),r);
+    for(let j=0;j<idx.length;j++)f[j%FOLDS].push(idx[j]);}
+  return f.map(function(a){return a.sort(num);});}
+const ALL=function(){const o=[];for(let i=0;i<Y.length;i++)o.push(i);return o;};
+
+function accTrain(k){const a=ALL();return {acc:hits(a,a,k)/a.length,fit:a.length,scored:a.length};}
+function accHold(k,ss){const p=partsOf(ss);
+  return {acc:hits(p.tr,p.te,k)/p.te.length,fit:p.tr.length,scored:p.te.length};}
+function accCV(k,ss){
+  const f=foldsOf(ss);let ok=0,fit=0;
+  for(let i=0;i<FOLDS;i++){
+    const te=f[i],tr=[];
+    for(let g=0;g<FOLDS;g++)if(g!==i)for(const j of f[g])tr.push(j);
+    fit+=tr.length;ok+=hits(tr,te,k);}
+  return {acc:ok/Y.length,fit:halfUp(fit/FOLDS),scored:Y.length};}
+
+/* ---------------- what one split is worth, measured over forty of them ----------------
+   A single hold-out number cannot say how much of itself is luck. Forty different splits of the
+   SAME rows can, and the same forty are given to cross-validation, so the two are compared on
+   equal terms. "Score on training rows" never splits anything, so it has no spread at all --
+   which is not steadiness, and is why it reads as nothing rather than as zero. */
+const SPREAD={};
+function spread(){
+  const key=nrows+'/'+K+'/'+seed;
+  if(SPREAD[key])return SPREAD[key];
+  const ho=[],cv=[];
+  for(let s=1;s<=SPLITS;s++){ho.push(accHold(K,s).acc);cv.push(accCV(K,s).acc);}
+  const R=function(v){return {runs:v,lo:Math.min.apply(null,v),hi:Math.max.apply(null,v),
+                              spread:Math.max.apply(null,v)-Math.min.apply(null,v)};};
+  return (SPREAD[key]={hold:R(ho),cv:R(cv)});
+}
+function readAll(){
+  const sp=spread(),o={train:accTrain(K),hold:accHold(K,1),cv:accCV(K,1)};
+  o.train.lo=null;o.train.hi=null;o.train.spread=null;o.train.runs=null;
+  for(const k of ['hold','cv']){o[k].lo=sp[k].lo;o[k].hi=sp[k].hi;
+    o[k].spread=sp[k].spread;o[k].runs=sp[k].runs;}
+  return o;}
+
+/* ---------------- drawing ---------------- */
+function ctxOf(cv){cv.style.width='100%';cv.style.height='100%';
+  const r=cv.getBoundingClientRect(),d=window.devicePixelRatio||1;
+  cv.width=Math.round(r.width*d);cv.height=Math.round(r.height*d);
+  const c=cv.getContext('2d');c.setTransform(d,0,0,d,0,0);return c;}
+function nice(v){if(Math.abs(v-Math.round(v))<1e-9)return String(Math.round(v));
+  const a=Math.abs(v);return a>=100?v.toFixed(0):a>=10?v.toFixed(0):a>=1?v.toFixed(1):v.toFixed(2);}
+function proj(box,x0,x1,y0,y1){
+  return {PX:function(x){return box.l+(x-x0)/(x1-x0)*(box.r-box.l);},
+          PY:function(y){return box.b-(y-y0)/(y1-y0)*(box.b-box.t);}};}
+function axes(c,box,x0,x1,y0,y1,xl,yl,noY){
+  const A=proj(box,x0,x1,y0,y1),PX=A.PX,PY=A.PY;
+  const tk=function(lo,hi,n){const o=[],s=(hi-lo)/n;for(let i=0;i<=n;i++)o.push(lo+s*i);return o;};
+  c.strokeStyle=C.grid;c.lineWidth=1;
+  tk(x0,x1,4).forEach(function(v){c.beginPath();c.moveTo(PX(v),box.t);c.lineTo(PX(v),box.b);c.stroke();});
+  if(!noY)tk(y0,y1,4).forEach(function(v){c.beginPath();c.moveTo(box.l,PY(v));c.lineTo(box.r,PY(v));c.stroke();});
+  c.strokeStyle=C.ax;c.lineWidth=1.1;c.beginPath();
+  c.moveTo(box.l,box.t);c.lineTo(box.l,box.b);c.lineTo(box.r,box.b);c.stroke();
+  c.fillStyle=C.axtx;c.font='12px KaTeX_Main';
+  c.textAlign='right';c.textBaseline='middle';
+  /* a strip chart's y axis is three shelves, not a quantity -- numbering it would be noise,
+     and painting white over numbers already drawn would leave them in the text audit */
+  if(!noY)tk(y0,y1,4).forEach(function(v){c.fillText(nice(v),box.l-6,PY(v));});
+  c.textAlign='center';c.textBaseline='top';
+  tk(x0,x1,4).forEach(function(v){c.fillText(nice(v),PX(v),box.b+5);});
+  if(xl)c.fillText(xl,(box.l+box.r)/2,box.b+21);
+  if(yl){c.save();ROT=true;c.translate(box.l-42,(box.t+box.b)/2);c.rotate(-Math.PI/2);
+    c.textAlign='center';c.textBaseline='bottom';c.fillText(yl,0,0);c.restore();ROT=false;}
+  return {PX:PX,PY:PY};
+}
+/* THE ONLY WAY ANYTHING IS WRITTEN ON THE CANVAS outside the axes, and it counts what it
+   writes. RIT has said more than once that the figures carry too much text, and arranging the
+   text better was never the answer. What is left is the names of the two classes and, where
+   rows are marked wrong, that word -- the things the axes cannot say. Everything else a word
+   could carry is a column in the table below. WORDS is read back by the gate. */
+let WORDS=0,HIDEWORDS=false;
+function annotate(c,x,y,txt,col,align){
+  WORDS+=String(txt).trim().split(/\s+/).length;
+  /* THE FIGURE CAN BE DRAWN WITHOUT ITS WORDS, on purpose (LAB.set({words:false})). "A label
+     never sits on top of data" is Day 3's rule, and the only way to measure it without arguing
+     about colours is to look at what is under the label when the label is not there -- a
+     glyph's own anti-aliased edge blends through half the palette on its way to the
+     background, and the first version of that check kept accusing labels of covering data
+     that was their own outline. */
+  if(HIDEWORDS)return;
+  c.fillStyle=col||C.axtx;c.font='12.5px KaTeX_Main';
+  c.textAlign=align||'left';c.textBaseline='middle';c.fillText(txt,x,y);}
+function dot(c,x,y,col,rad,alpha){c.fillStyle=col;c.globalAlpha=alpha===undefined?1:alpha;
+  c.beginPath();c.arc(x,y,rad,0,6.284);c.fill();c.globalAlpha=1;}
+function ring(c,x,y,col,rad,w){c.strokeStyle=col;c.lineWidth=w||1.6;
+  c.beginPath();c.arc(x,y,rad,0,6.284);c.stroke();}
+
+/* EVERY WORD DRAWN ON THE CANVAS IS RECORDED. One shim over fillText, so tick numbers, axis
+   labels and annotations are all caught without a second list to keep in step. The gate reads
+   TEXTS and asks whether every word is big enough and whether any word sits on data or on
+   another word. Rotated strings are marked: their box is not axis-aligned and they live outside
+   the plot, so the overlap test skips them instead of guessing. */
+let TEXTS=[],ROT=false;
+function logText(c){
+  if(c.__logged)return;c.__logged=true;
+  const f=c.fillText.bind(c);
+  c.fillText=function(s,x,y){
+    const size=parseFloat(c.font)||12,w=c.measureText(s).width;
+    let x0=x;
+    if(c.textAlign==='center')x0=x-w/2; else if(c.textAlign==='right')x0=x-w;
+    let y0=y;
+    if(c.textBaseline==='middle')y0=y-size*0.55;
+    else if(c.textBaseline==='bottom')y0=y-size*0.85;
+    TEXTS.push({s:String(s),x:x0,y:y0,w:w,h:size*1.05,size:size,rot:ROT,
+                col:String(c.fillStyle)});
+    return f(s,x,y);};}
+
+/* the boundary the model actually draws, on the workflow's own 60 x 60 grid (bearing_grid.csv
+   is exactly that: a grid with no labels, sent through the fitted model). It is expensive
+   enough to be worth keeping until something it depends on changes. */
+const BND={};
+function boundary(fit,tag){
+  const key=nrows+'/'+K+'/'+seed+'/'+tag;
+  if(BND[key])return BND[key];
+  const g=new Uint8Array(GRID*GRID);
+  for(let i=0;i<GRID;i++){
+    const xv=XMIN+(i+0.5)*(XMAX-XMIN)/GRID;
+    for(let j=0;j<GRID;j++){
+      const yv=YMIN+(j+0.5)*(YMAX-YMIN)/GRID;
+      g[j*GRID+i]=classify(fit,[(xv-MU[0])/SD[0],(yv-MU[1])/SD[1]],K);}}
+  return (BND[key]=g);}
+/* PAINTED AS ONE IMAGE, NOT AS 3600 TRANSLUCENT RECTANGLES. Overlapping rectangles at 10%
+   alpha blend twice on every seam, and the figure came out looking like graph paper -- the
+   texture read as data. The cells are flattened against white first, so each region is one
+   flat colour and the only edge in the picture is the boundary itself. */
+const TINT=[[51,97,141,0.10],[192,126,0,0.11]].map(function(q){
+  return [0,1,2].map(function(i){return Math.round(255+q[3]*(q[i]-255));});});
+let TILE=null;
+function paintBoundary(c,A,g){
+  if(!TILE){TILE=document.createElement('canvas');TILE.width=GRID;TILE.height=GRID;}
+  const t=TILE.getContext('2d'),im=t.createImageData(GRID,GRID),d=im.data;
+  for(let j=0;j<GRID;j++)for(let i=0;i<GRID;i++){
+    const q=TINT[g[j*GRID+i]],o=4*((GRID-1-j)*GRID+i);
+    d[o]=q[0];d[o+1]=q[1];d[o+2]=q[2];d[o+3]=255;}
+  t.putImageData(im,0,0);
+  c.save();c.imageSmoothingEnabled=false;
+  c.drawImage(TILE,A.PX(XMIN),A.PY(YMAX),A.PX(XMAX)-A.PX(XMIN),A.PY(YMIN)-A.PY(YMAX));
+  c.restore();}
+
+function draw(){
+  const cv=document.getElementById('mC'),c=ctxOf(cv),W=cv.clientWidth,H=cv.clientHeight;
+  c.clearRect(0,0,W,H);
+  logText(c);TEXTS=[];WORDS=0;
+  if(tab===T_CV){drawSplits(c,W,H);return;}
+  /* TABS 1 AND 2 ARE THE SAME PICTURE WITH A DIFFERENT SET OF ROWS SCORED, on purpose: the
+     recipe does not change between them, and seeing the identical scatter twice is what makes
+     that plain. Tab 1 fits on everything and scores everything; tab 2 fits on the 70% and
+     scores the 30% it never saw, so its boundary is drawn by fewer rows. */
+  const box={l:58,r:W-14,t:16,b:H-32};
+  const A=proj(box,XMIN,XMAX,YMIN,YMAX);
+  c.save();c.beginPath();c.rect(box.l,box.t,box.r-box.l,box.b-box.t);c.clip();
+  const p=(tab===T_DATA)?null:partsOf(1);
+  paintBoundary(c,A,boundary(p?p.tr:ALL(),p?'hold':'all'));
+  c.restore();
+  axes(c,box,XMIN,XMAX,YMIN,YMAX,'vib_rms','temp_rise');
+  c.save();c.beginPath();c.rect(box.l,box.t,box.r-box.l,box.b-box.t);c.clip();
+  if(tab===T_DATA){
+    for(let i=0;i<X.length;i++)dot(c,A.PX(X[i][0]),A.PY(X[i][1]),Y[i]?C.ng:C.ok,2.9,0.9);
+  }else{
+    /* the rows that built the boundary are ghosts here -- they are the model, not the score */
+    for(const i of p.tr)dot(c,A.PX(X[i][0]),A.PY(X[i][1]),C.ghost,2.2,0.75);
+    const pr=predict(p.tr,p.te,K);
+    for(let a=0;a<p.te.length;a++){
+      const i=p.te[a],x=A.PX(X[i][0]),y=A.PY(X[i][1]);
+      dot(c,x,y,Y[i]?C.ng:C.ok,3.4,0.95);
+      if(pr[a]!==Y[i])ring(c,x,y,C.wrong,5.6,1.7);}}
+  c.restore();
+  /* the two classes, named INSIDE THEIR OWN REGION and in the two corners the rows never
+     reach: low vibration with a high temperature, and high vibration with a low one, are both
+     impossible for a pair that rises together, so the corners are empty and the names sit on
+     nothing. (Measured: at the bottom-left, where OK first sat, the label lay across 10px of
+     its own rows.) */
+  annotate(c,box.l+8,box.t+13,'OK',C.ok);
+  annotate(c,box.r-8,box.b-13,'NG',C.ng,'right');
+  if(tab===T_HOLD)annotate(c,box.r-8,box.t+13,'wrong',C.wrong,'right');
+}
+
+/* TAB 3 IS THE REASON CROSS-VALIDATION EXISTS, drawn rather than argued: the same rows split
+   forty different ways, one dot per split. Scoring on the training rows is one dot because it
+   never splits; the hold-out dots spread across a wide band of accuracies that are all "the"
+   answer on some seed; the cross-validation dots sit in a narrow one. */
+function drawSplits(c,W,H){
+  const sp=spread(),tr=accTrain(K).acc;
+  const box={l:132,r:W-18,t:22,b:H-34};
+  let lo=Math.min(tr,sp.hold.lo,sp.cv.lo),hi=Math.max(tr,sp.hold.hi,sp.cv.hi);
+  lo=Math.max(0,Math.floor((lo-0.04)*20)/20);hi=Math.min(1,Math.ceil((hi+0.04)*20)/20);
+  const A=axes(c,box,100*lo,100*hi,0,3,'accuracy, %','',true);
+  const rowY=function(i){return box.t+(i+0.5)*(box.b-box.t)/3;};
+  METHODS.forEach(function(m,i){
+    const y=rowY(i),col=C[m];
+    annotate(c,box.l-10,y,MNAME[m],col,'right');
+    if(m==='train'){dot(c,A.PX(100*tr),y,col,5.2,0.95);return;}
+    const R=sp[m];
+    c.strokeStyle=col;c.lineWidth=1.4;c.globalAlpha=0.45;
+    c.beginPath();c.moveTo(A.PX(100*R.lo),y);c.lineTo(A.PX(100*R.hi),y);c.stroke();
+    c.globalAlpha=1;
+    for(let j=0;j<R.runs.length;j++)
+      dot(c,A.PX(100*R.runs[j]),y+((j*37)%11-5)*4.6,col,3.2,0.8);});
+}
+
+/* ---------------- the table: the same three rows on every tab ---------------- */
+function table(){
+  const thr=document.getElementById('thr'),tbb=document.getElementById('tbb');
+  thr.innerHTML='';tbb.innerHTML='';
+  document.getElementById('tbl').className='mtab wide';
+  const th=function(t,cls){const e=document.createElement('th');if(cls)e.className=cls;K_(t,e);return e;};
+  const td=function(t,cls){const e=document.createElement('td');if(cls)e.className=cls;K_(t,e);return e;};
+  const head=function(cols){cols.forEach(function(h){const e=th(h[0]);
+    if(h[1])e.style.textAlign='right';thr.appendChild(e);});};
+  const A=readAll();
+  head([['\\text{Method}',0],['\\text{rows to fit}',1],['\\text{rows scored}',1],
+        ['\\text{accuracy, \\%}',1],['\\text{spread over 40 splits, \\%}',1]]);
+  /* THE MARKS. Green goes to the method that keeps its answer still across the forty splits --
+     of the two that actually split, the smaller spread. Red goes to a training-rows accuracy
+     that is running five points or more ahead of the cross-validated one, because that is
+     exactly the size of the lie. */
+  let bestK=null;
+  for(const m of ['hold','cv'])if(bestK===null||A[m].spread<A[bestK].spread)bestK=m;
+  const lie=A.train.acc-A.cv.acc>=0.05;
+  const nm={train:'\\text{training rows}',hold:'\\text{hold-out}',cv:'\\text{cross-validation}'};
+  METHODS.forEach(function(m){
+    const r=A[m],tr=document.createElement('tr');
+    if((tab===T_HOLD&&m==='hold')||(tab===T_CV&&m==='cv'))tr.className='sel';
+    tr.appendChild(th(nm[m],m===bestK?'win':''));
+    tr.appendChild(td(String(r.fit)));
+    tr.appendChild(td(String(r.scored)));
+    tr.appendChild(td(String(Math.round(100*r.acc)),(m==='train'&&lie)?'bad':''));
+    tr.appendChild(td(r.spread===null?'\\text{--}':String(Math.round(100*r.spread)),
+                      m===bestK?'win':''));
+    tbb.appendChild(tr);});
+}
+
+/* ---------------- rail, tabs, wiring ---------------- */
+function paint(name,v){document.querySelectorAll('.seg[data-for="'+name+'"] button').forEach(function(b){
+  const on=b.getAttribute('data-val')===String(v);
+  b.style.background=on?'#1e3a8a':'#fff';b.style.color=on?'#fff':'#555';});}
+/* the two halves of the k slicer always show the number that is actually drawn */
+function paintK(){const r=document.getElementById('kRange'),n=document.getElementById('kNum');
+  if(r)r.value=String(K);
+  if(n&&n.value!==String(K))n.value=String(K);}
+function setK(v,commit){
+  /* k is odd on purpose: two classes and an even k can tie, and a tie broken silently is a
+     result nobody can reproduce. Anything typed is pulled to the nearest odd number in range,
+     so the box can never disagree with the picture. */
+  let k=Math.round(Number(v));
+  if(!isFinite(k)){if(commit)paintK();return;}
+  k=Math.max(KMIN,Math.min(KMAX,k));
+  if(k%2===0)k=Math.min(KMAX,k+1);
+  if(k===K){if(commit)paintK();return;}
+  K=k;paintK();refresh();}
+function syncRows(){
+  const set=function(id,st){const e=document.getElementById(id);
+    e.classList.toggle('off',st==='hide');e.classList.toggle('lock',st==='lock');};
+  /* both levers reach every tab: how many rows there are and how many neighbours vote change
+     all three scores at once, which is the comparison this page exists to make */
+  set('c-rows','live');
+  set('c-k','live');
+}
+function refresh(){syncRows();dataset(nrows,seed);draw();table();}
+function setSeg(name,v){if(name==='rows')nrows=+v;paint(name,v);refresh();}
+function applyTab(i){tab=i;
+  document.querySelectorAll('.tabbtn').forEach(function(b,j){b.className='tabbtn'+(j===i?' on':'');});
+  refresh();}
+const TABS=[{name:'\\text{1. The data}'},{name:'\\text{2. Hold-out}'},
+            {name:'\\text{3. Forty splits}'}];
+['rows'].forEach(function(nm){
+  document.querySelectorAll('.seg[data-for="'+nm+'"] button').forEach(function(b){
+    b.addEventListener('click',function(){setSeg(nm,b.getAttribute('data-val'));});});});
+{const r=document.getElementById('kRange'),n=document.getElementById('kNum');
+ r.addEventListener('input',function(){setK(r.value,false);});
+ /* while typing, a whole number in range takes effect at once; on commit (blur, Enter, the
+    spinner) whatever is left in the box is clamped and written back */
+ n.addEventListener('input',function(){
+   const v=n.value.trim();
+   if(/^([1-9]|1[0-5])$/.test(v))setK(v,false);});
+ n.addEventListener('change',function(){setK(n.value,true);});
+ n.addEventListener('blur',function(){setK(n.value,true);});
+ n.addEventListener('keydown',function(e){if(e.key==='Enter')setK(n.value,true);});}
+document.getElementById('resetBtn').addEventListener('click',function(){seed++;refresh();});
+window.addEventListener('resize',function(){draw();});
+const tb=document.getElementById('tabs');
+TABS.forEach(function(T,i){const b=document.createElement('button');b.className='tabbtn';
+  (window.katex?katex.render(T.name,b,{throwOnError:false}):(b.textContent=T.name));
+  b.onclick=function(){applyTab(i);};tb.appendChild(b);});
+paint('rows',nrows);paintK();
+applyTab(T_DATA);
+
+window.LAB={
+  read:function(){
+    const A=readAll();
+    const o={tab:tab,rows:nrows,k:K,seed:seed,figureWords:WORDS,
+             holdFraction:HOLD,folds:FOLDS,splits:SPLITS,methods:{}};
+    for(const m of METHODS){
+      const r=A[m];
+      o.methods[m]={acc:+r.acc.toFixed(6),fit:r.fit,scored:r.scored,
+                    lo:r.lo===null?null:+r.lo.toFixed(6),
+                    hi:r.hi===null?null:+r.hi.toFixed(6),
+                    spread:r.spread===null?null:+r.spread.toFixed(6)};}
+    o.texts=TEXTS.map(function(t){return {s:t.s,x:+t.x.toFixed(1),y:+t.y.toFixed(1),w:+t.w.toFixed(1),h:+t.h.toFixed(1),size:t.size,rot:t.rot,col:t.col};});
+    return o;},
+  set:function(o){
+    /* a name this page does not have is ignored, not obeyed */
+    if(o.rows!=null&&ROWSET.indexOf(+o.rows)>=0){nrows=+o.rows;paint('rows',nrows);}
+    if(o.k!=null){let k=Math.max(KMIN,Math.min(KMAX,Math.round(+o.k)));
+      if(k%2===0)k=Math.min(KMAX,k+1);K=k;paintK();}
+    if(o.seed!=null)seed=+o.seed;
+    if(o.words!=null)HIDEWORDS=!o.words;
+    if(o.tab!=null)applyTab(Math.max(0,Math.min(TABS.length-1,+o.tab)));
+    else refresh();}};
+(function(){const mC=document.getElementById('mC');
+  function fix(){if(mC.clientWidth>0&&(Math.abs(mC.width-Math.round(mC.clientWidth))>0.6||
+    Math.abs(mC.height-Math.round(mC.clientHeight))>0.6))draw();}
+  if(window.ResizeObserver){const ro=new ResizeObserver(function(){fix();});ro.observe(mC);}
+  requestAnimationFrame(function(){requestAnimationFrame(fix);});})();
+</script>
+<script>document.addEventListener("DOMContentLoaded",function(){if(window.renderMathInElement)renderMathInElement(document.body,{delimiters:[{left:"\\(",right:"\\)",display:false},{left:"$$",right:"$$",display:true}],throwOnError:false});});</script>
+<script>(function(){if(!window.katex)return;var t=document.getElementById("__pgt");if(t)try{katex.render(t.getAttribute("data-tex"),t,{throwOnError:false});}catch(e){}})();</script>
+</body>
+</html>

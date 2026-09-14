@@ -1,0 +1,797 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Operating modes and the baseline</title>
+<link rel="stylesheet" href="pg_style.css?v=24">
+<link rel="stylesheet" href="vendor/katex/katex.min.css">
+<script src="vendor/katex/katex.min.js"></script>
+<script src="vendor/katex/auto-render.min.js"></script>
+<style>
+  :root{--panel-h:340px}   /* the fullest control column, not a round number: the token is
+                            per-file by the standard, and 560 left the rail half empty */
+  .pg .layout>.stage{align-self:start}
+  .pg .layout>.rail{grid-column:2;min-width:0;align-self:start;display:flex;flex-direction:column;align-items:stretch;
+    /* the control column stays one height across tabs (UD trap 4) but never taller than
+       the window: at 600px tall Day 3's 618px rail was itself what pushed the page into
+       scrolling, with the panel's real content only 284px (RIT 2026-09-04) */
+    min-height:min(var(--panel-h),calc(100vh - 150px))}
+  .pg .rail>.panel{width:100%;min-width:0;align-self:stretch;min-height:0}
+  /* THE SAME TWO OVERRIDES THE OTHER pdm PAGES CARRY (playground_pdm_baseline.html:17,58 and
+     playground_pdm_modes.html:17,51), so this page is not a third size in the same course.
+     The written standard says clamp(260px,44vh,400px) for a figure and pg_style gives a table
+     15px; Day 3 deviates from both ON PURPOSE, with the reason in its own comment -- the labels
+     moved inside the figure, so the height that used to go to text goes to the chart, and the
+     table is tightened to 13px to pay for it. A page in that family follows the family. */
+  /* THE FIGURE YIELDS TO THE TABLE (RIT 2026-09-04: "kmeans รูปสูงเกินจนตารางล้น" and
+     the same on the published Day 3 page, which scrolls 24, 44 and 84px at 660, 640 and
+     600px tall). The clamp alone answers only to the viewport; on a short window it keeps
+     asking for 360-560px and the numbers go off the bottom. min() adds the other
+     constraint -- the height that is actually left once the header and the table have
+     theirs -- so on a normal screen nothing changes and on a short one the chart gives
+     way instead of the table. */
+  .pg .canvasbox{height:min(clamp(360px,62vh,560px),calc(100vh - 250px))}
+  .pg .mtab{margin:0}
+  .pg .mtab th,.pg .mtab td{padding:4px 7px;font-size:13px}
+  .pg .mtab th{white-space:normal;line-height:1.25;vertical-align:bottom}
+  .pg .panel .seg[data-for="machine"],.pg .panel .seg[data-for="k"]{
+    display:grid;grid-template-columns:1fr 1fr;width:100%;min-width:0;
+    border:1px solid #e6e6e0;border-radius:8px;overflow:hidden}
+  .pg .panel .seg[data-for="machine"] button,.pg .panel .seg[data-for="k"] button{
+    font-size:14px;padding:6px 3px;cursor:pointer;border:0!important;text-align:center}
+  .pg .panel .seg[data-for="machine"] button:nth-child(2n),
+  .pg .panel .seg[data-for="k"] button:nth-child(2n){border-left:1px solid #e6e6e0!important}
+  .pg .panel .seg[data-for="machine"] button:nth-child(n+3),
+  .pg .panel .seg[data-for="k"] button:nth-child(n+3){border-top:1px solid #e6e6e0!important}
+  /* THE MACHINES ARE A LIST OF EQUALS, ONE PER ROW. They were three across until the two
+     hard cases arrived on 2026-09-03; five names do not fit a row, and the defect RIT reported
+     earlier ("ไหนล่ะเครื่องสาม mode ไม่เห็นขึ้นเลย") was never the number of rows -- it was ONE
+     button sized differently from its neighbours, which reads as a caption over a control. A
+     single column keeps every machine the same width and the same weight, and leaves the names
+     room to be read. */
+  .pg .panel .seg[data-for="machine"]{grid-template-columns:1fr}
+  .pg .panel .seg[data-for="machine"] button+button{
+    border-left:0!important;border-top:1px solid #e6e6e0!important}
+  /* Day 3's four table marks, copied verbatim (they were missing here, so tr.sel and the win
+     marks painted nothing at all until 2026-09-03): the row for the k in the rail is tinted,
+     the best outcome is green, an unusable one is red */
+  .pg .mtab td.win,.pg .mtab th.win{color:#1E7A56;font-weight:600}
+  .pg .mtab td.bad{color:#B0503A}
+  .pg .mtab tr.sel th,.pg .mtab tr.sel td{background:#f4f7fb}
+  .pg .drow.off{display:none!important}
+  .pg .drow.lock{opacity:.45;pointer-events:none}
+  @media (max-width:820px){
+    .pg .layout{display:block}
+    .pg .layout>.rail{grid-column:auto;width:auto;min-height:0;display:block}
+    .pg .panel{position:fixed;left:0;right:0;bottom:0;margin:0;max-height:50vh;overflow-y:auto;
+      border:1px solid var(--line);border-bottom:0;border-radius:14px 14px 0 0;box-shadow:0 -3px 14px rgba(0,0,0,.10);z-index:50}
+  }
+</style>
+</head>
+<body class="pg">
+<h2 class="sr-only" style="position:absolute;width:1px;height:1px;overflow:hidden">One pump that runs in more than one operating mode, and what that does to a baseline. Every tab reads the same four rows: the machine's hours clustered into one, two, three and four modes. One mode is Day 3's plain mean baseline. The first tab shows how the hours split. The second builds the expected temperature from each split and reads the residual and the control limit it leaves. The third lets the clock run into a fault and scores each split in the operator's units: hours to the first alarm, hours of warning over the fixed seventy five degree limit, and the share of the faulty hours it flags.</h2>
+<div class="wrap">
+  <div class="hdr">
+    <h1 id="__pgt" data-tex="\text{Operating modes and the baseline}">Operating modes and the baseline</h1>
+    <div class="tabs" id="tabs"></div>
+  </div>
+  <div class="layout">
+    <div class="stage">
+      <div class="canvasbox" id="boxM"><canvas id="mC"></canvas></div>
+      <div class="tblbox"><table class="mtab" id="tbl"><thead><tr id="thr"></tr></thead><tbody id="tbb"></tbody></table></div>
+    </div>
+    <div class="rail">
+    <div class="panel">
+      <div class="drow" id="c-machine">
+        <span class="dlab" style="flex:0 0 auto;color:#475569;font-size:15px;font-weight:600">\(\text{Machine}\)</span>
+        <div class="seg" data-for="machine">
+          <button type="button" data-val="one">\(\text{One mode}\)</button>
+          <button type="button" data-val="levels">\(\text{Two modes}\)</button>
+          <button type="button" data-val="three">\(\text{Three modes}\)</button>
+          <button type="button" data-val="uneven">\(\text{Uneven spread}\)</button>
+          <button type="button" data-val="overlap">\(\text{Overlapping modes}\)</button>
+        </div>
+      </div>
+      <div class="drow" id="c-k">
+        <span class="dlab" style="flex:0 0 auto;color:#475569;font-size:15px;font-weight:600">\(\text{Modes }(k)\)</span>
+        <input type="range" id="kRange" min="1" max="4" step="1" value="2"
+               aria-label="number of modes, k, from 1 to 4">
+        <input type="number" id="kNum" min="1" max="4" step="1" value="2"
+               inputmode="numeric" aria-label="number of modes, k, type a value from 1 to 4">
+      </div>
+      <div class="row" id="rowRun">
+        <button id="resetBtn" title="draw a new random week from the same machine">\(\text{New data}\)</button>
+      </div>
+    </div>
+    </div>
+  </div>
+</div>
+<script src="pg_engine.js?v=5"></script>
+<script>
+/* ============================================================================================
+   OPERATING MODES AND THE BASELINE  ·  Day 4 of the KNIME PdM course, on the Day 3 shell
+
+   Day 3 ended with one baseline for one machine. Day 4 starts where that breaks: the pump does
+   not run in one state, it runs in several, and a baseline that averages across them is wrong
+   in every one of them. k-means is not the subject here -- it is the tool that gets the modes
+   back, so that a baseline can be built inside each one.
+
+   k IS THE ONLY LEVER, and all three tabs read the same four rows -- k = 1, 2, 3, 4 -- so
+   the same choice is followed from the clustering to the alarm:
+
+     tab 1  Modes      how the healthy hours split at each k, and the residual that split leaves
+     tab 2  Baseline   the expected temperature each split gives, and the control limit that
+                       comes out of its residual (3 sd, Day 3's rule)
+     tab 3  Monitoring the clock runs into a fault, each split scored in Day 3's own readings:
+                       detection delay, lead over the fixed 75 C limit, recall on the fault hours
+
+   RIT 2026-09-03: THERE IS NO SEPARATE 'MEAN BASELINE'. One mean for everything IS k = 1 --
+   cluster the history into one mode and that mode's mean is the mean of the whole history. Day
+   3's baseline is therefore row one of every table here, the row this day has to beat, and the
+   page needs no second control to say it. Silhouette is gone from the page with it: k is chosen
+   by what it buys -- a tighter limit, an earlier alarm, more of the fault caught -- and those
+   are the columns.
+
+   RIT 2026-09-02: k-means and nothing else. A regression on load used to sit in the baseline
+   row; it is Day 3's method, it was the only thing on the page that read a second sensor, and
+   it is gone. Nothing here now predicts the temperature from anything -- the only question is
+   WHICH MODE an hour belongs to, which is the one question clustering answers.
+
+   Timeline and vocabulary are Day 3's, deliberately: 96 hours split train 48 / healthy test 24
+   / fault 24, alarm on |z| >= 3 two-sided, and the fixed 75 C limit stays the reference the
+   model has to beat.
+   ========================================================================================== */
+const N=96,HIST=48,FAULT=72,LIMZ=3,LIMIT_C=75;
+const FAULT_STEP=2.0,FAULT_SLOPE=0.35;   /* the course's step, with just enough slope
+                                            left that 75 C stays reachable on the hot machine */
+const KS=[1,2,3,4];
+/* what to call the split on the figure: k = 1 is not 'a mean per mode', it is the whole
+   history under one mean, and the note has to say so */
+function KNAME(k){return k===1?'one mean for all hours':'a mean per mode  ·  k = '+k;}
+const T_MODE=0,T_BASE=1,T_MON=2;
+const C={cl:['#33618D','#1E7A56','#C07E00','#8E5AA8'],
+         data:'#6E93B8',exp:'#1E7A56',lim:'#B0503A',alarm:'#C07E00',mark:'#B0503A',
+         cen:'#1F2A37',ax:'#94a3b8',axtx:'#64748b',grid:'#eef1f5',fault:'#B07AAE'};
+/* ONE COLOUR PER MODE, AND NEVER A WRAP (RIT 2026-09-03). The palette used to be indexed
+   `C.cl[m % C.cl.length]`, which is silent: a fifth mode would come back painted exactly like
+   the first, and two different modes drawn identically is the one failure a colour encoding
+   must not have. There are four colours and k stops at four, so this never fires today -- it
+   fires the moment someone adds a fifth k or a machine with more modes, which is when it is
+   worth knowing. It throws rather than warning: the gate's RUNTIME/no-errors catches a throw. */
+if(Math.max.apply(null,KS)>C.cl.length)
+  throw new Error('palette has '+C.cl.length+' colours but k runs to '+Math.max.apply(null,KS));
+function MC(j){
+  if(!(j>=0&&j<C.cl.length))throw new Error('mode '+j+' has no colour of its own');
+  return C.cl[j];}
+/* OPENS ON THE MACHINE THE DAY EXISTS FOR, AND ON A WEEK THAT SHOWS BOTH SIDES (RIT
+   2026-09-03). seed 698 is not decoration: on the old opening week k = 2, 3 and 4 all read
+   delay 3 / lead 17 and every false-alarm cell was 0, so the first screen said more modes are
+   free. Over 300 weeks they are not -- 2 -> 4 buys 3.5 points of recall and pays with weeks
+   carrying a false alarm going 19% -> 44% and the split repeating in only 26% of weeks. This
+   week says it on its own: k = 2 wins outright, k = 3 and k = 4 buy nothing, lose recall and
+   each raise a false alarm. New data walks on into ordinary weeks from here. */
+let tab=T_MODE,mach='levels',K=2,seed=698;
+let TEMP=[],MODE=[];
+
+function K_(t,el,d){if(!el)return;if(window.katex){try{katex.render(String(t),el,{throwOnError:false,displayMode:!!d});return;}catch(e){}}el.textContent=t;}
+function ok(v){return v!=null&&isFinite(v);}
+function mean(a){let s=0,n=0;for(const v of a){if(!ok(v))continue;s+=v;n++;}return n?s/n:0;}
+function sdOf(a){const m=mean(a);let s=0,n=0;for(const v of a){if(!ok(v))continue;s+=(v-m)*(v-m);n++;}
+  return n>1?Math.sqrt(s/(n-1)):0;}
+
+/* ---------------- the machine ----------------
+   Modes come in blocks of hours, not one draw per hour: a pump holds a line-up for a shift and
+   then changes, which is what makes a mode visible in a time series at all. Inside a mode the
+   temperature wanders with the load the pump happens to be at; the mode adds its own offset on
+   top of that, and NOTHING ON THE MACHINE DECLARES IT. That is the whole difficulty: the offset
+   is real, it is worth several degrees, and no sensor names it.
+
+   Two machines, and the button order is the argument.
+
+     one      Day 3's world -- one mode, one baseline, and nothing new to do.
+     uneven   two modes 8 C apart, but one of them four times noisier than the other. k-means
+              finds them, and the baseline is STILL wrong: one control limit is shared by a
+              quiet mode and a noisy one, so it is too wide for the first and too tight for
+              the second. Over 40 weeks its recall at k=2 is 71.7% against the clean two-mode
+              machine's 78.5% -- finding the modes did not finish the job.
+     overlap  two real modes only 1.5 C apart, about two standard deviations. One mean already
+              reaches 83.5% recall at 3.7 h because the modes barely widen the residual;
+              splitting buys 2 points and half an hour and takes the weeks carrying a false
+              alarm from 12.5% to 40%. When the modes overlap, clustering is a bad trade.
+              (Both are the course's own Day 4 S1 cases -- gen_d4_s1_modes.py sets C and D --
+              rebuilt at this page's scale. The idea, not the file.)
+     levels   Session 1's own file: two levels with nothing announcing them. One mean is wrong
+              in both, and only a baseline that knows which mode an hour belongs to can be
+              right in either. This is what the day is for.
+
+   THE BUTTONS NAME THE MACHINE, NOT THE DIFFICULTY (RIT 2026-09-03). The second one used to
+   read 'Hidden modes', which put the word 'modes' on two controls that mean different things --
+   the machine, and the k the learner picks -- and made a claim about what the learner cannot
+   see that the page contradicts one click later, when tab 1 draws the modes in colour. 'One
+   mode' / 'Two modes' says what the generator does, so the truth sits on the left control and
+   the guess on the right, and the tables say whether the guess paid. That nothing on the
+   machine ANNOUNCES the mode is still the point of the day -- it belongs in the note under the
+   chart and in this comment, not on a button. */
+/* tsep is how far apart the levels sit; blo/bhi is how long the machine holds a line-up.
+
+   THREE MODES CHANGE OFTENER, AND THEY HAVE TO. 48 hours of history cut into 6-12 hour blocks
+   is about five blocks; split three ways, one mode is left thinner than 10 hours in 58% of
+   weeks (measured over 200), and a mode fitted on a handful of hours is indistinguishable from
+   noise. At 3-6 hours the thinnest mode averages 9.4 h and k = 3 is learnable. one and levels
+   keep 6/12, which reproduces the old stream exactly -- their numbers do not move. */
+/* spread is per mode: how wide that mode's own scatter is, as a multiple of the machine's
+   noise. Everything except `uneven` runs at 1.0, and multiplying by 1.0 leaves those machines'
+   numbers exactly where they were.
+
+   The last two are the course's own Day 4 S1 cases (gen_d4_s1_modes.py, sets C and D), moved
+   to this page's scale. They are the two ways k-means can find the modes and still leave you
+   worse off: one limit shared between a quiet mode and a noisy one, and modes so close that
+   splitting them costs more than it pays. */
+/* EVERY MACHINE RUNS IN THE SAME BAND (RIT 2026-09-04, on whether to keep the lead column).
+   These are all the same pump; what differs is how its modes are arranged, not how hot it runs.
+   Two of them used to sit a whole mode-gap cooler, so the plant's fixed 75 C thermostat was out
+   of reach and the lead column read "--" for every row on them -- an empty column, which is
+   what got two earlier columns deleted. `base` lifts them so every machine's hottest mode sits
+   near 69 C. It shifts the temperature and nothing else: z, the limits, the delays and the
+   recalls are computed after standardising, so they are unchanged to the last digit. */
+const MODEDEF={
+  one:    {n:1,tsep:0,  blo:6,bhi:12,base:8.0},
+  levels: {n:2,tsep:8,  blo:6,bhi:12},
+  three:  {n:3,tsep:4,  blo:3,bhi:6},
+  uneven: {n:2,tsep:8,  blo:6,bhi:12,spread:[0.5,2.0]},
+  overlap:{n:2,tsep:1.5,blo:6,bhi:12,base:6.5}};
+/* one week of this machine. regen() puts the CURRENT one in the globals; machineStats()
+   below walks 40 others through the same function, because a cost measured with different
+   code from the one on screen is not the cost of what is on screen. */
+function genWeek(m,sd){
+  const r=PG.rng(sd*7919+29);
+  const g=function(){let s=0;for(let i=0;i<12;i++)s+=r.next();return s-6;};
+  const D=MODEDEF[m],nm=D.n,T=[],MD=[];
+  let md=0,left=0;
+  for(let t=0;t<N;t++){
+    if(left<=0){md=Math.floor(r.next()*nm);
+                left=D.blo+Math.floor(r.next()*(D.bhi-D.blo+1));}   /* one line-up, held */
+    left--;
+    const load=100+4.0*g();                   /* the hour's load: it moves the temperature */
+    let temp=47+(D.base||0)+0.14*load+md*D.tsep+0.5*g()*(D.spread?D.spread[md]:1);
+    /* THE FAULT IS THE SIZE THE COURSE MAKES IT (RIT 2026-09-04). A 0.70 C/hour ramp
+       reached +17 C and broke through even the 12.4 C limit that one mean over two levels
+       produces, so the wrong baseline still eventually worked -- while the course's own
+       answer key has it scoring recall 0.000 on the two-mode file. A step with a slow
+       slope instead: 10.1 C by the end of the window, under that 12.4 C limit and far
+       over the 2.25 C a mean per mode leaves. */
+    const h=t-FAULT+1;
+    if(h>0)temp+=FAULT_STEP+FAULT_SLOPE*(h-1);
+    T.push(temp);MD.push(md);}
+  return {t:T,m:MD};
+}
+function regen(){const w=genWeek(mach,seed);TEMP=w.t;MODE=w.m;}
+
+/* ---------------- k-means on the watched column ----------------
+   Session 1's rule, and the only one this page uses: cluster the WATCHED column itself,
+   standardised on the healthy history and fitted there only -- the fault must never be allowed
+   to move a centre. Centres come from the training half and are then applied unchanged to every
+   hour: Phase I / Phase II, the same rule as every baseline in this course. */
+function opPoints(T){
+  T=T||TEMP;
+  const c=T.slice(0,HIST),mc=mean(c),sc=sdOf(c)||1;
+  const z=[];for(let i=0;i<N;i++)z.push([(T[i]-mc)/sc,0]);
+  return {P:z,mc:mc,sc:sc};
+}
+function dist2(a,b){const dx=a[0]-b[0],dy=a[1]-b[1];return dx*dx+dy*dy;}
+function nearest(p,C0){let bi=0,bd=Infinity;
+  for(let c=0;c<C0.length;c++){const d=dist2(p,C0[c]);if(d<bd){bd=d;bi=c;}}return bi;}
+function kmeans(k,T,sk){
+  T=T||TEMP;if(sk===undefined)sk=seed;
+  const Z=opPoints(T),train=Z.P.slice(0,HIST);
+  const rng=PG.rng(sk*104729+k*31);
+  let C0=[train[Math.floor(rng.next()*train.length)].slice()];
+  while(C0.length<k){                                   /* k-means++ start */
+    const d=train.map(function(p){let m=Infinity;for(const c of C0)m=Math.min(m,dist2(p,c));return m;});
+    const tot=d.reduce(function(a,b){return a+b;},0);
+    let x=rng.next()*tot,j=0;while(j<d.length-1&&x>d[j]){x-=d[j];j++;}
+    C0.push(train[j].slice());}
+  let a=null;
+  for(let r=0;r<40;r++){
+    const na=train.map(function(p){return nearest(p,C0);});
+    const sx=new Array(k).fill(0),sy=new Array(k).fill(0),n=new Array(k).fill(0);
+    for(let i=0;i<na.length;i++){sx[na[i]]+=train[i][0];sy[na[i]]+=train[i][1];n[na[i]]++;}
+    const C1=C0.map(function(c,j){return n[j]?[sx[j]/n[j],sy[j]/n[j]]:c.slice();});
+    const same=a&&na.every(function(v,i){return v===a[i];});
+    a=na;C0=C1;
+    if(same)break;}
+  const all=Z.P.map(function(p){return nearest(p,C0);});
+  return {Z:Z,cen:C0,train:a,all:all,k:k};
+}
+/* ---------------- the baseline, and what each k leaves behind ----------------
+   ONE function for every k, because there is only one method: the expected temperature of an
+   hour is the mean of the mode it was put in. At k = 1 every hour is in the same mode and that
+   mean is the mean of the whole healthy history -- Day 3's baseline exactly, with no special
+   case in the code to produce it.
+
+   Fitted on the healthy history only and then applied unchanged to the test hours. The alarm
+   rule is Day 3's, untouched: two-sided, three sigma of the training residual. */
+function baseline(k,T,sk){
+  T=T||TEMP;if(sk===undefined)sk=seed;
+  const exp=new Array(N).fill(null);
+  const km=kmeans(k,T,sk),s=new Array(k).fill(0),c=new Array(k).fill(0);
+  for(let i=0;i<HIST;i++){s[km.train[i]]+=T[i];c[km.train[i]]++;}
+  const gm=mean(T.slice(0,HIST));
+  const mu=s.map(function(v,j){return c[j]?v/c[j]:gm;});
+  for(let i=0;i<N;i++)exp[i]=mu[km.all[i]];
+  const res=T.map(function(t,i){return t-exp[i];});
+  const sd=sdOf(res.slice(0,HIST))||1e-9;
+  const z=res.map(function(r){return r/sd;});
+  /* recall, exactly as Day 3 counts it: of the hours that really are faulty, how many did
+     this baseline flag. TP/FAULT_HOURS, on the test half only.
+     AND WHAT IT COST: the alarms it raised in the QUIET test hours, before the fault starts.
+     Every hour of the test half is either quiet or faulty, so these two counts between them
+     say what the baseline did with all 48 of them. */
+  let first=null,tp=0,fp=0;
+  for(let i=HIST;i<N;i++){
+    if(Math.abs(z[i])<LIMZ)continue;
+    if(i>=FAULT){tp++;if(first===null)first=i;}
+    else fp++;}
+  let t75=null;for(let i=FAULT;i<N;i++)if(T[i]>=LIMIT_C){t75=i;break;}
+  /* precision as Day 3 computes it (playground_pdm_baseline.html:343): of the hours this
+     baseline flagged, the share that really were faulty -- null when it flagged nothing */
+  return {k:k,exp:exp,res:res,sd:sd,z:z,limitC:LIMZ*sd,mu:mu,fp:fp,
+          prec:(tp+fp)?tp/(tp+fp):null,
+          /* the hours behind the THINNEST mode. Every extra mode is fitted on fewer hours than
+             the last, and a limit learned from nine hours is a limit nobody should trust --
+             this is the number that says so, and it moves on every week, which the false alarm
+             count does not (measured over 40 seeds: raising k from 2 to 3 takes the weeks that
+             carry at least one false alarm from 30% to 50%, but on most single weeks, seed 1
+             among them, the count is 0 at every k and the cost is invisible). */
+          smallest:Math.min.apply(null,c),
+          first:first,delay:first===null?null:first-FAULT,
+          rec:tp/(N-FAULT),t75:t75,
+          lead:(first===null||t75===null)?null:t75-first};
+}
+
+/* ---------------- WHAT MORE MODES COST ----------------
+   Everything above is one week, and on one week over-splitting is nearly free: the residual sd
+   falls with every k by construction, the delay and the recall barely move, and the false-alarm
+   cell reads 0 or 1. So the page argued that more modes never hurt (RIT, 2026-09-03), which is
+   false. The cost is that THE MODES ARE NOT THERE NEXT WEEK, and that a limit fitted to invented
+   modes trips on hours that are fine. Neither is a one-week quantity, so both are measured over
+   40 weeks of the same machine.
+
+   The 40 weeks are seeds 1..40, FIXED: pressing New data changes the week on screen and leaves
+   this column alone, because it is a property of the machine, not of the week.
+
+   drift uses the MEDIAN absolute deviation, not the sd: a week in which the machine never
+   leaves one level is a real week, and under an sd it would swamp the column. The minimum
+   lands on the machine's own number of modes on all three machines -- which is the day. */
+const WEEKS=40,STATS={};
+function medianOf(a){const b=a.slice().sort(function(x,y){return x-y;});
+  const n=b.length;if(!n)return 0;
+  return n%2?b[(n-1)/2]:(b[n/2-1]+b[n/2])/2;}
+function machineStats(m){
+  if(STATS[m])return STATS[m];
+  const out={};
+  for(const k of KS){
+    const cols=[];for(let j=0;j<k;j++)cols.push([]);
+    let faw=0;
+    for(let sk=1;sk<=WEEKS;sk++){
+      const w=genWeek(m,sk),b=baseline(k,w.t,sk);
+      if(b.fp>0)faw++;
+      const ms=b.mu.slice().sort(function(x,y){return x-y;});
+      for(let j=0;j<k;j++)cols[j].push(ms[j]);}
+    let dr=0;
+    for(let j=0;j<k;j++){const md=medianOf(cols[j]);
+      dr+=medianOf(cols[j].map(function(v){return Math.abs(v-md);}));}
+    out[k]={drift:dr/k,faWeeks:faw/WEEKS};}
+  return (STATS[m]=out);}
+
+/* ---------------- drawing ---------------- */
+function ctxOf(cv){cv.style.width='100%';cv.style.height='100%';
+  const r=cv.getBoundingClientRect(),d=window.devicePixelRatio||1;
+  cv.width=Math.round(r.width*d);cv.height=Math.round(r.height*d);
+  const c=cv.getContext('2d');c.setTransform(d,0,0,d,0,0);return c;}
+function nice(v){if(Math.abs(v-Math.round(v))<1e-9)return String(Math.round(v));
+  const a=Math.abs(v);return a>=100?v.toFixed(0):a>=10?v.toFixed(0):a>=1?v.toFixed(1):v.toFixed(2);}
+/* noY: draw the panel but not the numbers up its left edge -- for a panel that SHARES its
+   vertical axis with the one beside it, where a second set of the same numbers is noise. */
+function axes(c,box,x0,x1,y0,y1,xl,yl,noY){
+  const PX=function(x){return box.l+(x-x0)/(x1-x0)*(box.r-box.l);},
+        PY=function(y){return box.b-(y-y0)/(y1-y0)*(box.b-box.t);};
+  const tk=function(lo,hi,n){const o=[],s=(hi-lo)/n;for(let i=0;i<=n;i++)o.push(lo+s*i);return o;};
+  c.strokeStyle=C.grid;c.lineWidth=1;
+  tk(x0,x1,4).forEach(function(v){c.beginPath();c.moveTo(PX(v),box.t);c.lineTo(PX(v),box.b);c.stroke();});
+  tk(y0,y1,4).forEach(function(v){c.beginPath();c.moveTo(box.l,PY(v));c.lineTo(box.r,PY(v));c.stroke();});
+  c.strokeStyle=C.ax;c.lineWidth=1.1;c.beginPath();
+  c.moveTo(box.l,box.t);c.lineTo(box.l,box.b);c.lineTo(box.r,box.b);c.stroke();
+  c.fillStyle=C.axtx;c.font='12px KaTeX_Main';
+  c.textAlign='right';c.textBaseline='middle';
+  if(!noY)tk(y0,y1,4).forEach(function(v){c.fillText(nice(v),box.l-6,PY(v));});
+  c.textAlign='center';c.textBaseline='top';
+  tk(x0,x1,4).forEach(function(v){c.fillText(nice(v),PX(v),box.b+5);});
+  if(xl)c.fillText(xl,(box.l+box.r)/2,box.b+21);
+  if(yl){c.save();ROT=true;c.translate(box.l-40,(box.t+box.b)/2);c.rotate(-Math.PI/2);
+    c.textBaseline='bottom';c.fillText(yl,0,0);c.restore();ROT=false;}
+  return {PX:PX,PY:PY};
+}
+/* THE SAME LINE READ IN DEGREES. residual = z x sd, so the right-hand ruler is the z ruler
+   rescaled by this baseline's own sd: the left edge answers "how many sd", the right edge
+   answers "how many degrees", and the plant reads the second one. Day 3's convention, copied
+   from playground_pdm_baseline.html (RIT 2026-08-28, asked for again here 2026-09-03). */
+function niceTicks(lo,hi){
+  const span=hi-lo;if(!(span>0))return [];
+  const raw=span/5,p=Math.pow(10,Math.floor(Math.log(raw)/Math.LN10)),n=raw/p;
+  const step=(n<1.5?1:n<3?2:n<7?5:10)*p,out=[];
+  for(let v=Math.ceil(lo/step-1e-9)*step;v<=hi+1e-9;v+=step)out.push(+v.toFixed(6));
+  return out;}
+function rulerC(c,box,A,z0,z1,sd){
+  if(!(sd>0))return;
+  c.fillStyle=C.axtx;c.font='12px KaTeX_Main';c.textAlign='left';c.textBaseline='middle';
+  niceTicks(z0*sd,z1*sd).forEach(function(v){
+    const y=A.PY(v/sd);
+    if(y>=box.t-1&&y<=box.b+1)c.fillText(nice(v),box.r+5,y);});
+  c.save();c.translate(box.r+34,(box.t+box.b)/2);c.rotate(-Math.PI/2);
+  c.textAlign='center';c.textBaseline='bottom';c.fillText('°C',0,0);c.restore();}
+function series(c,arr,A,col,w){c.strokeStyle=col;c.lineWidth=w||1.3;c.beginPath();
+  let on=false;for(let i=0;i<arr.length;i++){const v=arr[i];if(!ok(v)){on=false;continue;}
+    const x=A.PX(i),y=A.PY(v);on?c.lineTo(x,y):c.moveTo(x,y);on=true;}c.stroke();}
+function vline(c,box,A,i,col){c.strokeStyle=col;c.lineWidth=1.4;c.setLineDash([4,4]);
+  c.beginPath();c.moveTo(A.PX(i),box.t);c.lineTo(A.PX(i),box.b);c.stroke();c.setLineDash([]);}
+function hline(c,box,A,v,col,dash){c.strokeStyle=col;c.lineWidth=1.5;if(dash)c.setLineDash(dash);
+  c.beginPath();c.moveTo(box.l,A.PY(v));c.lineTo(box.r,A.PY(v));c.stroke();c.setLineDash([]);}
+function pad(a,extra){const lo=Math.min.apply(null,a),hi=Math.max.apply(null,a);
+  const p=(hi-lo)*(extra||0.10)||1;return [lo-p,hi+p];}
+
+/* EVERY WORD DRAWN ON THE CANVAS IS RECORDED (RIT 2026-09-03: "ตัวหนังสือทับเส้นทับกราฟ").
+   One shim over fillText, installed for the duration of a draw, so tick numbers, axis labels
+   and annotations are all caught without a second list to keep in step. The gate reads TEXTS
+   and asks whether every word is big enough and whether any word sits on data or on another
+   word. Rotated strings are marked: their box is not axis-aligned and they live outside the
+   plot, so the overlap test skips them instead of guessing. */
+let TEXTS=[],ROT=false;
+function logText(c){
+  if(c.__logged)return;c.__logged=true;
+  const f=c.fillText.bind(c);
+  c.fillText=function(s,x,y){
+    const size=parseFloat(c.font)||12,w=c.measureText(s).width;
+    let x0=x;
+    if(c.textAlign==='center')x0=x-w/2; else if(c.textAlign==='right')x0=x-w;
+    let y0=y;
+    if(c.textBaseline==='middle')y0=y-size*0.55;
+    else if(c.textBaseline==='bottom')y0=y-size*0.85;
+    TEXTS.push({s:String(s),x:x0,y:y0,w:w,h:size*1.05,size:size,rot:ROT,
+                col:String(c.fillStyle)});
+    return f(s,x,y);};}
+function draw(){
+  const cv=document.getElementById('mC'),c=ctxOf(cv),W=cv.clientWidth,H=cv.clientHeight;
+  c.clearRect(0,0,W,H);
+  logText(c);TEXTS=[];
+  const L=58,R=W-14,T=16,B=H-32;
+  if(tab===T_MODE){
+    /* TWO VIEWS OF THE SAME HOURS (RIT 2026-08-31): the history in time, and the shape those
+       same hours make along the temperature axis. One shows that a mode is a stretch of hours;
+       the other shows why the algorithm could -- or could not -- tell them apart.
+
+       A MODE BELONGS TO AN HOUR, SO IT IS DRAWN BEHIND THE HOUR (RIT 2026-09-03). This used to
+       colour the LINE: the segment from hour i-1 to hour i took the colour of hour i, so every
+       segment that spans a mode change was painted entirely in the new mode's colour and every
+       boundary moved half an hour early, in the same direction, every time. It also implied
+       that the transition itself has a mode, and at k = 3 or 4 -- where the clustering is
+       slicing a continuum and assignments flip hour to hour -- it turned the history into a
+       barber pole that reads as noise. Tab 3 marks an hour as a DOT; this tab now agrees with
+       it. The machine holds a line-up for 6 to 12 hours at a stretch (see the generator above),
+       so the honest mark is a BAND behind the run, with the temperature drawn as one line on
+       top, and each mode's mean dashed across ITS OWN hours and no further.
+
+       THE TWO PANELS SHARE THE TEMPERATURE AXIS. The histogram is these hours seen along that
+       same axis, so it is turned on its side and set beside the time plot instead of under it:
+       the humps line up with the bands, the axis is labelled once instead of twice, and the
+       caption that used to explain what the lower panel was is not needed at all. */
+    const km=kmeans(K);
+    const HW=Math.max(96,Math.round((R-L)*0.24));
+    const box1={l:L,r:R-HW-18,t:T,b:B},box2={l:R-HW,r:R,t:T,b:B};
+    const ry1=pad(TEMP.slice(0,HIST),0.12);
+    const A1=axes(c,box1,0,HIST-1,ry1[0],ry1[1],'hour','temperature, °C');
+    /* the runs: stretches of consecutive hours the clustering put in the same mode */
+    const runs=[];
+    for(let i=0;i<HIST;i++){
+      const m=km.train[i];
+      if(runs.length&&runs[runs.length-1].m===m)runs[runs.length-1].b=i;
+      else runs.push({m:m,a:i,b:i});}
+    const mu=[],cnt=[];for(let j=0;j<K;j++){mu.push(0);cnt.push(0);}
+    for(let i=0;i<HIST;i++){mu[km.train[i]]+=TEMP[i];cnt[km.train[i]]++;}
+    for(let j=0;j<K;j++)if(cnt[j])mu[j]/=cnt[j];
+    c.save();c.beginPath();c.rect(box1.l,box1.t,box1.r-box1.l,box1.b-box1.t);c.clip();
+    const xe=function(v){return Math.max(box1.l,Math.min(box1.r,A1.PX(v)));};
+    runs.forEach(function(r){
+      c.fillStyle=MC(r.m);c.globalAlpha=0.13;
+      const x0=xe(r.a-0.5),x1=xe(r.b+0.5);
+      c.fillRect(x0,box1.t,x1-x0,box1.b-box1.t);});
+    c.globalAlpha=1;
+    series(c,TEMP.slice(0,HIST),A1,C.data,1.5);
+    c.setLineDash([6,4]);c.lineWidth=1.8;
+    runs.forEach(function(r){
+      if(!cnt[r.m])return;
+      c.strokeStyle=MC(r.m);
+      c.beginPath();c.moveTo(xe(r.a-0.5),A1.PY(mu[r.m]));
+      c.lineTo(xe(r.b+0.5),A1.PY(mu[r.m]));c.stroke();});
+    c.setLineDash([]);
+    c.restore();
+    /* the same hours along the same axis. STACKED BY MODE, never painted with the bin's
+       majority: a bin holding hours from two modes IS mixed, and collapsing it to one colour
+       made neighbouring bins flip at k = 3 until the shape stopped reading as a shape. (The
+       old majority also sorted the labels with a plain .sort(), which orders them as text.) */
+    {const lo=ry1[0],hi=ry1[1],NB=26,by=[];
+     for(let j=0;j<NB;j++)by.push(new Array(K).fill(0));
+     for(let i=0;i<HIST;i++){
+       const b=Math.max(0,Math.min(NB-1,Math.floor((TEMP[i]-lo)/(hi-lo)*NB)));
+       by[b][km.train[i]]++;}
+     const tall=Math.max.apply(null,by.map(function(v){
+       return v.reduce(function(a,b){return a+b;},0);}));
+     const top=Math.max(4,Math.ceil((tall+1)/4)*4);        /* whole-number ticks, always */
+     const A2=axes(c,box2,0,top,lo,hi,'hours',null,true);
+     const h=(box2.b-box2.t)/NB;
+     for(let j=0;j<NB;j++){
+       let acc=0;
+       for(let m=0;m<K;m++){
+         if(!by[j][m])continue;
+         c.fillStyle=MC(m);c.globalAlpha=0.75;
+         const y=A2.PY(lo+(j+0.5)*(hi-lo)/NB)-h*0.42;
+         c.fillRect(A2.PX(acc),y,A2.PX(acc+by[j][m])-A2.PX(acc),h*0.84);
+         acc+=by[j][m];}}
+     c.globalAlpha=1;}
+    return;}
+  const b=baseline(K);
+  const i0=(tab===T_MON)?HIST:0,i1=(tab===T_MON)?N:HIST;
+  const half=Math.floor((B-T-24)/2);
+  /* room on the right for the degree ruler on the residual panel; both rows end on the same
+     x so the two plots stay aligned */
+  const XR=R-40;
+  const box1={l:L,r:XR,t:T,b:T+half},box2={l:L,r:XR,t:T+half+24,b:B};
+  const seg=TEMP.slice(i0,i1).concat(b.exp.slice(i0,i1)).concat(tab===T_MON?[LIMIT_C]:[]);
+  const ry=pad(seg,0.12);
+  const A1=axes(c,box1,i0,i1-1,ry[0],ry[1],'','temperature, °C');
+  c.save();c.beginPath();c.rect(box1.l,box1.t,box1.r-box1.l,box1.b-box1.t);c.clip();
+  series(c,TEMP,A1,C.data,1.3);
+  series(c,b.exp,A1,C.exp,2.2);
+  c.restore();
+  if(tab===T_MON){hline(c,box1,A1,LIMIT_C,C.lim,[3,3]);vline(c,box1,A1,FAULT,C.fault);}
+  const zr=(tab===T_MON)?[-6,14]:[-6,6];
+  const A2=axes(c,box2,i0,i1-1,zr[0],zr[1],'hour','residual ÷ sd  (z)');
+  c.save();c.beginPath();c.rect(box2.l,box2.t,box2.r-box2.l,box2.b-box2.t);c.clip();
+  series(c,b.z,A2,C.data,1.3);
+  c.restore();
+  hline(c,box2,A2,LIMZ,C.lim,[7,4]);hline(c,box2,A2,-LIMZ,C.lim,[7,4]);
+  rulerC(c,box2,A2,zr[0],zr[1],b.sd);
+  if(tab===T_MON){
+    vline(c,box2,A2,FAULT,C.fault);
+    c.fillStyle=C.mark;
+    for(let i=HIST;i<N;i++)if(Math.abs(b.z[i])>=LIMZ){
+      const y=Math.max(box2.t,Math.min(box2.b,A2.PY(b.z[i])));
+      c.beginPath();c.arc(A2.PX(i),y,2.6,0,6.284);c.fill();}
+    if(b.first!==null){c.strokeStyle=C.alarm;c.lineWidth=1.8;c.setLineDash([3,3]);
+      c.beginPath();c.moveTo(A2.PX(b.first),box2.t);c.lineTo(A2.PX(b.first),box2.b);c.stroke();
+      c.setLineDash([]);}
+  }else{
+}
+}
+
+/* ---------------- the table ---------------- */
+function table(){
+  const thr=document.getElementById('thr'),tbb=document.getElementById('tbb');
+  thr.innerHTML='';tbb.innerHTML='';
+  document.getElementById('tbl').className='mtab'+(tab===T_MODE?'':' wide');
+  const th=function(t,cls){const e=document.createElement('th');if(cls)e.className=cls;K_(t,e);return e;};
+  const td=function(t,cls){const e=document.createElement('td');if(cls)e.className=cls;K_(t,e);return e;};
+  const head=function(cols){cols.forEach(function(h){const e=th(h[0]);
+    if(h[1])e.style.textAlign='right';thr.appendChild(e);});};
+  /* every tab reads the same four rows -- k = 1, 2, 3, 4 -- so one choice is followed all the
+     way from the split to the alarm. Row k = 1 is Day 3's mean baseline. */
+  const rows=KS.map(function(k){
+    const km=kmeans(k),n=new Array(k).fill(0);
+    for(let i=0;i<HIST;i++)n[km.train[i]]++;
+    return {k:k,n:n,r:baseline(k)};});
+  const kcell=function(r){return th('\\text{'+r.k+'}');};
+  if(tab===T_MODE){
+    /* THE MEAN OF EACH MODE IS THE BASELINE, AND IT GETS ITS OWN COLUMN (RIT, ordered twice --
+       2026-09-03). Until now the page never showed these numbers anywhere: a learner could read
+       that two modes fit tighter without ever seeing that the two centres are eight degrees
+       apart, which is the whole reason they do.
+
+       ONE COLUMN PER MODE, and a row that has fewer modes leaves the rest BLANK -- k = 1 fills
+       `mean 1` and nothing else, which is RIT's own description of what he wanted and is the
+       truth about that row: there is no second mode, so there is no second mean, and a blank
+       says that where a dash or a zero would not. Blank cells are already how this project
+       writes an absent value (deck rule, 2026-08-31). Reading DOWN a mean column is then the
+       thing the old single cell could not offer: `mean 1` walks 65.0 -> 69.1 -> 60.9 as k
+       grows, and at k = 3 on the two-mode machine `mean 2` and `mean 3` land 68.4 and 69.8 --
+       1.4 degrees apart against the 8.2 that separates the real levels, which is the table
+       saying the third mode was invented. The mean columns are in the same index order as the
+       hours beside them, so the counts and the centres line up value for value. */
+    const KMAX=Math.max.apply(null,KS);
+    /* `hours per mode` was cut on RIT's word (2026-09-03): the mean columns already say how
+       many modes a row has and where each one sits, and nothing on the page acts on the count
+       of hours behind them. */
+    const hd=[['\\text{modes }(k)',0]];
+    for(let j=1;j<=KMAX;j++)hd.push(['\\text{mean }'+j+',\\ ^\\circ\\text{C}',1]);
+    hd.push(['\\text{residual sd},\\ ^\\circ\\text{C}',1]);
+    head(hd);
+    rows.forEach(function(r){
+      const tr=document.createElement('tr');
+      if(r.k===K)tr.className='sel';
+      tr.appendChild(kcell(r));
+      for(let j=0;j<KMAX;j++)
+        tr.appendChild(td(j<r.r.mu.length?r.r.mu[j].toFixed(1):''));
+      tr.appendChild(td(r.r.sd.toFixed(2)));
+      tbb.appendChild(tr);});
+    return;}
+  if(tab===T_BASE){
+    /* the sd column falls with every k whatever the machine is -- that is arithmetic, not a
+       finding. `mode drift` is the column that answers it: how far the modes MOVE when the
+       same machine is clustered on another week. Real modes stay put; invented ones wander. */
+    const ST=machineStats(mach);
+    head([['\\text{modes }(k)',0],['\\text{residual sd},\\ ^\\circ\\text{C}',1],
+          ['\\text{control limit},\\ ^\\circ\\text{C}',1],
+          ['\\text{mode drift over 40 weeks},\\ ^\\circ\\text{C}',1]]);
+    let bi=0,bv=Infinity;
+    KS.forEach(function(k,i){if(ST[k].drift<bv){bv=ST[k].drift;bi=i;}});
+    rows.forEach(function(r,i){
+      const tr=document.createElement('tr');
+      if(r.k===K)tr.className='sel';
+      tr.appendChild(kcell(r));
+      tr.appendChild(td(r.r.sd.toFixed(2)));
+      tr.appendChild(td('\\pm '+r.r.limitC.toFixed(2)));
+      tr.appendChild(td(ST[r.k].drift.toFixed(2),i===bi?'win':''));
+      tbb.appendChild(tr);});
+    return;}
+  /* WHAT RAISING k BUYS, AND WHAT IT COSTS (RIT 2026-09-03). This tab used to print delay,
+     lead and recall only, and on the opening week those read 3 / 17 / 63 at k = 2, 3 and 4
+     alike: three rows saying that assuming four modes is exactly as good as assuming two, and
+     no column anywhere saying otherwise.
+
+     `false alarms, h` is what the baseline did to the 24 QUIET test hours -- the cost, in the
+     same unit as everything else here. With recall it accounts for every hour of the test
+     half. Measured over 40 weeks, raising k from 2 to 3 takes the weeks carrying at least one
+     false alarm from 30% to 50%; on many single weeks, the opening one among them, it is 0 at
+     every k, and that is the honest reading of that week rather than a gap to paper over.
+
+     A `smallest mode, h` column sat here for one revision and was CUT (RIT, same day).
+     Measured over 120 machine-weeks it failed on its own terms: it rises with k in 9 of them
+     (levels seed 4 reads 48 / 13 / 6 / 8), so a column put there to say "every extra mode is
+     fitted on less" argues against itself about one week in thirteen. It was also a property
+     of the fit on a tab about monitoring, and tab 1's `hours per mode` already carries the
+     same numbers. */
+  const ST=machineStats(mach);
+  head([['\\text{modes }(k)',0],
+        ['\\text{detection delay, h}',1],['\\text{lead vs 75 °C, h}',1],
+        ['\\text{precision, \\%}',1],['\\text{recall, \\%}',1],
+        ['\\text{false-alarm weeks, \\%}',1]]);
+  /* ONE WINNER: THE FEWEST MODES THAT REACH THE EARLIEST ALARM. The mark used to go to EVERY
+     row that tied on the earliest delay, so k = 2, 3 and 4 all came up green and the table
+     recommended nothing. The outcome still decides first -- the earliest alarm, never the
+     tightest fit -- and among the rows that reach it, the winner is the one that assumed the
+     least. It reads straight off the k column, with no number hidden behind it; the rule this
+     replaces picked by hours-behind-the-thinnest-mode and agreed with this one on all 120
+     machine-weeks measured, so nothing about the verdict changed, only what has to be shown
+     to justify it. On the single-mode machine every k ties on delay and the mark lands on
+     k = 1, which is the true answer there. */
+  /* EARLIEST ALARM, THEN THE MOST OF THE FAULT CAUGHT, THEN THE FEWEST MODES (RIT
+     2026-09-04, after the fault was cut to the size the course uses). Delay alone stopped
+     discriminating: a small fault is caught in the first hour by every k that is enough, so
+     three machines all recommended 2. Recall breaks that tie the way an operator would. */
+  let bv=Infinity;
+  rows.forEach(function(r){if(r.r.delay!==null&&r.r.delay<bv)bv=r.r.delay;});
+  let bestRec=-1;
+  rows.forEach(function(r){if(r.r.delay===bv&&r.r.rec>bestRec)bestRec=r.r.rec;});
+  let best=null;
+  rows.forEach(function(r){
+    if(r.r.delay!==bv||r.r.rec<bestRec-1e-9)return;
+    if(best===null||r.k<best.k)best=r;});
+  rows.forEach(function(r){
+    const tr=document.createElement('tr');
+    if(r.k===K)tr.className='sel';
+    const w=(r===best);
+    tr.appendChild(th('\\text{'+r.k+'}',w?'win':''));
+    tr.appendChild(td(r.r.delay===null?'\\text{never}':String(r.r.delay),
+                      r.r.delay===null?'bad':(w?'win':'')));
+    tr.appendChild(td(r.r.lead===null?'\\text{--}':String(r.r.lead),
+                      (r.r.lead!==null&&r.r.lead>0)?'win':'bad'));
+    tr.appendChild(td(r.r.prec===null?'\\text{--}':String(Math.round(100*r.r.prec))));
+    tr.appendChild(td(String(Math.round(100*r.r.rec))));
+    /* the cost, over 40 weeks: a one-week count of quiet-hour alarms is 0 or 1 and carries
+       nothing. Marked red on every row that false-alarms in more weeks than the recommended
+       k does -- which is what "more modes is not free" looks like as a number. */
+    tr.appendChild(td(String(Math.round(100*ST[r.k].faWeeks)),
+                      (best&&ST[r.k].faWeeks>ST[best.k].faWeeks)?'bad':
+                      (r===best?'win':'')));
+    tbb.appendChild(tr);});
+}
+
+/* ---------------- rail, tabs, wiring ---------------- */
+function paint(name,v){document.querySelectorAll('.seg[data-for="'+name+'"] button').forEach(function(b){
+  const on=b.getAttribute('data-val')===String(v);
+  b.style.background=on?'#1e3a8a':'#fff';b.style.color=on?'#fff':'#555';});}
+/* the two halves of the k slicer always show the number that is actually drawn */
+function paintK(){const r=document.getElementById('kRange'),n=document.getElementById('kNum');
+  if(r)r.value=String(K);
+  if(n&&n.value!==String(K))n.value=String(K);}
+function setK(v,commit){
+  /* applied only when it IS one of the four; on commit anything else is pulled back into
+     range, so the box can never disagree with the picture */
+  let k=Math.round(Number(v));
+  if(!isFinite(k)){if(commit)paintK();return;}
+  k=Math.max(1,Math.min(4,k));
+  if(k===K){if(commit)paintK();return;}
+  K=k;paintK();refresh();}
+function syncRows(){
+  const set=function(id,st){const e=document.getElementById(id);
+    e.classList.toggle('off',st==='hide');e.classList.toggle('lock',st==='lock');};
+  set('c-machine','live');
+  set('c-k','live');            /* k is the lever of the whole day: it reaches detection delay */
+}
+function refresh(){syncRows();regen();draw();table();}
+function setSeg(name,v){
+  const row={machine:'c-machine'}[name];
+  if(document.getElementById(row).classList.contains('lock'))return;
+  if(name==='machine')mach=v;
+  paint(name,v);refresh();}
+function applyTab(i){tab=i;
+  document.querySelectorAll('.tabbtn').forEach(function(b,j){b.className='tabbtn'+(j===i?' on':'');});
+  refresh();}
+const TABS=[{name:'\\text{1. Modes}'},{name:'\\text{2. Baseline}'},{name:'\\text{3. Monitoring}'}];
+['machine'].forEach(function(nm){
+  document.querySelectorAll('.seg[data-for="'+nm+'"] button').forEach(function(b){
+    b.addEventListener('click',function(){setSeg(nm,b.getAttribute('data-val'));});});});
+{const r=document.getElementById('kRange'),n=document.getElementById('kNum');
+ r.addEventListener('input',function(){setK(r.value,false);});
+ /* while typing, a whole number in range takes effect at once; on commit (blur, Enter, the
+    spinner) whatever is left in the box is clamped and written back */
+ n.addEventListener('input',function(){
+   const v=n.value.trim();
+   if(/^[1-4]$/.test(v))setK(v,false);});
+ n.addEventListener('change',function(){setK(n.value,true);});
+ n.addEventListener('blur',function(){setK(n.value,true);});
+ n.addEventListener('keydown',function(e){if(e.key==='Enter')setK(n.value,true);});}
+document.getElementById('resetBtn').addEventListener('click',function(){seed++;refresh();});
+window.addEventListener('resize',function(){draw();});
+const tb=document.getElementById('tabs');
+TABS.forEach(function(T,i){const b=document.createElement('button');b.className='tabbtn';
+  (window.katex?katex.render(T.name,b,{throwOnError:false}):(b.textContent=T.name));
+  b.onclick=function(){applyTab(i);};tb.appendChild(b);});
+paint('machine',mach);paintK();
+applyTab(T_MODE);
+
+window.LAB={
+  read:function(){
+    const o={tab:tab,machine:mach,k:K,seed:seed,
+             n:N,hist:HIST,faultStart:FAULT,limitC:LIMIT_C,modes:{}};
+    /* one entry per k, carrying everything all three tabs print for that row */
+    const ST=machineStats(mach);
+    for(const k of KS){
+      const km=kmeans(k),n=new Array(k).fill(0);
+      for(let i=0;i<HIST;i++)n[km.train[i]]++;
+      const r=baseline(k);
+      o.modes[k]={drift:+ST[k].drift.toFixed(4),faWeeks:+ST[k].faWeeks.toFixed(4),sizes:n,
+                  prec:r.prec===null?null:+r.prec.toFixed(4),means:r.mu.map(function(v){return +v.toFixed(4);}),
+                  smallest:r.smallest,fp:r.fp,
+                  sd:+r.sd.toFixed(4),limitC:+r.limitC.toFixed(4),
+                  delay:r.delay,lead:r.lead,rec:+r.rec.toFixed(4),
+                  first:r.first,t75:r.t75};}
+    o.texts=TEXTS.map(function(t){return {s:t.s,x:+t.x.toFixed(1),y:+t.y.toFixed(1),w:+t.w.toFixed(1),h:+t.h.toFixed(1),size:t.size,rot:t.rot,col:t.col};});
+    return o;},
+  set:function(o){
+    /* a name this page does not have is ignored, not obeyed: a caller's typo must not
+       take the figure down */
+    if(o.machine!=null&&MODEDEF[o.machine]){mach=o.machine;paint('machine',mach);}
+    if(o.k!=null){K=Math.max(1,Math.min(4,Math.round(+o.k)));paintK();}
+    if(o.seed!=null)seed=+o.seed;
+    if(o.tab!=null)applyTab(o.tab); else refresh();}};
+(function(){const mC=document.getElementById('mC');
+  function fix(){if(mC.clientWidth>0&&(Math.abs(mC.width-Math.round(mC.clientWidth))>0.6||
+    Math.abs(mC.height-Math.round(mC.clientHeight))>0.6))draw();}
+  if(window.ResizeObserver){const ro=new ResizeObserver(function(){fix();});ro.observe(mC);}
+  requestAnimationFrame(function(){requestAnimationFrame(fix);});})();
+</script>
+<script>document.addEventListener("DOMContentLoaded",function(){if(window.renderMathInElement)renderMathInElement(document.body,{delimiters:[{left:"\\(",right:"\\)",display:false},{left:"$$",right:"$$",display:true}],throwOnError:false});});</script>
+<script>(function(){if(!window.katex)return;var t=document.getElementById("__pgt");if(t)try{katex.render(t.getAttribute("data-tex"),t,{throwOnError:false});}catch(e){}})();</script>
+</body>
+</html>
