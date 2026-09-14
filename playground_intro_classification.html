@@ -20,7 +20,7 @@
   .distcls .below{min-height:0;padding:6px 14px 8px}
   .tblbox{min-width:0;width:100%}
   .pg .mtab{margin:0}
-  .pg .mtab th,.pg .mtab td{padding:4px 7px;font-size:13px}
+  .pg .mtab th,.pg .mtab td{padding:7px 10px;font-size:15px}   /* = ขนาด .mtab กลางที่ 1-D Bayes ใช้ (15px) */
   .pg .mtab th,.pg .mtab td{vertical-align:top;line-height:1.45}          /* หัวกับตัวจัดแนวเดียวกัน */
   .pg .mtab th{white-space:normal}
   .pg .mtab th.r{text-align:right}                                   /* หัวคอลัมน์ตัวเลขชิดขวาเท่าตัวตาราง */
@@ -281,10 +281,8 @@
   // คอลัมน์ P̂ = ตัวโมเดลที่ fit ได้ (สมการ)
   function modelCell(key,f){
     if(f.linear)return lines(['\\sigma('+fx(f.W)+'\\,x'+(f.B>=0?'+':'-')+fx(Math.abs(f.B))+')']);
-    if(key==='knn')return lines(['\\tfrac{1}{'+f.k+'}\\sum_{i\\in N_{'+f.k+'}(x)}y_i']);
-    var R=f.rules,out=[];   // tree: P̂ ต่อช่วง (ใบ)
-    R.forEach(function(r,i){out.push(((i===0)?'x<'+fx(r.hi):(i===R.length-1)?'\\text{else}':'x<'+fx(r.hi))+':\\ '+fx(r.p));});
-    return lines(out);}
+    return '';   // KNN / tree: ไม่ใส่ model — ใช้ rule อย่างเดียว
+  }
   // คอลัมน์ rule = กฎตัดสิน y ชัด ๆ (if … then y = positive / else y = negative)
   function ruleCell(key,f){
     if(f.linear){ // σ(Wx+B) > 1/2 ⇔ Wx+B > 0 ⇔ x ≷ -B/W
