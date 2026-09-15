@@ -164,31 +164,7 @@
     </div>
   </div>
 
-  <!-- ===== summary ===== -->
-  <div class="summary" id="summaryPanel">
-    <div class="secttl" id="s-found"></div>
-    <div class="found">
-      <div class="frow"><span class="fl" id="fl-target"></span><span class="fe" id="fe-target"></span></div>
-      <div class="frow"><span class="fl" id="fl-rule"></span><span class="fe" id="fe-rule"></span></div>
-      <div class="frow"><span class="fl" id="fl-bayes"></span><span class="fe" id="fe-bayes"></span></div>
-      <div class="frow"><span class="fl" id="fl-est"></span><span class="fe" id="fe-est"></span></div>
-    </div>
-    <div class="secttl" id="s-split"></div>
-    <table class="stab">
-      <tr><th></th><th id="th-par"></th><th id="th-npar"></th></tr>
-      <tr>
-        <th id="th-disc" style="text-align:right;white-space:nowrap"></th>
-        <td><span class="tag" style="background:#1e3a8a">Logistic</span><div class="eq" id="c-log"></div><div class="note" id="n-log"></div></td>
-        <td><span class="tag" style="background:#1e3a8a">KNN</span><div class="eq" id="c-knn"></div><div class="note" id="n-knn"></div></td>
-      </tr>
-      <tr>
-        <th id="th-gen" style="text-align:right;white-space:nowrap"></th>
-        <td><span class="tag" style="background:#1e3a8a">Naive Bayes</span><div class="eq" id="c-nb"></div><div class="note" id="n-nb"></div></td>
-        <td><span class="tag" style="background:#1e3a8a">Tree</span><div class="eq" id="c-tree"></div><div class="note" id="n-tree"></div></td>
-      </tr>
-    </table>
-    <p class="ref" id="ref"></p>
-  </div>
+  <div class="summary" id="summaryPanel"></div>
 </div>
 
 <script>
@@ -289,8 +265,7 @@
     {n:'Univariate',     dim:1, groups:['pos','neg','share','model','rs'], rows:['mu1','s1','mu0','s0','p1','n']},
     {n:'Bivariate',      dim:2, groups:['pos','neg','share','model','rs'], rows:['mu1','muy1','s1','mu0','muy0','s0','p1','n']},
     {n:'PDM univariate', dim:1, pdm:PDM1, groups:['ds','share','model','rs'], rows:['sev','n']},
-    {n:'PDM bivariate',  dim:2, pdm:PDM2, groups:['ds','share','model','rs'], rows:['sev','n']},
-    {n:'Summary', summary:true}];
+    {n:'PDM bivariate',  dim:2, pdm:PDM2, groups:['ds','share','model','rs'], rows:['sev','n']}];
   var MC='#1e3a8a',Rd='#B0503A',Bl='#3F6E99';
   var MODELS=[{key:'logistic',name:'Logistic regression'},{key:'nb',name:'Naive Bayes'},{key:'knn',name:'KNN'},{key:'tree',name:'Decision tree'}];
   function gv(b){return parseFloat(document.getElementById('R'+b).value);}
