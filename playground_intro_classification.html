@@ -157,7 +157,7 @@
       <div class="dhd" id="hd-hp"></div>
       <div class="dgrid" id="grid-hp">
         <div class="drow" id="row-k"><span class="dlab" id="lbl-k"></span><input type="range" id="Rk" min="1" max="31" step="2" value="7"><input class="num" type="number" id="Nk" min="1" max="31" step="2" value="7"></div>
-        <div class="drow" id="row-depth"><span class="dlab" id="lbl-depth"></span><input type="range" id="Rdepth" min="1" max="6" step="1" value="1"><input class="num" type="number" id="Ndepth" min="1" max="6" step="1" value="1"></div>
+        <div class="drow" id="row-depth"><span class="dlab" id="lbl-depth"></span><input type="range" id="Rdepth" min="1" max="3" step="1" value="1"><input class="num" type="number" id="Ndepth" min="1" max="3" step="1" value="1"></div>
         <div class="drow hid" id="row-hpblank"><span class="dlab">&nbsp;</span><input type="range" disabled><input class="num" type="number" disabled></div>
       </div>
       </div>
@@ -488,7 +488,7 @@
     for(k=0;k<X.length;k++){var pr=f1.post(X[k])>0.5;if(ys[k]){if(pr)TP++;else FN++;}else{if(pr)FP++;else TN++;}}
     if(f1.xstar.length){Tmain=f1.xstar[0];for(k=1;k<f1.xstar.length;k++){if(Math.abs(f1.xstar[k]-S.mid)<Math.abs(Tmain-S.mid))Tmain=f1.xstar[k];}}
     var DP={dim:D,xmin:S.xmin,xmax:S.xmax,ymin:S.ymin,ymax:S.ymax,X:X,ys:ys,m:f1,TP:TP,FN:FN,FP:FP,TN:TN,Tmain:Tmain,ax:S.ax};
-    fillCM(DP);draw(DP);fillTable(F,S.sym,S.dec);fillLegend();
+    fillCM(DP);sizeCanvas();draw(DP);fillTable(F,S.sym,S.dec);fillLegend();   // sizeCanvas หลัง fillCM: สลับ 1-D↔2-D กล่องกราฟเปลี่ยนรูปทรง ต้องตั้งบัฟเฟอร์ใหม่ก่อนวาด (ไม่งั้นภาพยืด)
     if(fitPlot()){sizeCanvas();draw(DP);}
   }
   function fitPlot(){var pn=document.querySelector('.panel'),st=document.querySelector('.stage'),cb=document.querySelector('.canvasbox');
