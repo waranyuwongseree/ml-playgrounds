@@ -31,6 +31,11 @@
   .exright{flex:1 1 auto;min-width:0;display:flex;flex-direction:column;gap:8px}
   .excv{height:160px}.excv.post{height:130px}
   .excv canvas{width:100%;height:100%;display:block;border:1px solid var(--line);border-radius:10px;background:#fff}
+  /* ป้าย KaTeX ทับ canvas (ตัวแปร/ตัวห้อย/ชื่อแกน) — ขนาดเท่าฟอนต์ canvas 13px */
+  .canvasbox,.excv{position:relative}
+  .cvlab{position:absolute;left:0;top:0;width:100%;height:100%;pointer-events:none;overflow:hidden;font-size:13px;line-height:1}
+  .cvlab>span{position:absolute;white-space:nowrap;color:rgba(90,90,90,0.9)}   /* เฉพาะลูกตรง — ห้ามโดน span ภายในของ KaTeX */
+  .cvlab .katex{font-size:1em}
   /* กล่องคำนวณ: แต่ละบรรทัด = ชิ้น KaTeX หลายชิ้น ตัดบรรทัดระหว่างชิ้นได้ (ไม่ตัดกลางสมการ) → ไม่ถูกตัดทิ้ง */
   .excalc{background:#fff;border:1px solid var(--line);border-radius:12px;padding:8px 14px;font-size:14px;line-height:1.5;overflow:hidden}
   .excalc .ln{display:block;white-space:normal;margin:2px 0}
@@ -185,7 +190,7 @@
 
   // ---------- Example (สไลด์ PSA) — เริ่มด้วยข้อมูลสไลด์ 14 ค่า; แตะ μ/σ/n หรือ Resample → สุ่มจาก normal ----------
   var SLIDE={pos:[4.1,3.4,2.9,2.8,2.7,2.1,1.6],neg:[2.5,2.0,1.7,1.4,1.2,0.9,0.8]};
-  var EX={xmin:0,xmax:5,ax:'PSA (\u00b5g/L)  x',fixed:true,pos:SLIDE.pos.slice(),neg:SLIDE.neg.slice()};
+  var EX={xmin:0,xmax:5,ax:'x=\\text{PSA }(\\mu\\text{g/L})',fixed:true,pos:SLIDE.pos.slice(),neg:SLIDE.neg.slice()};
   function msd(a){var m=0,s=0,i;for(i=0;i<a.length;i++)m+=a[i];m/=a.length;for(i=0;i<a.length;i++)s+=(a[i]-m)*(a[i]-m);return [m,Math.sqrt(s/Math.max(1,a.length-1))];}
   function exBuild(){ // ข้อมูล → สถิติ → pdf ต่อคลาส → posterior (per-class s แบบสไลด์) → LDA (s รวม) → threshold
     if(!EX.fixed){var m1=gv('mu1'),m0=gv('mu0'),s=gv('s1'),n=7,k;   // n fix = 7 ต่อคลาส · σ ร่วม
@@ -214,10 +219,12 @@
     var raw=D4RAW[name],n=raw.n,col={};Object.keys(raw.col).forEach(function(k){col[k]=dcol(raw.col[k],n);});
     var bad=new Uint8Array(n);for(var i=0;i<n;i++)bad[i]=(raw.truth.charCodeAt(i)===49)?1:0;
     return(_cache[name]={name:name,n:n,col:col,bad:bad});}
-  var PDM1=[{ds:'along_the_model',f:['bearing_temp_c'],lab:'Along the model',ax:['x = bearing temperature (°C)']},
-            {ds:'broken_relation',f:['bearing_temp_c'],lab:'Broken relation',ax:['x = bearing temperature (°C)']}];
-  var PDM2=[{ds:'broken_relation',f:['flow_m3h','discharge_pressure_bar'],lab:'Broken relation',ax:['x1 = flow (m3/h)','x2 = discharge pressure (bar)']},
-            {ds:'along_the_model',f:['flow_m3h','motor_current_a'],       lab:'Along the model',ax:['x1 = flow (m3/h)','x2 = motor current (A)']}];
+  // ชื่อแกน = LaTeX (วาดเป็น KaTeX overlay ทับ canvas)
+  var AXT='x=\\text{bearing temperature }(^\\circ\\text{C})',AXF='x_1=\\text{flow }(\\text{m}^3/\\text{h})';
+  var PDM1=[{ds:'along_the_model',f:['bearing_temp_c'],lab:'Along the model',ax:[AXT]},
+            {ds:'broken_relation',f:['bearing_temp_c'],lab:'Broken relation',ax:[AXT]}];
+  var PDM2=[{ds:'broken_relation',f:['flow_m3h','discharge_pressure_bar'],lab:'Broken relation',ax:[AXF,'x_2=\\text{discharge pressure (bar)}']},
+            {ds:'along_the_model',f:['flow_m3h','motor_current_a'],       lab:'Along the model',ax:[AXF,'x_2=\\text{motor current (A)}']}];
 
   // ---------- estimators ----------
   function fitLogistic(X,ys){var n=X.length,D=X[0].length,i,d,mu=[],sd=[];
@@ -330,7 +337,16 @@
   function sizeCanvas(){if(!cv)return;var w=Math.round(cv.clientWidth)||640,h=Math.round(cv.clientHeight)||322,dpr=window.devicePixelRatio||1;
     W=w;H=h;SC=dpr;cv.width=Math.round(w*dpr);cv.height=Math.round(h*dpr);}
   function prep(c){var w=Math.round(c.clientWidth)||600,h=Math.round(c.clientHeight)||180,dpr=window.devicePixelRatio||1;
-    c.width=Math.round(w*dpr);c.height=Math.round(h*dpr);var g=c.getContext('2d');g.setTransform(dpr,0,0,dpr,0,0);g.clearRect(0,0,w,h);return {g:g,W:w,H:h};}
+    c.width=Math.round(w*dpr);c.height=Math.round(h*dpr);var g=c.getContext('2d');g.setTransform(dpr,0,0,dpr,0,0);g.clearRect(0,0,w,h);return {g:g,W:w,H:h,c:c};}
+  // ป้ายในกราฟที่มีตัวแปร/ตัวห้อย (x, x_0, x̄_+, P(y=+|x), ชื่อแกน) → KaTeX overlay ทับ canvas: ฟอนต์ตรงกับสมการทุกจุด ไม่ใช่ตัวอักษรธรรมดา
+  // พิกัดเดียวกับ canvas (CSS px) · align = left/center/right · vt = baseline(ค่าเริ่มต้น, ตรงกับ textBaseline alphabetic)/middle/top
+  function labs(c){var p=c.parentElement,Ly=p.querySelector('.cvlab');if(!Ly){Ly=document.createElement('div');Ly.className='cvlab';p.appendChild(Ly);}Ly.innerHTML='';
+    var ox=c.clientLeft||0,oy=c.clientTop||0;
+    return function(tex,x,y,o){o=o||{};var s=document.createElement('span');K(tex,s);if(o.color)s.style.color=o.color;
+      var pr=document.createElement('span');pr.style.cssText='display:inline-block;width:0;height:0;vertical-align:baseline';s.appendChild(pr);   // probe: อยู่บน baseline พอดี
+      s.style.left=(x+ox)+'px';s.style.top='0px';s.style.transform='translateX('+(o.align==='right'?'-100%':o.align==='center'?'-50%':'0')+')';Ly.appendChild(s);
+      var sr=s.getBoundingClientRect(),base=pr.getBoundingClientRect().top-sr.top;   // ระยะ baseline จากขอบบนของป้าย (วัดจริง ไม่เดา %)
+      s.style.top=(oy+(o.vt==='middle'?y-sr.height/2:o.vt==='top'?y:y-base))+'px';};}
   function niceStep(lo,hi){var raw=(hi-lo)/6,p=Math.pow(10,Math.floor(Math.log10(raw))),m=raw/p,s=(m<1.5?1:m<3.5?2:m<7.5?5:10)*p;
     return {step:s,dec:Math.max(0,-Math.floor(Math.log10(s)+1e-9))};}
   function drawExPdf(x0){var c=prep(document.getElementById('cvpdf')),g=c.g,W=c.W,H=c.H;
@@ -344,16 +360,16 @@
     g.strokeStyle='rgba(128,128,128,0.6)';g.lineWidth=1;g.beginPath();g.moveTo(L,base);g.lineTo(L+pw,base);g.stroke();
     g.fillStyle='rgba(128,128,128,0.9)';g.font='13px KaTeX_Main,serif';g.textAlign='center';g.textBaseline='alphabetic';
     for(var a=Math.ceil(xmin);a<=xmax;a+=1)g.fillText(a,px(a),base+15);
-    g.textAlign='right';g.fillStyle='rgba(90,90,90,0.9)';g.fillText(EX.ax,L+pw,base+29);
-    g.textAlign='left';g.fillText('f(x | c)',L+4,TOP-9);   // สัญลักษณ์เดียวกับสมการในกล่องคำนวณ
+    var lb=labs(c.c);lb(EX.ax,L+pw,base+29,{align:'right'});
+    lb('f(x\\mid c)',L+4,TOP-9);   // สัญลักษณ์เดียวกับสมการในกล่องคำนวณ
     EX.neg.forEach(function(x){g.fillStyle='rgba(91,143,185,0.9)';g.beginPath();g.arc(px(x),base-5,4.5,0,7);g.fill();});
     EX.pos.forEach(function(x){g.fillStyle='rgba(224,122,95,0.9)';g.beginPath();g.arc(px(x),base-5,4.5,0,7);g.fill();});
-    g.textAlign='center';g.fillStyle='#3F6E99';g.fillText('x\u0304\u208B = '+EX.sn[0].toFixed(1)+'  s\u208B = '+EX.sn[1].toFixed(2),px(EX.sn[0]),py(EX.fn(EX.sn[0]))-6);
-    g.fillStyle='#B0503A';g.fillText('x\u0304\u208A = '+EX.sp[0].toFixed(1)+'  s\u208A = '+EX.sp[1].toFixed(2),px(EX.sp[0]),py(EX.fp(EX.sp[0]))-6);
+    lb('\\bar x_-='+EX.sn[0].toFixed(1)+',\\ s_-='+EX.sn[1].toFixed(2),px(EX.sn[0]),py(EX.fn(EX.sn[0]))-6,{align:'center',color:'#3F6E99'});
+    lb('\\bar x_+='+EX.sp[0].toFixed(1)+',\\ s_+='+EX.sp[1].toFixed(2),px(EX.sp[0]),py(EX.fp(EX.sp[0]))-6,{align:'center',color:'#B0503A'});
     var xq=px(x0);g.strokeStyle='#444';g.setLineDash([5,4]);g.lineWidth=1.4;g.beginPath();g.moveTo(xq,TOP-2);g.lineTo(xq,base);g.stroke();g.setLineDash([]);
     g.fillStyle='#444';g.beginPath();g.arc(xq,base-5,5.5,0,7);g.fill();g.strokeStyle='#fff';g.lineWidth=1.5;g.stroke();
     [[EX.fp,'#B0503A'],[EX.fn,'#3F6E99']].forEach(function(q){g.fillStyle=q[1];g.beginPath();g.arc(xq,py(q[0](x0)),4,0,7);g.fill();});
-    g.textAlign='center';g.fillStyle='#444';g.fillText('x\u2080 = '+x0.toFixed(1),xq,base+29);}   // \u0e1b\u0e49\u0e32\u0e22 x0 \u0e43\u0e15\u0e49\u0e01\u0e23\u0e32\u0e1f \u0e15\u0e23\u0e07\u0e40\u0e2a\u0e49\u0e19\u0e1b\u0e23\u0e30
+    lb('x_0='+x0.toFixed(1),xq,base+29,{align:'center',color:'#444'});}   // \u0e1b\u0e49\u0e32\u0e22 x0 \u0e43\u0e15\u0e49\u0e01\u0e23\u0e32\u0e1f \u0e15\u0e23\u0e07\u0e40\u0e2a\u0e49\u0e19\u0e1b\u0e23\u0e30
   function drawExPost(x0){var c=prep(document.getElementById('cvpost')),g=c.g,W=c.W,H=c.H;
     var L=40,Rm=14,pw=W-L-Rm,TOP=22,BOT=34,ph=H-TOP-BOT,xmin=EX.xmin,xmax=EX.xmax,i;
     function px(x){return L+(x-xmin)/(xmax-xmin)*pw;} function py(p){return TOP+(1-p)*ph;}
@@ -361,16 +377,16 @@
     [0,0.5,1].forEach(function(p){g.strokeStyle=p===0.5?'rgba(17,17,17,0.55)':'rgba(128,128,128,0.35)';g.lineWidth=1;if(p===0.5)g.setLineDash([5,4]);
       g.beginPath();g.moveTo(L,py(p));g.lineTo(L+pw,py(p));g.stroke();g.setLineDash([]);g.fillStyle='rgba(90,90,90,0.9)';g.textAlign='right';g.fillText(p===0.5?'0.5':String(p),L-6,py(p));});
     g.textBaseline='alphabetic';g.textAlign='center';g.fillStyle='rgba(128,128,128,0.9)';for(var a=Math.ceil(xmin);a<=xmax;a+=1)g.fillText(a,px(a),py(0)+14);
-    g.textAlign='left';g.fillStyle='rgba(90,90,90,0.9)';g.fillText('P(cancer | x)',L+4,TOP-8);   // สัญลักษณ์เดียวกับสมการ
+    var lb=labs(c.c);lb('P(\\text{cancer}\\mid x)',L+4,TOP-8);   // สัญลักษณ์เดียวกับสมการ
     var N=300,dx=(xmax-xmin)/N;g.strokeStyle=MC;g.lineWidth=2.2;g.beginPath();
     for(i=0;i<=N;i++){var x=xmin+i*dx;i===0?g.moveTo(px(x),py(EX.post(x))):g.lineTo(px(x),py(EX.post(x)));}g.stroke();
     // threshold = จุดที่ P(cancer|x) = 0.5 ของเส้นที่วาด (ป้ายไว้ด้านบน ไม่ชนป้าย x0 ด้านล่าง)
     var xs=crossings1(function(v){return EX.post(v[0]);},xmin,xmax);g.strokeStyle='#111';g.fillStyle='#111';g.lineWidth=1.6;g.textAlign='center';
-    xs.forEach(function(r){g.setLineDash([5,4]);g.beginPath();g.moveTo(px(r),py(1));g.lineTo(px(r),py(0));g.stroke();g.setLineDash([]);g.fillText('threshold = '+r.toFixed(2),px(r),TOP-8);});
+    xs.forEach(function(r){g.setLineDash([5,4]);g.beginPath();g.moveTo(px(r),py(1));g.lineTo(px(r),py(0));g.stroke();g.setLineDash([]);lb('\\text{threshold}='+r.toFixed(2),px(r),TOP-8,{align:'center',color:'#111'});});
     var xq=px(x0),p0=EX.post(x0);g.strokeStyle='#444';g.setLineDash([5,4]);g.lineWidth=1.4;g.beginPath();g.moveTo(xq,TOP);g.lineTo(xq,py(0));g.stroke();g.setLineDash([]);
     g.fillStyle=MC;g.beginPath();g.arc(xq,py(p0),4.5,0,7);g.fill();
-    g.textAlign=xq>W/2?'right':'left';g.fillStyle=MC;g.fillText('P(cancer | x₀) = '+p0.toFixed(2),xq+(xq>W/2?-8:8),py(p0)-8);
-    g.textAlign='center';g.fillStyle='#444';g.fillText('x₀ = '+x0.toFixed(1),xq,py(0)+28);}   // ป้าย x0 ใต้กราฟ ตรงเส้นประ
+    lb('P(\\text{cancer}\\mid x_0)='+p0.toFixed(2),xq+(xq>W/2?-8:8),py(p0)-8,{align:xq>W/2?'right':'left',color:MC});
+    lb('x_0='+x0.toFixed(1),xq,py(0)+28,{align:'center',color:'#444'});}   // ป้าย x0 ใต้กราฟ ตรงเส้นประ
   function fillDtab(){var tb=document.getElementById('dtbody');if(!tb)return;var h='';
     function rows(arr,cls,color){arr.forEach(function(x,i){h+='<tr class="'+((i%2)?'alt':'')+'"><td>'+kx(x.toFixed(1))+'</td><td>'+kx('\\textcolor{'+color+'}{\\text{'+cls+'}}')+'</td></tr>';});}
     rows(EX.pos,'Cancer',Rd);rows(EX.neg,'Healthy',Bl);
@@ -394,8 +410,8 @@
       ctx.fillStyle='rgba(90,90,90,0.9)';ctx.textAlign='right';ctx.fillText(p===0.5?'0.5':String(p),L-7,py(p));});
     ctx.textBaseline='alphabetic';ctx.fillStyle='rgba(128,128,128,0.9)';ctx.textAlign='center';ctx.font='14px KaTeX_Main,serif';
     var ns=niceStep(xmin,xmax);for(var a=Math.ceil(xmin/ns.step)*ns.step;a<=xmax+1e-9;a+=ns.step)ctx.fillText(a.toFixed(ns.dec),px(a),py(0)+16);
-    ctx.textAlign='left';ctx.fillStyle='rgba(90,90,90,0.9)';ctx.font='13px KaTeX_Main,serif';ctx.fillText('P(y = + | x)',L+4,TOP-8);
-    ctx.textAlign='right';ctx.fillText(P.ax[0],L+pw,py(0)+31);
+    var lb=labs(cv);lb('P(y=+\\mid x)',L+4,TOP-8);
+    lb(P.ax[0],L+pw,py(0)+31,{align:'right'});
     var k;
     for(k=0;k<P.X.length;k++){var xv=P.X[k][0],yv=P.ys[k],xp=px(xv);if(xp<L-4||xp>L+pw+4)continue;
       var yp=yv?py(1)+9+(k%3)*7:py(0)-9-(k%3)*7;
@@ -426,7 +442,7 @@
     var nx=niceStep(xmin,xmax),ny=niceStep(ymin,ymax);
     for(var a=Math.ceil(xmin/nx.step)*nx.step;a<=xmax+1e-9;a+=nx.step)ctx.fillText(a.toFixed(nx.dec),px(a),y1+15);
     ctx.textAlign='right';ctx.textBaseline='middle';for(var b=Math.ceil(ymin/ny.step)*ny.step;b<=ymax+1e-9;b+=ny.step)ctx.fillText(b.toFixed(ny.dec),x0-6,py(b));
-    ctx.textBaseline='alphabetic';ctx.textAlign='left';ctx.fillStyle='rgba(90,90,90,0.9)';ctx.fillText(P.ax[1],x0+4,y0-8);ctx.textAlign='right';ctx.fillText(P.ax[0],x1,y1+30);
+    ctx.textBaseline='alphabetic';var lb=labs(cv);lb(P.ax[1],x0+4,y0-8);lb(P.ax[0],x1,y1+30,{align:'right'});
     var k;for(k=0;k<P.X.length;k++){var v=P.X[k],yv=P.ys[k],xp=px(v[0]),yp=py(v[1]);if(xp<x0-4||xp>x1+4||yp<y0-4||yp>y1+4)continue;
       ctx.fillStyle=yv?'rgba(224,122,95,0.9)':'rgba(91,143,185,0.84)';ctx.beginPath();ctx.arc(xp,yp,4,0,7);ctx.fill();
       var pr=m.post(v)>0.5?1:0;if(pr!==yv){ctx.strokeStyle=pr?'#E07A5F':'#5B8FB9';ctx.lineWidth=2;ctx.beginPath();ctx.arc(xp,yp,6,0,7);ctx.stroke();}}
@@ -465,7 +481,7 @@
       var n1=Math.max(1,Math.round(n*p1)),n0=Math.max(1,n-n1);
       for(k=0;k<n1;k++){X.push(D===1?[m1+s1*Z1[k]]:[m1+s1*Z1[k],my1+s1*Z1y[k]]);ys.push(1);}
       for(k=0;k<n0;k++){X.push(D===1?[m0+s0*Z0[k]]:[m0+s0*Z0[k],my0+s0*Z0y[k]]);ys.push(0);}
-      return {X:X,ys:ys,xmin:-2,xmax:14,ymin:-2,ymax:14,sym:sym,ax:D===1?['x']:['x1','x2'],dec:2,mid:(m0+m1)/2};}
+      return {X:X,ys:ys,xmin:-2,xmax:14,ymin:-2,ymax:14,sym:sym,ax:D===1?['x']:['x_1','x_2'],dec:2,mid:(m0+m1)/2};}
     var c=T().pdm[dsIdx],S=SET(c.ds);if(!S)return {X:[[0],[1]],ys:[0,1],xmin:0,xmax:1,ymin:0,ymax:1,sym:sym,ax:c.ax,dec:2,mid:0.5};
     var sev=gv('sev'),cols=c.f.map(function(f){return S.col[f];}),lo=[],hi=[],mg=[];
     cols.forEach(function(col,d){var s=0,cnt=0;for(var i=0;i<S.n;i++)if(!S.bad[i]){s+=col[i];cnt++;}mg.push(s/(cnt||1));});
