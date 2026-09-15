@@ -160,7 +160,6 @@
       </div>
       </div>
       <div id="grp-rs" class="tgls"><button class="primary" id="resample" style="width:100%"></button></div>
-      <div class="ldabox" id="ldabox"></div>
     </div>
   </div>
 
@@ -337,7 +336,7 @@
     g.fillStyle='rgba(128,128,128,0.9)';g.font='13px KaTeX_Main,serif';g.textAlign='center';g.textBaseline='alphabetic';
     for(var a=0;a<=xmax;a+=1)g.fillText(a,px(a),base+15);
     g.textAlign='right';g.fillStyle='rgba(90,90,90,0.9)';g.fillText(EX.ax,L+pw,base+29);
-    g.textAlign='left';g.fillText('f(x | class)',L+4,TOP-9);
+    g.textAlign='left';g.fillText('f(x | c)',L+4,TOP-9);   // สัญลักษณ์เดียวกับสมการในกล่องคำนวณ
     EX.neg.forEach(function(x){g.fillStyle='rgba(91,143,185,0.9)';g.beginPath();g.arc(px(x),base-5,4.5,0,7);g.fill();});
     EX.pos.forEach(function(x){g.fillStyle='rgba(224,122,95,0.9)';g.beginPath();g.arc(px(x),base-5,4.5,0,7);g.fill();});
     g.textAlign='center';g.fillStyle='#3F6E99';g.fillText('x\u0304\u208B = '+EX.sn[0].toFixed(1)+'  s\u208B = '+EX.sn[1].toFixed(2),px(EX.sn[0]),py(EX.fn(EX.sn[0]))-6);
@@ -345,22 +344,24 @@
     var xq=px(x0);g.strokeStyle='#444';g.setLineDash([5,4]);g.lineWidth=1.4;g.beginPath();g.moveTo(xq,TOP-2);g.lineTo(xq,base);g.stroke();g.setLineDash([]);
     g.fillStyle='#444';g.beginPath();g.arc(xq,base-5,5.5,0,7);g.fill();g.strokeStyle='#fff';g.lineWidth=1.5;g.stroke();
     [[EX.fp,'#B0503A'],[EX.fn,'#3F6E99']].forEach(function(q){g.fillStyle=q[1];g.beginPath();g.arc(xq,py(q[0](x0)),4,0,7);g.fill();});
-    g.textAlign='right';g.fillStyle='#444';g.fillText('x\u2080 = '+x0.toFixed(1),L+pw,TOP-9);}
+    g.textAlign='center';g.fillStyle='#444';g.fillText('x\u2080 = '+x0.toFixed(1),xq,base+29);}   // \u0e1b\u0e49\u0e32\u0e22 x0 \u0e43\u0e15\u0e49\u0e01\u0e23\u0e32\u0e1f \u0e15\u0e23\u0e07\u0e40\u0e2a\u0e49\u0e19\u0e1b\u0e23\u0e30
   function drawExPost(x0){var c=prep(document.getElementById('cvpost')),g=c.g,W=c.W,H=c.H;
-    var L=40,Rm=14,pw=W-L-Rm,TOP=20,BOT=30,ph=H-TOP-BOT,xmin=EX.xmin,xmax=EX.xmax,i;
+    var L=40,Rm=14,pw=W-L-Rm,TOP=22,BOT=34,ph=H-TOP-BOT,xmin=EX.xmin,xmax=EX.xmax,i;
     function px(x){return L+(x-xmin)/(xmax-xmin)*pw;} function py(p){return TOP+(1-p)*ph;}
     g.font='12px KaTeX_Main,serif';g.textBaseline='middle';
     [0,0.5,1].forEach(function(p){g.strokeStyle=p===0.5?'rgba(17,17,17,0.55)':'rgba(128,128,128,0.35)';g.lineWidth=1;if(p===0.5)g.setLineDash([5,4]);
       g.beginPath();g.moveTo(L,py(p));g.lineTo(L+pw,py(p));g.stroke();g.setLineDash([]);g.fillStyle='rgba(90,90,90,0.9)';g.textAlign='right';g.fillText(p===0.5?'0.5':String(p),L-6,py(p));});
     g.textBaseline='alphabetic';g.textAlign='center';g.fillStyle='rgba(128,128,128,0.9)';for(var a=0;a<=xmax;a+=1)g.fillText(a,px(a),py(0)+14);
-    g.textAlign='left';g.fillStyle='rgba(90,90,90,0.9)';g.fillText('P(cancer | x)',L+4,TOP-7);
+    g.textAlign='left';g.fillStyle='rgba(90,90,90,0.9)';g.fillText('P(cancer | x)',L+4,TOP-8);   // สัญลักษณ์เดียวกับสมการ
     var N=300,dx=(xmax-xmin)/N;g.strokeStyle=MC;g.lineWidth=2.2;g.beginPath();
     for(i=0;i<=N;i++){var x=xmin+i*dx;i===0?g.moveTo(px(x),py(EX.post(x))):g.lineTo(px(x),py(EX.post(x)));}g.stroke();
-    if(isFinite(EX.xstar)&&EX.xstar>xmin&&EX.xstar<xmax){g.strokeStyle='#111';g.fillStyle='#111';g.lineWidth=1.6;g.textAlign='center';
-      g.setLineDash([5,4]);g.beginPath();g.moveTo(px(EX.xstar),py(1));g.lineTo(px(EX.xstar),py(0));g.stroke();g.setLineDash([]);g.fillText('threshold x* = '+EX.xstar.toFixed(2),px(EX.xstar),H-3);}
+    // threshold = จุดที่ P(cancer|x) = 0.5 ของเส้นที่วาด (ป้ายไว้ด้านบน ไม่ชนป้าย x0 ด้านล่าง)
+    var xs=crossings1(function(v){return EX.post(v[0]);},xmin,xmax);g.strokeStyle='#111';g.fillStyle='#111';g.lineWidth=1.6;g.textAlign='center';
+    xs.forEach(function(r){g.setLineDash([5,4]);g.beginPath();g.moveTo(px(r),py(1));g.lineTo(px(r),py(0));g.stroke();g.setLineDash([]);g.fillText('threshold = '+r.toFixed(2),px(r),TOP-8);});
     var xq=px(x0),p0=EX.post(x0);g.strokeStyle='#444';g.setLineDash([5,4]);g.lineWidth=1.4;g.beginPath();g.moveTo(xq,TOP);g.lineTo(xq,py(0));g.stroke();g.setLineDash([]);
     g.fillStyle=MC;g.beginPath();g.arc(xq,py(p0),4.5,0,7);g.fill();
-    g.textAlign=xq>W/2?'right':'left';g.fillStyle=MC;g.fillText('P = '+p0.toFixed(2),xq+(xq>W/2?-8:8),py(p0)-8);}
+    g.textAlign=xq>W/2?'right':'left';g.fillStyle=MC;g.fillText('P(cancer | x₀) = '+p0.toFixed(2),xq+(xq>W/2?-8:8),py(p0)-8);
+    g.textAlign='center';g.fillStyle='#444';g.fillText('x₀ = '+x0.toFixed(1),xq,py(0)+28);}   // ป้าย x0 ใต้กราฟ ตรงเส้นประ
   function fillDtab(){var tb=document.getElementById('dtbody');if(!tb)return;var h='';
     function rows(arr,cls,color){arr.forEach(function(x,i){h+='<tr class="'+((i%2)?'alt':'')+'"><td>'+kx(x.toFixed(1))+'</td><td>'+kx('\\textcolor{'+color+'}{\\text{'+cls+'}}')+'</td></tr>';});}
     rows(EX.pos,'Cancer',Rd);rows(EX.neg,'Healthy',Bl);
@@ -376,16 +377,6 @@
       +fmt('f(x_0{=}'+x0.toFixed(1)+'\\mid\\text{healthy})=\\dfrac{1}{'+EX.sn[1].toFixed(2)+'\\sqrt{2\\pi}}\\,e^{-\\frac{('+x0.toFixed(1)+'-'+EX.sn[0].toFixed(1)+')^2}{2\\cdot '+EX.sn[1].toFixed(2)+'^2}}='+fn.toFixed(2))
       +fmt('P(\\text{cancer}\\mid x_0)=\\dfrac{\\pi_+ f_+}{\\pi_+ f_+ + \\pi_- f_-}=\\dfrac{'+pip.toFixed(2)+'\\cdot '+fp.toFixed(2)+'}{'+pip.toFixed(2)+'\\cdot '+fp.toFixed(2)+'+'+(1-pip).toFixed(2)+'\\cdot '+fn.toFixed(2)+'}='+post.toFixed(2)
         +'\\ \\Rightarrow\\ \\hat y='+(post>0.5?'\\textcolor{#B0503A}{\\text{cancer}}':'\\textcolor{#3F6E99}{\\text{healthy}}'));}
-  // LDA → rule (ใต้ control): ถ้าให้ทั้งสองคลาสใช้ s² ร่วมกัน log-odds จะเป็นเส้นตรงใน x → threshold เดียว
-  function fillLDA(){var el=document.getElementById('ldabox');if(!el)return;if(!isEX()){el.innerHTML='';return;}
-    function fmt(s){return '<span class="ln">'+kx(s)+'</span>';}
-    var w=EX.w,b=EX.b,xs=EX.xstar;
-    el.innerHTML='<div class="lhd">'+kx('\\text{LDA (shared variance) }\\to\\text{ rule}')+'</div>'
-      +fmt('s^2=\\tfrac{(n_+{-}1)s_+^2+(n_-{-}1)s_-^2}{n_++n_--2}='+EX.s2.toFixed(2))
-      +fmt('z=\\ln\\tfrac{\\pi_+}{\\pi_-}+\\tfrac{\\bar x_+-\\bar x_-}{s^2}\\,x-\\tfrac{\\bar x_+^2-\\bar x_-^2}{2s^2}')
-      +fmt('z='+w.toFixed(2)+'\\,x'+(b>=0?'+':'-')+Math.abs(b).toFixed(2)+',\\quad x^*=-b/w='+(isFinite(xs)?xs.toFixed(2):'-'))
-      +fmt('\\text{if }x>'+(isFinite(xs)?xs.toFixed(2):'x^*')+'\\text{ then }y=\\textcolor{#B0503A}{\\text{cancer}}')
-      +fmt('\\text{else }y=\\textcolor{#3F6E99}{\\text{healthy}}');}
   function draw1(P){
     var L=44,Rm=16,pw=W-L-Rm,TOP=22,BOT=50,ph=H-TOP-BOT,xmin=P.xmin,xmax=P.xmax,i,x,m=P.m;
     function px(x){return L+(x-xmin)/(xmax-xmin)*pw;} function py(p){return TOP+(1-p)*ph;}
@@ -480,8 +471,8 @@
     ['toprow','classleg','below'].forEach(function(id){document.getElementById(id).style.display=on?'none':'';});}
   function upd(){
     if(T().summary)return;
-    if(isEX()){showEx(true);var x0=gv('x0');exBuild();fillDtab();drawExPdf(x0);drawExPost(x0);fillCalc(x0);fillLDA();return;}
-    showEx(false);fillLDA();
+    if(isEX()){showEx(true);var x0=gv('x0');exBuild();fillDtab();drawExPdf(x0);drawExPost(x0);fillCalc(x0);return;}
+    showEx(false);
     var D=dim(),S=dataset(),X=S.X,ys=S.ys,kk=Math.round(gv('k')),dp=Math.round(gv('depth')),k;
     var F={logistic:fitLogistic(X,ys),nb:fitNB(X,ys),knn:fitKNN(X,ys,kk,S.scale),tree:fitTree(X,ys,dp)};
     MODELS.forEach(function(m){var f=F[m.key];f.err=trainErr(f.post,X,ys);f.xstar=(D===1&&f.linear)?crossings1(f.post,S.xmin,S.xmax):[];});
