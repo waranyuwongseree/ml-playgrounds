@@ -377,8 +377,7 @@
     el.innerHTML=line(['f(x\\mid c)=\\dfrac{1}{s_c\\sqrt{2\\pi}}\\,e^{-\\frac{(x-\\bar x_c)^2}{2s_c^2}}'])
       +line(['f(x_0{=}'+x+'\\mid\\text{cancer})','=\\dfrac{1}{'+EX.sp[1].toFixed(2)+'\\sqrt{2\\pi}}\\,e^{-\\frac{('+x+'-'+EX.sp[0].toFixed(1)+')^2}{2\\cdot '+EX.sp[1].toFixed(2)+'^2}}','='+fp.toFixed(2)])
       +line(['f(x_0{=}'+x+'\\mid\\text{healthy})','=\\dfrac{1}{'+EX.sn[1].toFixed(2)+'\\sqrt{2\\pi}}\\,e^{-\\frac{('+x+'-'+EX.sn[0].toFixed(1)+')^2}{2\\cdot '+EX.sn[1].toFixed(2)+'^2}}','='+fn.toFixed(2)])
-      +line(['P(\\text{cancer}\\mid x_0)=\\dfrac{\\pi_+ f_+}{\\pi_+ f_+ + \\pi_- f_-}','=\\dfrac{'+pip.toFixed(2)+'\\cdot '+fp.toFixed(2)+'}{'+pip.toFixed(2)+'\\cdot '+fp.toFixed(2)+'+'+(1-pip).toFixed(2)+'\\cdot '+fn.toFixed(2)+'}','='+post.toFixed(2),
-        '\\Rightarrow\\ \\hat y='+(post>0.5?'\\textcolor{#B0503A}{\\text{cancer}}':'\\textcolor{#3F6E99}{\\text{healthy}}')]);}
+      +line(['P(\\text{cancer}\\mid x_0)=\\dfrac{\\pi_+ f_+}{\\pi_+ f_+ + \\pi_- f_-}','=\\dfrac{'+pip.toFixed(2)+'\\cdot '+fp.toFixed(2)+'}{'+pip.toFixed(2)+'\\cdot '+fp.toFixed(2)+'+'+(1-pip).toFixed(2)+'\\cdot '+fn.toFixed(2)+'}','='+post.toFixed(2)]);}
   function draw1(P){
     var L=44,Rm=16,pw=W-L-Rm,TOP=22,BOT=50,ph=H-TOP-BOT,xmin=P.xmin,xmax=P.xmax,i,x,m=P.m;
     function px(x){return L+(x-xmin)/(xmax-xmin)*pw;} function py(p){return TOP+(1-p)*ph;}
