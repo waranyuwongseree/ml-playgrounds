@@ -514,7 +514,9 @@
   var tb=document.getElementById('tabs');
   TABS.forEach(function(t,i){var el=document.createElement('button');el.className='tabbtn';K('\\text{'+t.n+'}',el);el.addEventListener('click',function(){applyTab(i);});tb.appendChild(el);});
   bases.forEach(function(b){var Re=document.getElementById('R'+b),Ne=document.getElementById('N'+b);
-    function rem(){var M=MEM[kind()];if(M&&(b in M))M[b]=parseFloat(Re.value);if(isEX()&&(b==='mu1'||b==='s1'||b==='mu0'||b==='s0'||b==='n'))EX.fixed=false;}   // แตะ μ/σ/n ใน Example → สุ่มข้อมูลใหม่
+    function rem(){var M=MEM[kind()];if(M&&(b in M))M[b]=parseFloat(Re.value);
+      if(isEX()&&(b==='s1'||b==='s0')){var v=parseFloat(Re.value);sv(b==='s1'?'s0':'s1',v);MEM.ex.s1=v;MEM.ex.s0=v;}   // Example: σ ร่วม (σ+ = σ−) ปรับจากตัวไหนก็ได้
+      if(isEX()&&(b==='mu1'||b==='s1'||b==='mu0'||b==='s0'||b==='n'))EX.fixed=false;}   // แตะ μ/σ ใน Example → สุ่มข้อมูลใหม่
     Re.addEventListener('input',function(){Ne.value=Re.value;rem();upd();});Ne.addEventListener('input',function(){Re.value=Ne.value;rem();upd();});});
   document.querySelectorAll('#modelSeg button').forEach(function(b){b.addEventListener('click',function(){modeM=b.getAttribute('data-m');setModelSeg();upd();});});
   document.querySelectorAll('#dsSeg button').forEach(function(b){b.addEventListener('click',function(){dsIdx=parseInt(b.getAttribute('data-ds'),10);setDsSeg();upd();});});
