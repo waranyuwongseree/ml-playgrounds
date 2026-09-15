@@ -29,10 +29,12 @@
   .exwrap.on{display:flex}
   .exleft{flex:0 0 232px;min-width:0}
   .exright{flex:1 1 auto;min-width:0;display:flex;flex-direction:column;gap:8px}
-  .excv{height:186px}.excv.post{height:150px}
+  .excv{height:160px}.excv.post{height:130px}
   .excv canvas{width:100%;height:100%;display:block;border:1px solid var(--line);border-radius:10px;background:#fff}
-  .excalc{background:#fff;border:1px solid var(--line);border-radius:12px;padding:8px 14px;font-size:15px;line-height:1.5}
-  .excalc .ln{display:block;white-space:nowrap}
+  /* กล่องคำนวณ: แต่ละบรรทัด = ชิ้น KaTeX หลายชิ้น ตัดบรรทัดระหว่างชิ้นได้ (ไม่ตัดกลางสมการ) → ไม่ถูกตัดทิ้ง */
+  .excalc{background:#fff;border:1px solid var(--line);border-radius:12px;padding:8px 14px;font-size:14px;line-height:1.5;overflow:hidden}
+  .excalc .ln{display:block;white-space:normal;margin:2px 0}
+  .excalc .ln>span{display:inline-block;margin-right:.3em;vertical-align:middle}
   .excalc .katex{font-size:1em}
   .dtab{width:100%;border-collapse:collapse;font-size:15px}
   .dtab th{background:var(--navy);color:#fff;font-weight:400;padding:5px 8px;text-align:center}
@@ -186,7 +188,7 @@
   var EX={xmin:0,xmax:5,ax:'PSA (\u00b5g/L)  x',fixed:true,pos:SLIDE.pos.slice(),neg:SLIDE.neg.slice()};
   function msd(a){var m=0,s=0,i;for(i=0;i<a.length;i++)m+=a[i];m/=a.length;for(i=0;i<a.length;i++)s+=(a[i]-m)*(a[i]-m);return [m,Math.sqrt(s/Math.max(1,a.length-1))];}
   function exBuild(){ // ข้อมูล → สถิติ → pdf ต่อคลาส → posterior (per-class s แบบสไลด์) → LDA (s รวม) → threshold
-    if(!EX.fixed){var m1=gv('mu1'),s1=gv('s1'),m0=gv('mu0'),s0=gv('s0'),n=Math.round(gv('n')),k;EX.pos=[];EX.neg=[];
+    if(!EX.fixed){var m1=gv('mu1'),s1=gv('s1'),m0=gv('mu0'),s0=gv('s0'),n=7,k;EX.pos=[];EX.neg=[];   // n fix = 7 ต่อคลาส
       for(k=0;k<n;k++){EX.pos.push(Math.round(Math.min(4.8,Math.max(0.2,m1+s1*Z1[k]))*10)/10);EX.neg.push(Math.round(Math.min(4.8,Math.max(0.2,m0+s0*Z0[k]))*10)/10);}
       EX.pos.sort(function(a,b){return b-a;});EX.neg.sort(function(a,b){return b-a;});}
     EX.sp=msd(EX.pos);EX.sn=msd(EX.neg);var np=EX.pos.length,nn=EX.neg.length;EX.pip=np/(np+nn);
@@ -260,7 +262,7 @@
   var bases=['x0','mu0','muy0','mu1','muy1','s0','s1','p1','sev','n','k','depth'];
   var modeM='logistic', curTab=0, dsIdx=0;
   var TABS=[
-    {n:'Example',        dim:1, ex:true,  groups:['ex','pos','neg','share','rs'], rows:['x0','mu1','s1','mu0','s0','n']},
+    {n:'Example',        dim:1, ex:true,  groups:['ex','pos','neg','rs'], rows:['x0','mu1','s1','mu0','s0']},   // n fix = 7 ต่อคลาส (Resample สุ่มได้)
     {n:'Univariate',     dim:1, groups:['pos','neg','share','model','rs'], rows:['mu1','s1','mu0','s0','p1','n']},
     {n:'Bivariate',      dim:2, groups:['pos','neg','share','model','rs'], rows:['mu1','muy1','s1','mu0','muy0','s0','p1','n']},
     {n:'PDM univariate', dim:1, pdm:PDM1, groups:['ds','share','model','rs'], rows:['sev','n']},
@@ -370,13 +372,13 @@
       +'<tr class="ft"><td colspan="2">'+kx('\\textcolor{#3F6E99}{\\bar x_-='+EX.sn[0].toFixed(1)+',\\ s_-='+EX.sn[1].toFixed(2)+'}')+'</td></tr>'
       +'<tr class="ft"><td colspan="2">'+kx('\\pi_+='+EX.pip.toFixed(2)+',\\ \\pi_-='+(1-EX.pip).toFixed(2))+'</td></tr>';
     tb.innerHTML=h;}
-  function fillCalc(x0){var el=document.getElementById('excalc');if(!el)return;var fp=EX.fp(x0),fn=EX.fn(x0),pip=EX.pip,post=EX.post(x0);
-    function fmt(s){return '<span class="ln">'+kx(s)+'</span>';}
-    el.innerHTML=fmt('f(x\\mid c)=\\dfrac{1}{s_c\\sqrt{2\\pi}}\\,e^{-\\frac{(x-\\bar x_c)^2}{2s_c^2}}')
-      +fmt('f(x_0{=}'+x0.toFixed(1)+'\\mid\\text{cancer})=\\dfrac{1}{'+EX.sp[1].toFixed(2)+'\\sqrt{2\\pi}}\\,e^{-\\frac{('+x0.toFixed(1)+'-'+EX.sp[0].toFixed(1)+')^2}{2\\cdot '+EX.sp[1].toFixed(2)+'^2}}='+fp.toFixed(2))
-      +fmt('f(x_0{=}'+x0.toFixed(1)+'\\mid\\text{healthy})=\\dfrac{1}{'+EX.sn[1].toFixed(2)+'\\sqrt{2\\pi}}\\,e^{-\\frac{('+x0.toFixed(1)+'-'+EX.sn[0].toFixed(1)+')^2}{2\\cdot '+EX.sn[1].toFixed(2)+'^2}}='+fn.toFixed(2))
-      +fmt('P(\\text{cancer}\\mid x_0)=\\dfrac{\\pi_+ f_+}{\\pi_+ f_+ + \\pi_- f_-}=\\dfrac{'+pip.toFixed(2)+'\\cdot '+fp.toFixed(2)+'}{'+pip.toFixed(2)+'\\cdot '+fp.toFixed(2)+'+'+(1-pip).toFixed(2)+'\\cdot '+fn.toFixed(2)+'}='+post.toFixed(2)
-        +'\\ \\Rightarrow\\ \\hat y='+(post>0.5?'\\textcolor{#B0503A}{\\text{cancer}}':'\\textcolor{#3F6E99}{\\text{healthy}}'));}
+  function fillCalc(x0){var el=document.getElementById('excalc');if(!el)return;var fp=EX.fp(x0),fn=EX.fn(x0),pip=EX.pip,post=EX.post(x0),x=x0.toFixed(1);
+    function line(parts){return '<span class="ln">'+parts.map(function(p){return '<span>'+kx(p)+'</span>';}).join('')+'</span>';}   // ชิ้นละสมการย่อย ตัดบรรทัดระหว่างชิ้นได้
+    el.innerHTML=line(['f(x\\mid c)=\\dfrac{1}{s_c\\sqrt{2\\pi}}\\,e^{-\\frac{(x-\\bar x_c)^2}{2s_c^2}}'])
+      +line(['f(x_0{=}'+x+'\\mid\\text{cancer})','=\\dfrac{1}{'+EX.sp[1].toFixed(2)+'\\sqrt{2\\pi}}\\,e^{-\\frac{('+x+'-'+EX.sp[0].toFixed(1)+')^2}{2\\cdot '+EX.sp[1].toFixed(2)+'^2}}','='+fp.toFixed(2)])
+      +line(['f(x_0{=}'+x+'\\mid\\text{healthy})','=\\dfrac{1}{'+EX.sn[1].toFixed(2)+'\\sqrt{2\\pi}}\\,e^{-\\frac{('+x+'-'+EX.sn[0].toFixed(1)+')^2}{2\\cdot '+EX.sn[1].toFixed(2)+'^2}}','='+fn.toFixed(2)])
+      +line(['P(\\text{cancer}\\mid x_0)=\\dfrac{\\pi_+ f_+}{\\pi_+ f_+ + \\pi_- f_-}','=\\dfrac{'+pip.toFixed(2)+'\\cdot '+fp.toFixed(2)+'}{'+pip.toFixed(2)+'\\cdot '+fp.toFixed(2)+'+'+(1-pip).toFixed(2)+'\\cdot '+fn.toFixed(2)+'}','='+post.toFixed(2),
+        '\\Rightarrow\\ \\hat y='+(post>0.5?'\\textcolor{#B0503A}{\\text{cancer}}':'\\textcolor{#3F6E99}{\\text{healthy}}')]);}
   function draw1(P){
     var L=44,Rm=16,pw=W-L-Rm,TOP=22,BOT=50,ph=H-TOP-BOT,xmin=P.xmin,xmax=P.xmax,i,x,m=P.m;
     function px(x){return L+(x-xmin)/(xmax-xmin)*pw;} function py(p){return TOP+(1-p)*ph;}
