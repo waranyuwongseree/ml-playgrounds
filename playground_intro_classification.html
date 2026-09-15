@@ -368,7 +368,7 @@
     // สรุปสถิติท้ายตาราง
     h+='<tr class="ft"><td colspan="2">'+kx('\\textcolor{#B0503A}{\\bar x_+='+EX.sp[0].toFixed(1)+',\\ s_+='+EX.sp[1].toFixed(2)+'}')+'</td></tr>'
       +'<tr class="ft"><td colspan="2">'+kx('\\textcolor{#3F6E99}{\\bar x_-='+EX.sn[0].toFixed(1)+',\\ s_-='+EX.sn[1].toFixed(2)+'}')+'</td></tr>'
-      +'<tr class="ft"><td colspan="2">'+kx('\\pi_+='+EX.pip.toFixed(2)+',\\ s^2_{\\text{pooled}}='+EX.s2.toFixed(2))+'</td></tr>';
+      +'<tr class="ft"><td colspan="2">'+kx('\\pi_+='+EX.pip.toFixed(2)+',\\ \\pi_-='+(1-EX.pip).toFixed(2))+'</td></tr>';
     tb.innerHTML=h;}
   function fillCalc(x0){var el=document.getElementById('excalc');if(!el)return;var fp=EX.fp(x0),fn=EX.fn(x0),pip=EX.pip,post=EX.post(x0);
     function fmt(s){return '<span class="ln">'+kx(s)+'</span>';}
