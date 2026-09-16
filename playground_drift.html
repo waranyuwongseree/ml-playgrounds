@@ -164,9 +164,17 @@
     g.strokeStyle='#E07A5F';g.lineWidth=1.6;g.beginPath();for(i=0;i<=N;i++){x=xmin+(xmax-xmin)*i/N;var Y=y1(pdf(x,m1,s1));if(i==0)g.moveTo(px(x),Y);else g.lineTo(px(x),Y);}g.stroke();
     g.strokeStyle='#5B8FB9';g.beginPath();for(i=0;i<=N;i++){x=xmin+(xmax-xmin)*i/N;var Y0=y0(pdf(x,m0,s0));if(i==0)g.moveTo(px(x),Y0);else g.lineTo(px(x),Y0);}g.stroke();
     g.strokeStyle='#111';g.lineWidth=1.8;g.setLineDash([5,4]);g.beginPath();g.moveTo(px(T),cyTop-8);g.lineTo(px(T),H-THS+2);g.stroke();g.setLineDash([]);
-    function dot(xp,yp,c,ring){g.fillStyle=c;g.beginPath();g.arc(xp,yp,4.7,0,7);g.fill();if(ring){g.strokeStyle=ring;g.lineWidth=2;g.beginPath();g.arc(xp,yp,6.8,0,7);g.stroke();}}
-    for(i=0;i<ng.length;i++){dot(px(ng[i]),cy-7-(i%3)*7,'rgba(224,122,95,0.9)',ng[i]<=T?'#5B8FB9':null);}   // positive=coral · FN วงขอบ=ทายเป็น negative (ฟ้า)
-    for(i=0;i<ok.length;i++){dot(px(ok[i]),cy+7+(i%3)*7,'rgba(91,143,185,0.85)',ok[i]>T?'#E07A5F':null);}    // negative=ฟ้า · FP วงขอบ=ทายเป็น positive (coral)
+    // dot histogram (เหมือน 1-D Bayes / Intro / Classifier Evaluation): จุดเข้าช่อง ~10px ซ้อนออกจากแกนกลาง — บวกขึ้น ลบลง · ✗ ขาว = ทำนายผิด
+    var rD=4.5,bwp=2*rD+2,NB=Math.max(1,Math.floor(pw/bwp)),bP=[],bN=[],k;for(k=0;k<NB;k++){bP.push([]);bN.push([]);}
+    for(i=0;i<ng.length;i++){var xp1=px(ng[i]);if(xp1<L||xp1>L+pw)continue;bP[Math.min(NB-1,Math.floor((xp1-L)/bwp))].push(ng[i]);}
+    for(i=0;i<ok.length;i++){var xp0=px(ok[i]);if(xp0<L||xp0>L+pw)continue;bN[Math.min(NB-1,Math.floor((xp0-L)/bwp))].push(ok[i]);}
+    var mxP=1,mxN=1;for(k=0;k<NB;k++){mxP=Math.max(mxP,bP[k].length);mxN=Math.max(mxN,bN[k].length);}
+    var dyP=Math.min(2*rD+1,(topA-10)/mxP),dyN=Math.min(2*rD+1,(botA-10)/mxN);
+    function dotB(x,y,pos,miss){g.fillStyle=pos?'rgba(224,122,95,0.9)':'rgba(91,143,185,0.85)';g.beginPath();g.arc(x,y,rD,0,7);g.fill();
+      if(miss){var q=rD*0.6;g.strokeStyle='#fff';g.lineWidth=1.8;g.beginPath();g.moveTo(x-q,y-q);g.lineTo(x+q,y+q);g.moveTo(x+q,y-q);g.lineTo(x-q,y+q);g.stroke();}}
+    for(k=0;k<NB;k++){var cxb=L+(k+0.5)*bwp,j;
+      for(j=0;j<bP[k].length;j++)dotB(cxb,cy-8-j*dyP,true,bP[k][j]<=T);
+      for(j=0;j<bN[k].length;j++)dotB(cxb,cy+8+j*dyN,false,bN[k][j]>T);}
     function lab(txt,x,y,align,color,sz){g.font=(sz||15)+'px KaTeX_Main,serif';g.textAlign=align;g.textBaseline='alphabetic';g.fillStyle=color;g.fillText(txt,x,y);}
     // confusion counts ข้างเส้น threshold (เว้น ±12 ไม่ชิด) · class identity อยู่ใน legend นอก canvas
     lab('FN '+FN,px(T)-12,18,'right','#8A6510',15);
@@ -191,7 +199,7 @@
     Ne.addEventListener('input',function(){Re.value=Ne.value;upd();});});
   function clLine(name,lc,tc){return '<span class="cli"><i class="ln" style="background:'+lc+'"></i><span class="nm">'+kx('\\textcolor{'+tc+'}{\\text{'+name+'}}')+'</span></span>';}
   document.getElementById('classleg').innerHTML=
-    '<div class="clrow">'+clLine('Positive class','#E07A5F','#B0503A')+clLine('Negative class','#5B8FB9','#3F6E99')
+    '<div class="clrow">'+clLine('Positive class','#E07A5F','#B0503A')+clLine('Negative class','#5B8FB9','#3F6E99')+clLine('misclassified (✗)','#888','#666')
     +'<span class="cli sep"><i class="ln" style="background:#8b95a6"></i><span>'+kx('\\text{train}')+'</span></span>'
     +'<span class="cli"><i class="ar" style="background:#c7ccd6"></i><span>'+kx('\\text{test (deploy)}')+'</span></span></div>';
   window.addEventListener('resize',function(){sizeCanvas();upd();});

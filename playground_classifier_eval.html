@@ -214,11 +214,12 @@
     g.fillStyle='#111';g.font='13px KaTeX_Main,serif';g.textAlign='right';g.fillText(t.toFixed(dec),L-7,yT);g.textBaseline='alphabetic';
     // จุด: beeswarm ต่อคอลัมน์ (ชนกันในแนวตั้ง → ขยับซ้าย/ขวาสลับกัน) สีตามผล TP coral · FN ทอง · FP เขียวน้ำทะเล · TN ฟ้า
     var r=D.all.length<=20?6:5,gap=2*r+1.5;
-    function swarm(vals,cx,pos){var placed=[];vals.slice().sort(function(a,b){return b-a;}).forEach(function(s){var y=py(s),x=cx,n=0;
-      function busy(xx){for(var i=0;i<placed.length;i++)if(Math.abs(placed[i].y-y)<gap&&Math.abs(placed[i].x-xx)<gap)return true;return false;}
-      while(busy(x)&&n<40){n++;x=cx+Math.ceil(n/2)*(n%2?1:-1)*gap;}placed.push({x:x,y:y});
-      var miss=pos?(s<t):(s>=t);g.fillStyle=pos?'#E07A5F':'#5B8FB9';g.beginPath();g.arc(x,y,r,0,7);g.fill();   // สีจุด = actual class · พื้นช่อง = predicted (แบ่งด้วย threshold)
-      if(miss){var q=r*0.55;g.strokeStyle='#fff';g.lineWidth=2;g.beginPath();g.moveTo(x-q,y-q);g.lineTo(x+q,y+q);g.moveTo(x+q,y-q);g.lineTo(x-q,y+q);g.stroke();}});}   // ✗ = ทำนายผิด
+    // dot histogram แนวตั้ง: จุดเข้าช่องสูง gap โดยวัดจากเส้น threshold (ขอบช่องตรงกับเส้น → ไม่มีจุดคร่อมเส้น) แล้วเรียงเป็นแถวออกจากกลางคอลัมน์
+    function swarm(vals,cx,pos){var bins={};vals.forEach(function(s){var y=py(s),up=y<yT,idx=Math.floor((up?yT-y:y-yT)/gap),key=(up?'u':'d')+idx;(bins[key]=bins[key]||{up:up,idx:idx,v:[]}).v.push(s);});
+      Object.keys(bins).forEach(function(key){var b=bins[key],yc=b.up?yT-(b.idx+0.5)*gap:yT+(b.idx+0.5)*gap;
+        b.v.forEach(function(s,j){var x=cx+Math.ceil(j/2)*(j%2?1:-1)*gap,miss=pos?(s<t):(s>=t);
+          g.fillStyle=pos?'#E07A5F':'#5B8FB9';g.beginPath();g.arc(x,yc,r,0,7);g.fill();   // สีจุด = actual class · พื้นช่อง = predicted
+          if(miss){var q=r*0.55;g.strokeStyle='#fff';g.lineWidth=2;g.beginPath();g.moveTo(x-q,yc-q);g.lineTo(x+q,yc+q);g.moveTo(x+q,yc-q);g.lineTo(x-q,yc+q);g.stroke();}});});}   // ✗ = ทำนายผิด
     g.save();g.beginPath();g.rect(L,TOP,pw,ph);g.clip();swarm(D.pos,xL,true);swarm(D.neg,xR,false);g.restore();   // จุดไม่ล้นกรอบ
     // นับในมุมของแต่ละช่อง (ตัวเลขใหญ่ + ชื่อช่อง)
     // ตัวเลข + ชื่อช่องบรรทัดเดียว ที่มุมกรอบคงที่ (ไม่ล้นกรอบแม้ threshold สุดขอบ)
