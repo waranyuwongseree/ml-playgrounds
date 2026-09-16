@@ -140,8 +140,8 @@
 </div>
 <script>
 /* UD: ALL text = KaTeX — ไม่ใช่แค่หัวเรื่อง · ทุกป้ายในหน้านี้ (หมวด/ชื่อการ์ด/วันที่/meta) เรนเดอร์ผ่าน \text{} */
-/* cache-bust ทุกการ์ดจากค่าเดียว: GitHub Pages cache 10 นาที → บั๊ม PGV ทุกครั้งที่ deploy แล้วลิงก์ทุกตัวได้ของใหม่พร้อมกัน (HTML ไม่ต้องใส่ ?v= ทีละการ์ด) */
-var PGV='20260916d';
+/* cache-bust ทุกการ์ด: ?v = นาทีปัจจุบัน → เปิด playground ได้ของใหม่เสมอ แม้ landing เองยังเป็นฉบับ cache ของ GitHub Pages (10 นาที) — ไม่ต้องบั๊มค่าตอน deploy */
+var PGV=String(Math.floor(Date.now()/60000));
 document.querySelectorAll('a.card[href]').forEach(function(a){var h=a.getAttribute('href');if(h&&h.indexOf('?')<0)a.setAttribute('href',h+'?v='+PGV);});
 window.addEventListener('load',function(){
   if(!window.katex) return;
