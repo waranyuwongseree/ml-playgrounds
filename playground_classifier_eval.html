@@ -145,7 +145,7 @@
   function clLine(name,lc,tc,shape){return '<span class="cli"><i class="'+(shape||'ln')+'" style="background:'+lc+'"></i><span>'+kx('\\textcolor{'+tc+'}{\\text{'+name+'}}')+'</span></span>';}
   // legend: สีเดียวกับ confusion matrix / ตาราง — FN วงแหวนทอง · FP วงแหวนเขียวน้ำทะเล
   function fillLegend(){var el=document.getElementById('classleg');if(!el)return;
-    el.innerHTML=clLine('TP','#E07A5F',Rd,'ar')+clLine('FN','#E3B23C','#8A6510','ar')+clLine('FP','#5BA8A0','#2E7D70','ar')+clLine('TN','#5B8FB9',Bl,'ar');}   // สีจุด = สีช่อง confusion matrix / แถวตาราง
+    el.innerHTML=clLine('Positive class','#E07A5F',Rd,'ar')+clLine('Negative class','#5B8FB9',Bl,'ar')+clLine('misclassified (✗)','#888','#666');}   // จุด = actual class · พื้นช่อง = ช่อง confusion matrix · ✗ = ผิด
 
   // ---------- data ----------
   var D={all:[],pos:[],neg:[]};
@@ -197,7 +197,8 @@
     function swarm(vals,cx,pos){var placed=[];vals.slice().sort(function(a,b){return b-a;}).forEach(function(s){var y=py(s),x=cx,n=0;
       function busy(xx){for(var i=0;i<placed.length;i++)if(Math.abs(placed[i].y-y)<gap&&Math.abs(placed[i].x-xx)<gap)return true;return false;}
       while(busy(x)&&n<40){n++;x=cx+Math.ceil(n/2)*(n%2?1:-1)*gap;}placed.push({x:x,y:y});
-      var miss=pos?(s<t):(s>=t);g.fillStyle=pos?(miss?'#E3B23C':'#E07A5F'):(miss?'#5BA8A0':'#5B8FB9');g.beginPath();g.arc(x,y,r,0,7);g.fill();});}
+      var miss=pos?(s<t):(s>=t);g.fillStyle=pos?'#E07A5F':'#5B8FB9';g.beginPath();g.arc(x,y,r,0,7);g.fill();   // สีจุด = actual class · พื้นช่อง = predicted (แบ่งด้วย threshold)
+      if(miss){var q=r*0.55;g.strokeStyle='#fff';g.lineWidth=2;g.beginPath();g.moveTo(x-q,y-q);g.lineTo(x+q,y+q);g.moveTo(x+q,y-q);g.lineTo(x-q,y+q);g.stroke();}});}   // ✗ = ทำนายผิด
     g.save();g.beginPath();g.rect(L,TOP,pw,ph);g.clip();swarm(D.pos,xL,true);swarm(D.neg,xR,false);g.restore();   // จุดไม่ล้นกรอบ
     // นับในมุมของแต่ละช่อง (ตัวเลขใหญ่ + ชื่อช่อง)
     function cnt(v,lab,x,y,al,col){g.textAlign=al;g.fillStyle=col;g.font='26px KaTeX_Main,serif';g.fillText(String(v),x,y);g.font='13px KaTeX_Main,serif';g.fillText(lab,x,y+15);}

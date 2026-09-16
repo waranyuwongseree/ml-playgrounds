@@ -290,7 +290,9 @@
     {n:'PDM univariate', dim:1, pdm:PDM1, groups:['ex','ds','share','model','rs'], rows:['x0','sev','n']},
     {n:'PDM bivariate',  dim:2, pdm:PDM2, groups:['ex','ds','share','model','rs'], rows:['x0','xy0','sev','n']}];
   var MC='#1e3a8a',Rd='#B0503A',Bl='#3F6E99';
-  function OC(y,yh){return y?(yh?'#E07A5F':'#E3B23C'):(yh?'#5BA8A0':'#5B8FB9');}   // สีตามผล: TP coral · FN ทอง · FP เขียวน้ำทะเล · TN ฟ้า (= confusion matrix / ตาราง)
+  // จุดข้อมูล: สี = actual class (coral +, ฟ้า −) · ✗ ขาว = ทำนายผิด (predicted อ่านจากตำแหน่งเทียบ threshold/region)
+  function dotAt(g,x,y,yv,pr,r){g.fillStyle=yv?'rgba(224,122,95,0.9)':'rgba(91,143,185,0.85)';g.beginPath();g.arc(x,y,r,0,7);g.fill();
+    if(pr!==yv){var q=r*0.6;g.strokeStyle='#fff';g.lineWidth=1.8;g.beginPath();g.moveTo(x-q,y-q);g.lineTo(x+q,y+q);g.moveTo(x+q,y-q);g.lineTo(x-q,y+q);g.stroke();}}
   var MODELS=[{key:'logistic',name:'Logistic regression'},{key:'nb',name:'Naive Bayes'},{key:'knn',name:'KNN'},{key:'tree',name:'Decision tree'}];
   function gv(b){return parseFloat(document.getElementById('R'+b).value);}
   function sv(b,v){document.getElementById('R'+b).value=v;document.getElementById('N'+b).value=v;}
@@ -338,7 +340,7 @@
   function posName(){return isEX()?'cancer':isPDM()?'fault':'positive';} function negName(){return isEX()?'healthy':isPDM()?'healthy':'negative';}
   function clLine(name,lc,tc,shape){return '<span class="cli"><i class="'+(shape||'ln')+'" style="background:'+lc+'"></i><span>'+kx('\\textcolor{'+tc+'}{\\text{'+name+'}}')+'</span></span>';}
   function fillLegend(){var el=document.getElementById('classleg');if(!el)return;
-    el.innerHTML=clLine('TP','#E07A5F',Rd,'ar')+clLine('FN','#E3B23C','#8A6510','ar')+clLine('FP','#5BA8A0','#2E7D70','ar')+clLine('TN','#5B8FB9',Bl,'ar')
+    el.innerHTML=clLine(isPDM()?'Fault hours (positive)':'Positive class','#E07A5F',Rd,'ar')+clLine(isPDM()?'Healthy hours (negative)':'Negative class','#5B8FB9',Bl,'ar')+clLine('misclassified (✗)','#888','#666')
       +clLine(dim()===2?'predicted region':'predicted class',MC,MC,dim()===2?'ar':'ln');}
 
   // ---------- canvas ----------
@@ -425,7 +427,7 @@
     var k;
     for(k=0;k<P.X.length;k++){var xv=P.X[k][0],yv=P.ys[k],xp=px(xv);if(xp<L-4||xp>L+pw+4)continue;
       var yp=yv?py(1)+9+(k%3)*7:py(0)-9-(k%3)*7;
-      var pr=m.post([xv])>0.5?1:0;ctx.fillStyle=OC(yv,pr);ctx.beginPath();ctx.arc(xp,yp,4,0,7);ctx.fill();}   // สีจุดตามผล TP/FN/FP/TN
+      var pr=m.post([xv])>0.5?1:0;dotAt(ctx,xp,yp,yv,pr,4.5);}
     var N=320,dx=(xmax-xmin)/N;
     ctx.strokeStyle=MC;ctx.lineWidth=2.4;ctx.beginPath();
     for(i=0;i<=N;i++){x=xmin+i*dx;var Y=py(Math.max(0,Math.min(1,m.post([x]))));i===0?ctx.moveTo(px(x),Y):ctx.lineTo(px(x),Y);}ctx.stroke();
@@ -458,7 +460,7 @@
     ctx.textAlign='right';ctx.textBaseline='middle';for(var b=Math.ceil(ymin/ny.step)*ny.step;b<=ymax+1e-9;b+=ny.step)ctx.fillText(b.toFixed(ny.dec),x0-6,py(b));
     ctx.textBaseline='alphabetic';var lb=labs(cv);lb(P.ax[1],x0+4,y0-8);lb(P.ax[0],x1,y1+30,{align:'right'});
     var k;for(k=0;k<P.X.length;k++){var v=P.X[k],yv=P.ys[k],xp=px(v[0]),yp=py(v[1]);if(xp<x0-4||xp>x1+4||yp<y0-4||yp>y1+4)continue;
-      var pr=m.post(v)>0.5?1:0;ctx.fillStyle=OC(yv,pr);ctx.beginPath();ctx.arc(xp,yp,4,0,7);ctx.fill();}   // สีจุดตามผล TP/FN/FP/TN
+      var pr=m.post(v)>0.5?1:0;dotAt(ctx,xp,yp,yv,pr,4.5);}
     // query point x0: จุดดำขอบขาว + ป้าย x_0
     if(P.x0){var qx=px(P.x0[0]),qy=py(P.x0[1]);if(qx>=x0&&qx<=x1&&qy>=y0&&qy<=y1){
       ctx.fillStyle='#222';ctx.beginPath();ctx.arc(qx,qy,6,0,7);ctx.fill();ctx.strokeStyle='#fff';ctx.lineWidth=2;ctx.stroke();
