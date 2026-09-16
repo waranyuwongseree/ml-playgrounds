@@ -20,8 +20,8 @@
   .distcls .stage{flex-direction:row;gap:18px;align-items:flex-start}
   .stage .main{display:flex;flex-direction:column;gap:6px;flex:1 1 auto;min-width:0}
   /* ตารางข้อมูล (ซ้าย): x | (p̂) | y | ŷ — สีแถวตามผล TP/FN/FP/TN เท่ากับ confusion matrix */
-  .exleft{flex:0 0 168px;min-width:0;border-radius:8px}
-  .stage.wide .exleft{flex-basis:222px}
+  .exleft{flex:0 0 210px;min-width:0;border-radius:8px}   /* กว้างเท่ากันทุกแท็บ → รูปรวมกว้างเท่ากันทุกแท็บ */
+  .stage.wide .exleft{flex-basis:210px}
   .dtab{width:100%;border-collapse:separate;border-spacing:0;font-size:15px}
   .dtab th{background:var(--navy);color:#fff;font-weight:400;padding:5px 6px;text-align:center}
   .dtab td{padding:1px 6px;text-align:center;color:var(--ink);line-height:1.35;background:#fff}
@@ -153,9 +153,15 @@
   function dataset(){var c=DS[dsIdx],n=isEX()?EXN:Math.round(gv('n')),i;D.all=[];D.pos=[];D.neg=[];
     var nP=Math.max(2,Math.round(c.pi*n));   // บังคับให้มีบวกอย่างน้อย 2
     var w=(c.m1-c.m0)/(c.s*c.s),mid=(c.m1+c.m0)/2,b=Math.log(c.pi/(1-c.pi));
-    for(i=0;i<n;i++){var y=(i<nP)?1:0,x=Math.round(((y?c.m1:c.m0)+c.s*Z[i])*10)/10;x=Math.min(XMAX-0.1,Math.max(XMIN+0.1,x));
+    var used={};   // ค่า x ไม่ซ้ำกัน (กริด 0.1): ซ้ำ → ขยับ ±0.1 สลับข้างจนว่าง จุดจึงไม่ทับกัน
+    for(i=0;i<n;i++){var y=(i<nP)?1:0,x=Math.round(((y?c.m1:c.m0)+c.s*Z[i])*10)/10,k=0;
+      while(used[x.toFixed(1)]&&k<40){k++;x=Math.round((x+(k%2?1:-1)*Math.ceil(k/2)*0.1)*10)/10;}
+      x=Math.min(XMAX-0.1,Math.max(XMIN+0.1,x));used[x.toFixed(1)]=1;
       var p=sig(w*(x-mid)+b);D.all.push({x:x,p:p,y:y});}
-    D.all.forEach(function(d){(d.y?D.pos:D.neg).push(sc(d));});}
+    D.all.forEach(function(d){(d.y?D.pos:D.neg).push(sc(d));});
+    // ช่วงแกน x ของ Example = ช่วงข้อมูล (ปัดครึ่งหน่วย) → แกนไม่กว้างเกิน
+    var xs=D.all.map(function(d){return d.x;}),mn=Math.min.apply(null,xs),mx=Math.max.apply(null,xs);
+    D.lo=Math.max(XMIN,Math.floor((mn-0.2)*2)/2);D.hi=Math.min(XMAX,Math.ceil((mx+0.2)*2)/2);}
   function confusion(t){var TP=0,FN=0,FP=0,TN=0,i;for(i=0;i<D.pos.length;i++){if(D.pos[i]>=t)TP++;else FN++;}
     for(i=0;i<D.neg.length;i++){if(D.neg[i]>=t)FP++;else TN++;}return {TP:TP,FN:FN,FP:FP,TN:TN};}
   // ROC: กวาด threshold ทุกค่าที่เป็นไปได้ → (FPR,TPR) · AUC = พื้นที่ (trapezoid) = P(p̂+ > p̂−)
@@ -179,8 +185,8 @@
   // รูปรวมกราฟ + confusion matrix (แบบ MLCC): แกนตั้ง = คะแนน (x หรือ p̂) · คอลัมน์ซ้าย = actual + · ขวา = actual − ·
   // เส้นประ threshold แบ่งแถว ŷ=+ (บน) / ŷ=− (ล่าง) → 4 ช่อง = TP | FP บน, FN | TN ล่าง สีพื้นและสีจุดตามผล · นับในมุมช่อง
   function drawStrip(t,C){var sz=prep(cv,ctx),W=sz.W,H=sz.H,g=ctx,lb=labs(cv);
-    var L=44,Rm=30,TOP=28,BOT=12,pw=W-L-Rm,ph=H-TOP-BOT;
-    var lo=isEX()?XMIN:0,hi=isEX()?XMAX:1,dec=isEX()?1:2,tick=isEX()?1:0.25,tdec=isEX()?0:2;
+    var L=40,Rm=40,TOP=28,BOT=20,pw=W-L-Rm,ph=H-TOP-BOT;   // ขอบซ้าย/ขวาเท่ากัน → รูปสมมาตร · BOT เผื่อป้ายนับเมื่อแถวล่างบางมาก
+    var lo=isEX()?D.lo:0,hi=isEX()?D.hi:1,dec=isEX()?1:2,tick=isEX()?0.5:0.25,tdec=isEX()?1:2;
     function py(s){return TOP+ph-(s-lo)/(hi-lo)*ph;}
     var xm=L+pw/2,yT=py(t),xL=L+pw/4,xR=L+3*pw/4;
     g.fillStyle='#FBE9E4';g.fillRect(L,TOP,pw/2,yT-TOP);g.fillStyle='#E3F1EE';g.fillRect(xm,TOP,pw/2,yT-TOP);
@@ -201,10 +207,13 @@
       if(miss){var q=r*0.55;g.strokeStyle='#fff';g.lineWidth=2;g.beginPath();g.moveTo(x-q,y-q);g.lineTo(x+q,y+q);g.moveTo(x+q,y-q);g.lineTo(x-q,y+q);g.stroke();}});}   // ✗ = ทำนายผิด
     g.save();g.beginPath();g.rect(L,TOP,pw,ph);g.clip();swarm(D.pos,xL,true);swarm(D.neg,xR,false);g.restore();   // จุดไม่ล้นกรอบ
     // นับในมุมของแต่ละช่อง (ตัวเลขใหญ่ + ชื่อช่อง)
-    function cnt(v,lab,x,y,al,col){g.textAlign=al;g.fillStyle=col;g.font='26px KaTeX_Main,serif';g.fillText(String(v),x,y);g.font='13px KaTeX_Main,serif';g.fillText(lab,x,y+15);}
-    var yA=Math.min(TOP+28,yT-6),yB=Math.max(TOP+ph-24,yT+30);
-    cnt(C.TP,'TP',L+8,yA,'left','#8A3B2C');cnt(C.FP,'FP',L+pw-8,yA,'right','#2E7D70');
-    cnt(C.FN,'FN',L+8,yB,'left','#8A6510');cnt(C.TN,'TN',L+pw-8,yB,'right','#3F6E99');
+    // ตัวเลข + ชื่อช่องบรรทัดเดียว ที่มุมกรอบคงที่ (ไม่ล้นกรอบแม้ threshold สุดขอบ)
+    function cnt(v,lab,x,y,al,col,big){var fs=(big?24:15)+'px KaTeX_Main,serif';g.fillStyle=col;g.font=fs;var wv=g.measureText(String(v)).width;g.font='13px KaTeX_Main,serif';var wl=g.measureText(lab).width;
+      var x0=al==='left'?x:x-(wv+6+wl);g.textAlign='left';g.font=fs;g.fillText(String(v),x0,y);g.font='13px KaTeX_Main,serif';g.fillText(lab,x0+wv+6,y);}
+    // แถวบางกว่า 34px (threshold ใกล้สุดขอบ) → ย้ายป้ายนับออกนอกกรอบ (เหนือ/ใต้) ตัวเล็กลง ไม่ทับเส้น/จุด
+    var thinA=(yT-TOP)<34,thinB=(TOP+ph-yT)<34,yA=thinA?TOP-9:TOP+24,yB=thinB?TOP+ph+15:TOP+ph-10;
+    cnt(C.TP,'TP',L+8,yA,'left','#8A3B2C',!thinA);cnt(C.FP,'FP',L+pw-8,yA,'right','#2E7D70',!thinA);
+    cnt(C.FN,'FN',L+8,yB,'left','#8A6510',!thinB);cnt(C.TN,'TN',L+pw-8,yB,'right','#3F6E99',!thinB);
     // หัวคอลัมน์ (actual) + ป้ายแถว (ŷ) แนวตั้งด้านขวา
     lb('\\text{actual }+',xL,TOP-9,{align:'center'});lb('\\text{actual }-',xR,TOP-9,{align:'center'});
     lb('\\hat y=+',L+pw+14,(TOP+yT)/2,{rot:true});lb('\\hat y=-',L+pw+14,(yT+TOP+ph)/2,{rot:true});}
@@ -265,16 +274,18 @@
 
   // ---------- controls ----------
   function setDsSeg(){var bs=document.querySelectorAll('#dsSeg button');for(var i=0;i<bs.length;i++)bs[i].className=(parseInt(bs[i].getAttribute('data-ds'),10)===dsIdx)?'on':'';}
-  function setTRange(){var e=isEX();['Rt','Nt'].forEach(function(id){var el=document.getElementById(id);el.min=e?0.5:0.01;el.max=e?4.5:0.99;el.step=e?0.1:0.01;});sv('t',e?TMEM.ex.toFixed(1):TMEM.p.toFixed(2));}
-  function applyTab(k){curTab=k;var btns=document.querySelectorAll('.tabbtn');for(var i=0;i<btns.length;i++)btns[i].className='tabbtn'+(i===k?' on':'');renderTexts();setTRange();dataset();upd();}
+  // ช่วง threshold: Example = ช่วงข้อมูล (D.lo–D.hi) · p̂ = 0.05–0.95 (สุดขอบกว่านี้ทุกจุดถูกทำนายเหมือนกันหมด)
+  function setTRange(){var e=isEX(),lo=e?D.lo:0.05,hi=e?D.hi:0.95;['Rt','Nt'].forEach(function(id){var el=document.getElementById(id);el.min=lo;el.max=hi;el.step=e?0.1:0.01;});
+    if(e){TMEM.ex=Math.min(hi,Math.max(lo,TMEM.ex));sv('t',TMEM.ex.toFixed(1));}else{TMEM.p=Math.min(hi,Math.max(lo,TMEM.p));sv('t',TMEM.p.toFixed(2));}}
+  function applyTab(k){curTab=k;var btns=document.querySelectorAll('.tabbtn');for(var i=0;i<btns.length;i++)btns[i].className='tabbtn'+(i===k?' on':'');renderTexts();dataset();setTRange();upd();}
   var tb=document.getElementById('tabs');
   TABS.forEach(function(t,i){var el=document.createElement('button');el.className='tabbtn';K('\\text{'+t.n+'}',el);el.addEventListener('click',function(){applyTab(i);});tb.appendChild(el);});
   ['n','t'].forEach(function(b){var Re=document.getElementById('R'+b),Ne=document.getElementById('N'+b);
-    function after(){if(b==='t'){if(isEX())TMEM.ex=gv('t');else TMEM.p=gv('t');}if(b==='n')dataset();upd();}
+    function after(){if(b==='t'){if(isEX())TMEM.ex=gv('t');else TMEM.p=gv('t');}if(b==='n'){dataset();setTRange();}upd();}
     Re.addEventListener('input',function(){Ne.value=(b==='t')?parseFloat(Re.value).toFixed(isEX()?1:2):Re.value;after();});
     Ne.addEventListener('input',function(){Re.value=Ne.value;after();});});
-  document.querySelectorAll('#dsSeg button').forEach(function(b){b.addEventListener('click',function(){dsIdx=parseInt(b.getAttribute('data-ds'),10);setDsSeg();dataset();upd();});});
-  document.getElementById('resample').addEventListener('click',function(){seed=(seed*1664525+1013904223)>>>0;regen(seed);dataset();upd();});
+  document.querySelectorAll('#dsSeg button').forEach(function(b){b.addEventListener('click',function(){dsIdx=parseInt(b.getAttribute('data-ds'),10);setDsSeg();dataset();setTRange();upd();});});
+  document.getElementById('resample').addEventListener('click',function(){seed=(seed*1664525+1013904223)>>>0;regen(seed);dataset();setTRange();upd();});
   window.addEventListener('resize',function(){upd();});
 
   renderTexts();setDsSeg();applyTab(0);
