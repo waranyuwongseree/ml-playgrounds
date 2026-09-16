@@ -27,16 +27,12 @@
   .dtab td{padding:1px 6px;text-align:center;color:var(--ink);line-height:1.35;background:#fff}
   .dtab tr.tp td{background:#FBE9E4}.dtab tr.fn td{background:#FAEFD6}.dtab tr.fp td{background:#E3F1EE}.dtab tr.tn td{background:#E9F0F8}
   .dtab .katex{font-size:1em}
-  .pg.distcls .canvasbox{height:180px}
-  .toprow{display:flex;gap:16px;align-items:stretch}
-  .toprow .canvasbox{flex:1 1 auto;width:auto;min-width:0;margin:0}
-  /* แถวล่าง: [confusion matrix (แบบ 2-D Bayes) | ROC จัตุรัส (เฉพาะแท็บ ROC)] แล้วตารางสูตรใต้ */
-  .distcls .below{min-height:0;padding:6px 12px 6px;display:flex;flex-direction:column;gap:6px;align-items:stretch}
-  .cmrow{display:flex;flex-wrap:wrap;gap:16px;align-items:center}   /* ที่ไม่พอ → ROC ตกลงบรรทัดใต้ confusion matrix (ไม่บีบ ไม่ล้น) */
-  .cmwrap{flex:none;width:340px;max-width:100%;min-width:0}
+  .pg.distcls .canvasbox{height:360px}   /* รูปรวม (score × actual class, แบ่งช่องด้วย threshold) */
+  .toprow{display:flex;flex-wrap:wrap;gap:16px;align-items:center}   /* แท็บ ROC: ที่ไม่พอ → ROC ตกลงบรรทัดใต้รูปรวม (รูปรวมกว้างเต็ม) */
+  .toprow .canvasbox{flex:1 1 360px;width:auto;min-width:0;margin:0}
   .rocbox{display:none;flex:none;aspect-ratio:1/1;height:220px;background:#fff;border:1px solid var(--line);border-radius:12px;position:relative}
   .rocbox canvas{width:100%;height:100%;display:block}
-  .below.roc .rocbox{display:block}
+  .toprow.roc .rocbox{display:block}
   /* ตาราง metric อยู่ใต้ control (ไม่กินพื้นที่คอลัมน์กราฟ) — \frac เล็ก ทศนิยม 2 ตำแหน่ง */
   #grp-met{margin-top:12px;border-top:1px solid var(--line);padding-top:8px}
   .panel .mtab{width:100%;font-size:15px}
@@ -78,20 +74,12 @@
     <div class="stage" id="stage">
       <div class="exleft" id="exleft"><table class="dtab" id="dtab"><thead><tr id="dthead"></tr></thead><tbody id="dtbody"></tbody></table></div>
       <div class="main">
+      <!-- กราฟ + confusion matrix รวมเป็นรูปเดียว (แบบ MLCC): แกนตั้ง = คะแนน · คอลัมน์ = actual +/− · เส้น threshold แบ่งแถว ŷ · นับในแต่ละช่อง -->
       <div class="toprow" id="toprow">
         <div class="canvasbox"><canvas id="cv"></canvas></div>
+        <div class="rocbox" id="rocbox"><canvas id="cvroc"></canvas></div>
       </div>
       <div class="classleg" id="classleg"></div>
-      <div class="below" id="below">
-        <div class="cmrow">
-        <div class="cmwrap" id="cmwrap"><div class="cm">
-          <div class="hh"></div><div class="hh" id="ch-pp"></div><div class="hh" id="ch-pn"></div>
-          <div class="hh" id="ch-ap"></div><div class="cell tp"><b id="c-tp">0</b><span id="cs-tp"></span></div><div class="cell fn"><b id="c-fn">0</b><span id="cs-fn"></span></div>
-          <div class="hh" id="ch-an"></div><div class="cell fp"><b id="c-fp">0</b><span id="cs-fp"></span></div><div class="cell tn"><b id="c-tn">0</b><span id="cs-tn"></span></div>
-        </div></div>
-        <div class="rocbox" id="rocbox"><canvas id="cvroc"></canvas></div>
-        </div>
-      </div>
       </div>
     </div>
 
@@ -182,47 +170,43 @@
   function labs(c){var p=c.parentElement,Ly=p.querySelector('.cvlab');if(!Ly){Ly=document.createElement('div');Ly.className='cvlab';p.appendChild(Ly);}Ly.innerHTML='';
     var ox=c.clientLeft||0,oy=c.clientTop||0;
     return function(tex,x,y,o){o=o||{};var s=document.createElement('span');K(tex,s);if(o.color)s.style.color=o.color;
+      if(o.rot){s.style.left=(x+ox)+'px';s.style.top=(y+oy)+'px';s.style.transform='translate(-50%,-50%) rotate(-90deg)';Ly.appendChild(s);return;}   // ป้ายแนวตั้ง จัดกลางที่ (x,y)
       var pr=document.createElement('span');pr.style.cssText='display:inline-block;width:0;height:0;vertical-align:baseline';s.appendChild(pr);
       s.style.left=(x+ox)+'px';s.style.top='0px';s.style.transform='translateX('+(o.align==='right'?'-100%':o.align==='center'?'-50%':'0')+')';Ly.appendChild(s);
       var sr=s.getBoundingClientRect(),base=pr.getBoundingClientRect().top-sr.top;
       s.style.top=(oy+(o.vt==='middle'?y-sr.height/2:o.vt==='top'?y:y-base))+'px';};}
 
-  // score strip: จุดซ้อนเป็นแท่ง (บวกขึ้นบน ลบลงล่าง) บนแกนคะแนน (x หรือ p̂) · เส้นประดำ = threshold · TP/FN/FP/TN ข้างเส้นแบบ 1-D Bayes
-  function drawStrip(t,C){var sz=prep(cv,ctx),W=sz.W,H=sz.H,g=ctx;labs(cv);
-    var L=16,Rm=16,TOP=22,BOT=54,pw=W-L-Rm,ph=H-TOP-BOT,mid=TOP+ph/2,i;
+  // รูปรวมกราฟ + confusion matrix (แบบ MLCC): แกนตั้ง = คะแนน (x หรือ p̂) · คอลัมน์ซ้าย = actual + · ขวา = actual − ·
+  // เส้นประ threshold แบ่งแถว ŷ=+ (บน) / ŷ=− (ล่าง) → 4 ช่อง = TP | FP บน, FN | TN ล่าง สีพื้นและสีจุดตามผล · นับในมุมช่อง
+  function drawStrip(t,C){var sz=prep(cv,ctx),W=sz.W,H=sz.H,g=ctx,lb=labs(cv);
+    var L=44,Rm=30,TOP=28,BOT=12,pw=W-L-Rm,ph=H-TOP-BOT;
     var lo=isEX()?XMIN:0,hi=isEX()?XMAX:1,dec=isEX()?1:2,tick=isEX()?1:0.25,tdec=isEX()?0:2;
-    function px(s){return L+(s-lo)/(hi-lo)*pw;}
-    g.fillStyle='rgba(91,143,185,0.07)';g.fillRect(L,TOP,px(t)-L,ph);g.fillStyle='rgba(224,122,95,0.08)';g.fillRect(px(t),TOP,L+pw-px(t),ph);
-    var NB=isEX()?50:40,bw=(hi-lo)/NB,bp=[],bn=[],b;for(b=0;b<NB;b++){bp.push([]);bn.push([]);}
-    D.pos.forEach(function(s){bp[Math.min(NB-1,Math.floor((s-lo)/bw+1e-9))].push(s);});D.neg.forEach(function(s){bn[Math.min(NB-1,Math.floor((s-lo)/bw+1e-9))].push(s);});
-    var mx=1;for(b=0;b<NB;b++)mx=Math.max(mx,bp[b].length,bn[b].length);
-    var bwp=pw/NB,r=Math.min(bwp/2-0.6,D.all.length<=20?6:5),dy=Math.min(2*r+1.2,(ph/2-8)/mx);r=Math.min(r,dy/2-0.3);
-    // สีจุดตามผล = สีช่อง confusion matrix / แถวตาราง: TP coral · FN ทอง · FP เขียวน้ำทะเล · TN ฟ้า
-    function dot(x,y,pos,miss){g.fillStyle=pos?(miss?'#E3B23C':'#E07A5F'):(miss?'#5BA8A0':'#5B8FB9');g.beginPath();g.arc(x,y,r,0,7);g.fill();}
-    for(b=0;b<NB;b++){var cx=L+(b+0.5)*bwp;
-      for(i=0;i<bp[b].length;i++)dot(cx,mid-4-r-i*dy,true,bp[b][i]<t);
-      for(i=0;i<bn[b].length;i++)dot(cx,mid+4+r+i*dy,false,bn[b][i]>=t);}
-    g.strokeStyle='rgba(128,128,128,0.6)';g.lineWidth=1;g.beginPath();g.moveTo(L,mid);g.lineTo(L+pw,mid);g.stroke();
-    g.fillStyle='rgba(128,128,128,0.9)';g.font='13px KaTeX_Main,serif';g.textAlign='center';g.textBaseline='alphabetic';
-    for(var a=lo;a<=hi+1e-9;a+=tick)g.fillText(a.toFixed(tdec),px(a),TOP+ph+15);
-    var xT=px(t);g.strokeStyle='#111';g.fillStyle='#111';g.lineWidth=1.8;g.setLineDash([5,4]);g.beginPath();g.moveTo(xT,TOP-4);g.lineTo(xT,TOP+ph+4);g.stroke();g.setLineDash([]);
-    // ป้าย threshold: จัดกลางที่เส้น แต่ไม่ให้ล้นขอบกราฟ
-    g.font='15px KaTeX_Main,serif';g.textAlign='center';var thT='threshold '+t.toFixed(dec),wTh=g.measureText(thT).width;
-    g.fillText(thT,Math.max(L+wTh/2,Math.min(L+pw-wTh/2,xT)),H-4);
-    // ป้ายคู่ซ้าย/ขวาของเส้น (FN|TP บน, TN|FP ล่าง): ถ้าฝั่งใดไม่พอที่ ย้ายไปต่อท้ายอีกฝั่ง — ไม่ล้นขอบ ไม่ทับกัน
-    function pair(y,lt,lc,rt,rc){var wl=g.measureText(lt).width,wr=g.measureText(rt).width,okL=xT-12-wl>=L,okR=xT+12+wr<=L+pw,lx,rx;
-      if(okL&&okR){lx=xT-12-wl;rx=xT+12;}
-      else if(!okL){rx=Math.min(xT+12,L+pw-wr-wl-10);rx=Math.max(rx,L);lx=rx+wr+10;}
-      else{lx=Math.max(xT-12-wl,L+wr+10);lx=Math.min(lx,L+pw-wl);rx=lx-10-wr;}
-      g.textAlign='left';g.fillStyle=lc;g.fillText(lt,lx,y);g.fillStyle=rc;g.fillText(rt,rx,y);
-      return [[lx,lx+wl],[rx,rx+wr]];}
-    var top=pair(TOP-8,'FN '+C.FN,'#8A6510','TP '+C.TP,'#B0503A');
-    pair(TOP+ph+31,'TN '+C.TN,'#3F6E99','FP '+C.FP,'#2E7D70');
-    // คำ predicted negative/positive: ใส่เฉพาะเมื่อไม่ทับป้าย FN/TP
-    function free(x0,x1){return top.every(function(s){return x1+8<s[0]||x0-8>s[1];});}
-    g.font='13px KaTeX_Main,serif';g.fillStyle='rgba(90,90,90,0.9)';var wPN=g.measureText('predicted negative').width,wPP=g.measureText('predicted positive').width;
-    if(free(L+4,L+4+wPN)){g.textAlign='left';g.fillText('predicted negative',L+4,TOP-8);}
-    if(free(L+pw-4-wPP,L+pw-4)){g.textAlign='right';g.fillText('predicted positive',L+pw-4,TOP-8);}}
+    function py(s){return TOP+ph-(s-lo)/(hi-lo)*ph;}
+    var xm=L+pw/2,yT=py(t),xL=L+pw/4,xR=L+3*pw/4;
+    g.fillStyle='#FBE9E4';g.fillRect(L,TOP,pw/2,yT-TOP);g.fillStyle='#E3F1EE';g.fillRect(xm,TOP,pw/2,yT-TOP);
+    g.fillStyle='#FAEFD6';g.fillRect(L,yT,pw/2,TOP+ph-yT);g.fillStyle='#E9F0F8';g.fillRect(xm,yT,pw/2,TOP+ph-yT);
+    g.strokeStyle='rgba(128,128,128,0.6)';g.lineWidth=1;g.strokeRect(L,TOP,pw,ph);g.beginPath();g.moveTo(xm,TOP);g.lineTo(xm,TOP+ph);g.stroke();
+    // แกนคะแนน (ซ้าย) — ข้าม tick ที่ชนป้าย threshold
+    g.fillStyle='rgba(128,128,128,0.9)';g.font='13px KaTeX_Main,serif';g.textAlign='right';g.textBaseline='middle';
+    for(var a=lo;a<=hi+1e-9;a+=tick){var yy=py(a);if(Math.abs(yy-yT)>14)g.fillText(a.toFixed(tdec),L-7,yy);}
+    // threshold
+    g.strokeStyle='#111';g.setLineDash([5,4]);g.lineWidth=1.8;g.beginPath();g.moveTo(L-4,yT);g.lineTo(L+pw+4,yT);g.stroke();g.setLineDash([]);
+    g.fillStyle='#111';g.font='13px KaTeX_Main,serif';g.textAlign='right';g.fillText(t.toFixed(dec),L-7,yT);g.textBaseline='alphabetic';
+    // จุด: beeswarm ต่อคอลัมน์ (ชนกันในแนวตั้ง → ขยับซ้าย/ขวาสลับกัน) สีตามผล TP coral · FN ทอง · FP เขียวน้ำทะเล · TN ฟ้า
+    var r=D.all.length<=20?6:5,gap=2*r+1.5;
+    function swarm(vals,cx,pos){var placed=[];vals.slice().sort(function(a,b){return b-a;}).forEach(function(s){var y=py(s),x=cx,n=0;
+      function busy(xx){for(var i=0;i<placed.length;i++)if(Math.abs(placed[i].y-y)<gap&&Math.abs(placed[i].x-xx)<gap)return true;return false;}
+      while(busy(x)&&n<40){n++;x=cx+Math.ceil(n/2)*(n%2?1:-1)*gap;}placed.push({x:x,y:y});
+      var miss=pos?(s<t):(s>=t);g.fillStyle=pos?(miss?'#E3B23C':'#E07A5F'):(miss?'#5BA8A0':'#5B8FB9');g.beginPath();g.arc(x,y,r,0,7);g.fill();});}
+    g.save();g.beginPath();g.rect(L,TOP,pw,ph);g.clip();swarm(D.pos,xL,true);swarm(D.neg,xR,false);g.restore();   // จุดไม่ล้นกรอบ
+    // นับในมุมของแต่ละช่อง (ตัวเลขใหญ่ + ชื่อช่อง)
+    function cnt(v,lab,x,y,al,col){g.textAlign=al;g.fillStyle=col;g.font='26px KaTeX_Main,serif';g.fillText(String(v),x,y);g.font='13px KaTeX_Main,serif';g.fillText(lab,x,y+15);}
+    var yA=Math.min(TOP+28,yT-6),yB=Math.max(TOP+ph-24,yT+30);
+    cnt(C.TP,'TP',L+8,yA,'left','#8A3B2C');cnt(C.FP,'FP',L+pw-8,yA,'right','#2E7D70');
+    cnt(C.FN,'FN',L+8,yB,'left','#8A6510');cnt(C.TN,'TN',L+pw-8,yB,'right','#3F6E99');
+    // หัวคอลัมน์ (actual) + ป้ายแถว (ŷ) แนวตั้งด้านขวา
+    lb('\\text{actual }+',xL,TOP-9,{align:'center'});lb('\\text{actual }-',xR,TOP-9,{align:'center'});
+    lb('\\hat y=+',L+pw+14,(TOP+yT)/2,{rot:true});lb('\\hat y=-',L+pw+14,(yT+TOP+ph)/2,{rot:true});}
 
   function drawRoc(t,R){var sz=prep(cvr,ctr),W=sz.W,H=sz.H,g=ctr;
     var L=36,Rm=12,TOP=14,BOT=34,pw=W-L-Rm,ph=H-TOP-BOT,i;
@@ -272,11 +256,11 @@
     document.getElementById('mbody').innerHTML=h;}
 
   function upd(){var t=gv('t'),C=confusion(t),R=roc(),k=T().key;
-    document.getElementById('below').className='below'+(k==='roc'?' roc':k==='ex'?' ex':'');
+    document.getElementById('toprow').className='toprow'+(k==='roc'?' roc':'');
     document.getElementById('stage').className='stage'+(isEX()?'':' wide');
     document.getElementById('row-n').style.display=isEX()?'none':'';
     document.getElementById('grp-met').style.display=isEX()?'none':'';   // Example ไม่มี metric
-    drawStrip(t,C);if(k==='roc')drawRoc(t,R);fillCM(C);fillTable(C,R);fillLegend();fillDtab(t);}
+    drawStrip(t,C);if(k==='roc')drawRoc(t,R);fillTable(C,R);fillLegend();fillDtab(t);}
 
   // ---------- controls ----------
   function setDsSeg(){var bs=document.querySelectorAll('#dsSeg button');for(var i=0;i<bs.length;i++)bs[i].className=(parseInt(bs[i].getAttribute('data-ds'),10)===dsIdx)?'on':'';}
