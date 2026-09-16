@@ -229,10 +229,11 @@
     return(_cache[name]={name:name,n:n,col:col,bad:bad});}
   // ชื่อแกน = LaTeX (วาดเป็น KaTeX overlay ทับ canvas)
   var AXT='x=\\text{bearing temperature }(^\\circ\\text{C})',AXF='x_1=\\text{flow }(\\text{m}^3/\\text{h})';
-  var PDM1=[{ds:'along_the_model',f:['bearing_temp_c'],lab:'Along the model',ax:[AXT]},
-            {ds:'broken_relation',f:['bearing_temp_c'],lab:'Broken relation',ax:[AXT]}];
-  var PDM2=[{ds:'broken_relation',f:['flow_m3h','discharge_pressure_bar'],lab:'Broken relation',ax:[AXF,'x_2=\\text{discharge pressure (bar)}']},
-            {ds:'along_the_model',f:['flow_m3h','motor_current_a'],       lab:'Along the model',ax:[AXF,'x_2=\\text{motor current (A)}']}];
+  // nm = ชื่อย่อของตัวแปรสำหรับหัวตาราง (เช่น "temp (x)") · สมการยังใช้สัญลักษณ์ x, x_1, x_2 เหมือนเดิม
+  var PDM1=[{ds:'along_the_model',f:['bearing_temp_c'],lab:'Along the model',ax:[AXT],nm:['temp']},
+            {ds:'broken_relation',f:['bearing_temp_c'],lab:'Broken relation',ax:[AXT],nm:['temp']}];
+  var PDM2=[{ds:'broken_relation',f:['flow_m3h','discharge_pressure_bar'],lab:'Broken relation',ax:[AXF,'x_2=\\text{discharge pressure (bar)}'],nm:['flow','pressure']},
+            {ds:'along_the_model',f:['flow_m3h','motor_current_a'],       lab:'Along the model',ax:[AXF,'x_2=\\text{motor current (A)}'],nm:['flow','current']}];
 
   // ---------- estimators ----------
   function fitLogistic(X,ys){var n=X.length,D=X[0].length,i,d,mu=[],sd=[];
@@ -519,11 +520,12 @@
       h+=cline(['\\hat p=\\text{fraction of }+\\text{ in the leaf (splits chosen by Gini)}']);
       h+=cline([qv+':\\ \\hat p(x_0)='+fx(p0)+'\\Rightarrow '+yh]);}
     h+=cline(ruleLines(f,sym,dec));
-    h+=cline(['\\text{accuracy}=\\dfrac{\\mathrm{TP}+\\mathrm{TN}}{n}=\\dfrac{'+C.TP+'+'+C.TN+'}{'+n+'}='+fx((C.TP+C.TN)/n)]);
+    h+=cline(['\\text{accuracy}=\\dfrac{\\textcolor{#8A3B2C}{\\mathrm{TP}}+\\textcolor{#3F6E99}{\\mathrm{TN}}}{n}=\\dfrac{\\textcolor{#8A3B2C}{'+C.TP+'}+\\textcolor{#3F6E99}{'+C.TN+'}}{'+n+'}='+fx((C.TP+C.TN)/n)]);   // สีเดียวกับช่อง confusion matrix
     el.innerHTML=h;}
   // ---------- ตารางข้อมูลซ้าย: x | y | ŷ (2-D: x_1 | x_2 | y | ŷ) เรียงตาม x มากไปน้อย · สีแถว = ผล TP/FN/FP/TN ----------
   function fillModTab(S,f){var hd=document.getElementById('mthead'),tb=document.getElementById('mtbody');if(!hd||!tb)return;
-    var W=function(t){return '\\textcolor{#fff}{'+t+'}';},cols=S.sym.concat(['\\text{actual}','\\text{predicted}']);   // คำเดียวกับ confusion matrix
+    var W=function(t){return '\\textcolor{#fff}{'+t+'}';},nm=isPDM()?T().pdm[dsIdx].nm:null;
+    var cols=S.sym.map(function(s,i){return nm?'\\text{'+nm[i]+' }('+s+')':s;}).concat(['\\text{actual}','\\text{predicted}']);   // PDM: ชื่อจริง (สัญลักษณ์) · คำเดียวกับ confusion matrix
     hd.innerHTML=cols.map(function(t){return '<th>'+kx(W(t))+'</th>';}).join('');
     var idx=[],i;for(i=0;i<S.X.length;i++)idx.push(i);idx.sort(function(a,b){return S.X[b][0]-S.X[a][0];});
     function cls(y){return y?'\\textcolor{#B0503A}{+}':'\\textcolor{#3F6E99}{-}';}
@@ -590,7 +592,7 @@
   function syncRows(){var t=T(),kd=kind();['ex','pos','neg','ds','share','model','rs'].forEach(function(g){document.getElementById('grp-'+g).style.display=(t.groups.indexOf(g)>=0)?'':'none';});
     ['x0','xy0','mu1','muy1','s1','mu0','muy0','s0','p1','sev','n'].forEach(function(b){document.getElementById('row-'+b).style.display=(t.rows.indexOf(b)>=0)?'':'none';});
     var R=RANGE[kd];if(R.mu){setRange('mu1',R.mu);setRange('mu0',R.mu);setRange('s1',R.s);setRange('s0',R.s);}setRange('n',R.n);if(R.x0){setRange('x0',R.x0);setRange('xy0',R.x0);}
-    var M=MEM[kd];for(var b in M)sv(b,M[b]);}
+    var M=MEM[kd];for(var b in M){if(b.indexOf('@')<0)sv(b,M[b]);}}   // ข้าม key ของ query point PDM (x0@ชุด)
   // PDM: ช่วง x0/xy0 = ช่วงข้อมูลของชุดที่เลือก (ค่าเริ่ม = กึ่งกลาง) · จำค่าต่อชุด/แกน
   function syncQueryPDM(S){if(!isPDM())return;var M=MEM.pdm,ds=T().n+dsIdx;
     [['x0',S.xmin,S.xmax],['xy0',S.ymin,S.ymax]].forEach(function(q){if(q[0]==='xy0'&&dim()!==2)return;var lo=q[1],hi=q[2],st=Math.pow(10,Math.floor(Math.log10((hi-lo)/100)));

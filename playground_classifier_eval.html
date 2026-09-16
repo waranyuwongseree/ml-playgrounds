@@ -29,10 +29,12 @@
   .dtab .katex{font-size:1em}
   /* รูปรวม (score × actual class) = จัตุรัส 280 เท่ากันทุกแท็บ · แท็บ ROC: กราฟ ROC จัตุรัสขนาดเดียวกันวางข้าง → พอดี 1 หน้า */
   /* รูปรวมจัตุรัส 300 เท่ากันทุกแท็บ · แท็บ ROC: กราฟ ROC จัตุรัสขนาดเดียวกัน วางใต้ (บน–ล่าง) → 64+300+30+300 พอดี 1 หน้า */
-  .pg.distcls .canvasbox{flex:none;width:300px;height:300px}
+  /* ขนาดจัตุรัสตามความสูงจอ: (100vh − หัว/legend/ช่องว่าง 190px) ÷ 2 อยู่ระหว่าง 200–300 → รูป + ROC ซ้อนกันพอดี 1 หน้าทุกจอ */
+  :root{--sq:clamp(200px,calc((100vh - 190px)/2),300px)}
+  .pg.distcls .canvasbox{flex:none;width:var(--sq);height:var(--sq)}
   .toprow{display:flex;gap:16px;align-items:center}
   .toprow .canvasbox{flex:none;margin:0}
-  .rocbox{display:none;flex:none;width:300px;height:300px;background:#fff;border:1px solid var(--line);border-radius:12px;position:relative}
+  .rocbox{display:none;flex:none;width:var(--sq);height:var(--sq);background:#fff;border:1px solid var(--line);border-radius:12px;position:relative}
   .main.roc .rocbox{display:block}
   .rocbox canvas{width:100%;height:100%;display:block}
   .toprow.roc .rocbox{display:block}
@@ -91,7 +93,7 @@
       <div id="grp-ds"><div class="dhd" id="hd-ds"></div>
       <div class="seg2" id="dsSeg"><button data-ds="0" id="ds-0" class="on"></button><button data-ds="1" id="ds-1"></button><button data-ds="2" id="ds-2"></button></div>
       <div class="dgrid">
-        <div class="drow" id="row-n"><span class="dlab" id="lbl-n"></span><input type="range" id="Rn" min="12" max="40" step="4" value="20"><input class="num" type="number" id="Nn" min="12" max="40" step="4" value="20"></div>
+        <div class="drow" id="row-n"><span class="dlab" id="lbl-n"></span><input type="range" id="Rn" min="10" max="20" step="2" value="20"><input class="num" type="number" id="Nn" min="10" max="20" step="2" value="20"></div>
       </div></div>
       <div id="grp-th"><div class="dhd" id="hd-th"></div>
       <div class="dgrid">
@@ -253,17 +255,21 @@
   function fillCM(C){K(String(C.TP),document.getElementById('c-tp'));K(String(C.FN),document.getElementById('c-fn'));K(String(C.FP),document.getElementById('c-fp'));K(String(C.TN),document.getElementById('c-tn'));}
   // ตารางใต้ control: metric | สูตร (\frac เล็ก) | ค่าแทนเลข = ทศนิยม 2 ตำแหน่ง
   function fr(num,den){return '\\frac{'+num+'}{'+den+'}';}
-  function vv(nv,dv){return dv>0?fr(nv,dv)+'='+(nv/dv).toFixed(2):'\\text{--}';}
+  // สีในสมการ = สีช่อง TP / FN / FP / TN (ทั้งสัญลักษณ์และตัวเลขที่แทนค่า)
+  var CC={TP:'#8A3B2C',FN:'#8A6510',FP:'#2E7D70',TN:'#3F6E99'};
+  function cs(k){return '\\textcolor{'+CC[k]+'}{\\mathrm{'+k+'}}';} function cn(k,v){return '\\textcolor{'+CC[k]+'}{'+v+'}';}
+  function vv(ns,ds,nv,dv){return dv>0?fr(ns,ds)+'='+(nv/dv).toFixed(2):'\\text{--}';}
   function fillTable(C,R){var k=T().key,rows=[],TP=C.TP,FN=C.FN,FP=C.FP,TN=C.TN,n=TP+FN+FP+TN;
+    var tp=cn('TP',TP),fn=cn('FN',FN),fp=cn('FP',FP),tn=cn('TN',TN);
     if(k==='thr'){
-      rows=[['\\text{accuracy}',fr('\\mathrm{TP}+\\mathrm{TN}','n'),vv(TP+TN,n)],
-            ['\\text{recall (TPR)}',fr('\\mathrm{TP}','\\mathrm{TP}+\\mathrm{FN}'),vv(TP,TP+FN)],
-            ['\\text{FPR}',fr('\\mathrm{FP}','\\mathrm{FP}+\\mathrm{TN}'),vv(FP,FP+TN)],
-            ['\\text{precision}',fr('\\mathrm{TP}','\\mathrm{TP}+\\mathrm{FP}'),vv(TP,TP+FP)],
-            ['F_1',fr('2\\mathrm{TP}','2\\mathrm{TP}+\\mathrm{FP}+\\mathrm{FN}'),vv(2*TP,2*TP+FP+FN)]];}
+      rows=[['\\text{accuracy}',fr(cs('TP')+'+'+cs('TN'),'n'),vv(tp+'+'+tn,n,TP+TN,n)],
+            ['\\text{recall (TPR)}',fr(cs('TP'),cs('TP')+'+'+cs('FN')),vv(tp,tp+'+'+fn,TP,TP+FN)],
+            ['\\text{FPR}',fr(cs('FP'),cs('FP')+'+'+cs('TN')),vv(fp,fp+'+'+tn,FP,FP+TN)],
+            ['\\text{precision}',fr(cs('TP'),cs('TP')+'+'+cs('FP')),vv(tp,tp+'+'+fp,TP,TP+FP)],
+            ['F_1',fr('2'+cs('TP'),'2'+cs('TP')+'+'+cs('FP')+'+'+cs('FN')),vv('2\\cdot'+tp,'2\\cdot'+tp+'+'+fp+'+'+fn,2*TP,2*TP+FP+FN)]];}
     else if(k==='roc'){
-      rows=[['\\text{TPR}',fr('\\mathrm{TP}','\\mathrm{TP}+\\mathrm{FN}'),vv(TP,TP+FN)],
-            ['\\text{FPR}',fr('\\mathrm{FP}','\\mathrm{FP}+\\mathrm{TN}'),vv(FP,FP+TN)],
+      rows=[['\\text{TPR}',fr(cs('TP'),cs('TP')+'+'+cs('FN')),vv(tp,tp+'+'+fn,TP,TP+FN)],
+            ['\\text{FPR}',fr(cs('FP'),cs('FP')+'+'+cs('TN')),vv(fp,fp+'+'+tn,FP,FP+TN)],
             ['\\text{AUC}','P(\\hat p_+>\\hat p_-)',R.auc.toFixed(2)]];}
     var h='';rows.forEach(function(r){h+='<tr><td>'+kx(r[0])+'</td><td>'+kx(r[1])+'</td><td>'+kx(r[2])+'</td></tr>';});
     document.getElementById('mbody').innerHTML=h;}
