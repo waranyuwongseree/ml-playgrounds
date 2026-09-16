@@ -32,8 +32,8 @@
   .toprow .canvasbox{flex:1 1 auto;width:auto;min-width:0;margin:0}
   /* แถวล่าง: [confusion matrix (แบบ 2-D Bayes) | ROC จัตุรัส (เฉพาะแท็บ ROC)] แล้วตารางสูตรใต้ */
   .distcls .below{min-height:0;padding:6px 12px 6px;display:flex;flex-direction:column;gap:6px;align-items:stretch}
-  .cmrow{display:flex;gap:16px;align-items:center}
-  .cmwrap{flex:1 1 auto;max-width:340px;min-width:0}   /* ยืดหยุ่น: แท็บ ROC ให้ ROC 220px ก่อน ที่เหลือเป็น confusion matrix (ไม่ล้น) */
+  .cmrow{display:flex;flex-wrap:wrap;gap:16px;align-items:center}   /* ที่ไม่พอ → ROC ตกลงบรรทัดใต้ confusion matrix (ไม่บีบ ไม่ล้น) */
+  .cmwrap{flex:none;width:340px;max-width:100%;min-width:0}
   .rocbox{display:none;flex:none;aspect-ratio:1/1;height:220px;background:#fff;border:1px solid var(--line);border-radius:12px;position:relative}
   .rocbox canvas{width:100%;height:100%;display:block}
   .below.roc .rocbox{display:block}
@@ -206,14 +206,23 @@
     g.fillStyle='rgba(128,128,128,0.9)';g.font='13px KaTeX_Main,serif';g.textAlign='center';g.textBaseline='alphabetic';
     for(var a=lo;a<=hi+1e-9;a+=tick)g.fillText(a.toFixed(tdec),px(a),TOP+ph+15);
     var xT=px(t);g.strokeStyle='#111';g.fillStyle='#111';g.lineWidth=1.8;g.setLineDash([5,4]);g.beginPath();g.moveTo(xT,TOP-4);g.lineTo(xT,TOP+ph+4);g.stroke();g.setLineDash([]);
-    g.font='15px KaTeX_Main,serif';g.textAlign='center';g.fillText('threshold '+t.toFixed(dec),xT,H-4);
-    g.textAlign='left'; g.fillStyle='#B0503A';g.fillText('TP '+C.TP,xT+12,TOP-8);var wTP=g.measureText('TP '+C.TP).width;
-    g.textAlign='right';g.fillStyle='#8A6510';g.fillText('FN '+C.FN,xT-12,TOP-8);var wFN=g.measureText('FN '+C.FN).width;
-    g.textAlign='left'; g.fillStyle='#2E7D70';g.fillText('FP '+C.FP,xT+12,TOP+ph+31);
-    g.textAlign='right';g.fillStyle='#3F6E99';g.fillText('TN '+C.TN,xT-12,TOP+ph+31);
-    g.font='13px KaTeX_Main,serif';g.fillStyle='rgba(90,90,90,0.9)';
-    if(L+4+g.measureText('predicted negative').width+8<xT-12-wFN){g.textAlign='left';g.fillText('predicted negative',L+4,TOP-8);}
-    if(xT+12+wTP+8<L+pw-4-g.measureText('predicted positive').width){g.textAlign='right';g.fillText('predicted positive',L+pw-4,TOP-8);}}
+    // ป้าย threshold: จัดกลางที่เส้น แต่ไม่ให้ล้นขอบกราฟ
+    g.font='15px KaTeX_Main,serif';g.textAlign='center';var thT='threshold '+t.toFixed(dec),wTh=g.measureText(thT).width;
+    g.fillText(thT,Math.max(L+wTh/2,Math.min(L+pw-wTh/2,xT)),H-4);
+    // ป้ายคู่ซ้าย/ขวาของเส้น (FN|TP บน, TN|FP ล่าง): ถ้าฝั่งใดไม่พอที่ ย้ายไปต่อท้ายอีกฝั่ง — ไม่ล้นขอบ ไม่ทับกัน
+    function pair(y,lt,lc,rt,rc){var wl=g.measureText(lt).width,wr=g.measureText(rt).width,okL=xT-12-wl>=L,okR=xT+12+wr<=L+pw,lx,rx;
+      if(okL&&okR){lx=xT-12-wl;rx=xT+12;}
+      else if(!okL){rx=Math.min(xT+12,L+pw-wr-wl-10);rx=Math.max(rx,L);lx=rx+wr+10;}
+      else{lx=Math.max(xT-12-wl,L+wr+10);lx=Math.min(lx,L+pw-wl);rx=lx-10-wr;}
+      g.textAlign='left';g.fillStyle=lc;g.fillText(lt,lx,y);g.fillStyle=rc;g.fillText(rt,rx,y);
+      return [[lx,lx+wl],[rx,rx+wr]];}
+    var top=pair(TOP-8,'FN '+C.FN,'#8A6510','TP '+C.TP,'#B0503A');
+    pair(TOP+ph+31,'TN '+C.TN,'#3F6E99','FP '+C.FP,'#2E7D70');
+    // คำ predicted negative/positive: ใส่เฉพาะเมื่อไม่ทับป้าย FN/TP
+    function free(x0,x1){return top.every(function(s){return x1+8<s[0]||x0-8>s[1];});}
+    g.font='13px KaTeX_Main,serif';g.fillStyle='rgba(90,90,90,0.9)';var wPN=g.measureText('predicted negative').width,wPP=g.measureText('predicted positive').width;
+    if(free(L+4,L+4+wPN)){g.textAlign='left';g.fillText('predicted negative',L+4,TOP-8);}
+    if(free(L+pw-4-wPP,L+pw-4)){g.textAlign='right';g.fillText('predicted positive',L+pw-4,TOP-8);}}
 
   function drawRoc(t,R){var sz=prep(cvr,ctr),W=sz.W,H=sz.H,g=ctr;
     var L=36,Rm=12,TOP=14,BOT=34,pw=W-L-Rm,ph=H-TOP-BOT,i;
@@ -227,7 +236,11 @@
     g.strokeStyle=MC;g.lineWidth=2.2;g.beginPath();for(i=0;i<P.length;i++){i?g.lineTo(px(P[i].f),py(P[i].t)):g.moveTo(px(P[i].f),py(P[i].t));}g.stroke();
     var C=confusion(t),tpr=D.pos.length?C.TP/D.pos.length:0,fpr=D.neg.length?C.FP/D.neg.length:0;
     g.fillStyle=MC;g.beginPath();g.arc(px(fpr),py(tpr),5.5,0,7);g.fill();g.strokeStyle='#fff';g.lineWidth=2;g.stroke();
-    g.fillStyle='#111';g.font='13px KaTeX_Main,serif';g.textAlign=fpr>0.5?'right':'left';g.fillText('threshold '+t.toFixed(2),px(fpr)+(fpr>0.5?-10:10),py(tpr)+(tpr>0.85?16:-8));
+    // ป้าย threshold ข้างจุด: อยู่ในกรอบเสมอ ไม่ทับป้าย AUC (มุมขวาล่าง)
+    g.fillStyle='#111';g.font='13px KaTeX_Main,serif';g.textAlign='left';var tl='threshold '+t.toFixed(2),wl=g.measureText(tl).width,lx=px(fpr)+10;
+    if(lx+wl>L+pw)lx=px(fpr)-10-wl;if(lx<L)lx=L;var ly=(tpr>0.85)?py(tpr)+16:py(tpr)-8;
+    if(ly>py(0.18)&&lx+wl>px(0.5))ly=py(tpr)-8;if(ly-12<TOP)ly=py(tpr)+16;
+    g.fillText(tl,lx,ly);
     g.fillStyle='rgba(90,90,90,0.9)';g.textAlign='center';g.fillText('FPR',px(0.5),H-5);
     g.save();g.translate(10,py(0.5));g.rotate(-Math.PI/2);g.fillText('TPR',0,0);g.restore();
     var lb=labs(cvr);lb('\\text{AUC}='+R.auc.toFixed(2),px(0.97),py(0.06),{align:'right',color:MC});}
