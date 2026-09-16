@@ -217,7 +217,7 @@
     return '<div class="mbar"><div class="nm"><span class="lab">'+kx('\\text{'+name+'}\\;'+FM[name])+'</span><span class="v" style="color:'+Navy+'">'+kx(Math.round(v*100)+'\\%')+'</span></div>'
       +'<div class="track"><span class="fill" style="width:'+(v*100)+'%;background:'+Navy+'"></span></div></div>';}
   function clLine(name,lc,tc){return '<span class="cli"><i class="ln" style="background:'+lc+'"></i><span>'+kx('\\textcolor{'+tc+'}{\\text{'+name+'}}')+'</span></span>';}
-  function fillLegend(){var el=document.getElementById('classleg');if(el)el.innerHTML=clLine('Positive class','#E07A5F',Rd)+clLine('Negative class','#5B8FB9',Bl);}
+  function fillLegend(){var el=document.getElementById('classleg');if(el)el.innerHTML=clLine('Positive class','#E07A5F',Rd)+clLine('Negative class','#5B8FB9',Bl)+clLine('misclassified (✗)','#888','#666');}
 
   // ---------- live equation panel ----------
   function fade(t,on){return on?'\\textcolor{#c4c4c4}{'+t+'}':t;}
@@ -291,13 +291,18 @@
       rts.forEach(function(r){if(r>=xmin&&r<=xmax){ctx.setLineDash([5,4]);ctx.beginPath();ctx.moveTo(px(r),cyTop-8);ctx.lineTo(px(r),H-THS+2);ctx.stroke();ctx.setLineDash([]);
         ctx.textAlign='center';ctx.fillText('threshold '+r.toFixed(1),px(r),H-4);}
         else if(isFinite(r)){var ex=r<xmin?L+4:L+pw-4;ctx.textAlign=r<xmin?'left':'right';ctx.fillText((r<xmin?'\u25c4 ':'')+'threshold '+r.toFixed(1)+(r>xmax?' \u25ba':''),ex,H-6);}});
-      var n1=P.n1,n0=P.n0,k;
-      for(k=0;k<n1;k++){var xv1=m1+s1*Z1[k];var xp=px(xv1);if(xp<L-4||xp>L+pw+4)continue;var pr=dec(xv1)?1:0;
-        ctx.fillStyle='rgba(224,122,95,0.9)';ctx.beginPath();ctx.arc(xp,cy-8-(k%3)*7,4,0,7);ctx.fill();   // positive = แดงเสมอ
-        if(pr!==1){ctx.strokeStyle='#5B8FB9';ctx.lineWidth=2;ctx.beginPath();ctx.arc(xp,cy-8-(k%3)*7,6,0,7);ctx.stroke();}}  // FN วงขอบ = ทายเป็น negative
-      for(k=0;k<n0;k++){var xv0=m0+s0*Z0[k];var xp0=px(xv0);if(xp0<L-4||xp0>L+pw+4)continue;var pr0=dec(xv0)?1:0;
-        ctx.fillStyle='rgba(91,143,185,0.84)';ctx.beginPath();ctx.arc(xp0,cy+8+(k%3)*7,4,0,7);ctx.fill();  // negative = น้ำเงินเสมอ
-        if(pr0!==0){ctx.strokeStyle='#E07A5F';ctx.lineWidth=2;ctx.beginPath();ctx.arc(xp0,cy+8+(k%3)*7,6,0,7);ctx.stroke();}}  // FP วงขอบ = ทายเป็น positive
+      // dot histogram (เหมือน Intro / Classifier Evaluation): จุดเข้าช่องกว้าง ~10px แล้วซ้อนออกจากแกนกลาง — บวกขึ้นบน ลบลงล่าง
+      // สี = actual class · ✗ ขาว = ทำนายผิด (FN/FP) · n มาก → บีบระยะซ้อนให้อยู่ใต้เส้น pdf
+      var n1=P.n1,n0=P.n0,k,rD=4,bwp=2*rD+2,NB=Math.max(1,Math.floor(pw/bwp)),bP=[],bN=[];for(k=0;k<NB;k++){bP.push([]);bN.push([]);}
+      for(k=0;k<n1;k++){var xv1=m1+s1*Z1[k],xp=px(xv1);if(xp<L||xp>L+pw)continue;bP[Math.min(NB-1,Math.floor((xp-L)/bwp))].push(xv1);}
+      for(k=0;k<n0;k++){var xv0=m0+s0*Z0[k],xp0=px(xv0);if(xp0<L||xp0>L+pw)continue;bN[Math.min(NB-1,Math.floor((xp0-L)/bwp))].push(xv0);}
+      var mxP=1,mxN=1;for(k=0;k<NB;k++){mxP=Math.max(mxP,bP[k].length);mxN=Math.max(mxN,bN[k].length);}
+      var dyP=Math.min(2*rD+1,(cy-cyTop-10)/mxP),dyN=Math.min(2*rD+1,(cyBot-cy-10)/mxN);
+      function dotB(x,y,pos,miss){ctx.fillStyle=pos?'rgba(224,122,95,0.9)':'rgba(91,143,185,0.84)';ctx.beginPath();ctx.arc(x,y,rD,0,7);ctx.fill();
+        if(miss){var q=rD*0.6;ctx.strokeStyle='#fff';ctx.lineWidth=1.6;ctx.beginPath();ctx.moveTo(x-q,y-q);ctx.lineTo(x+q,y+q);ctx.moveTo(x+q,y-q);ctx.lineTo(x-q,y+q);ctx.stroke();}}
+      for(k=0;k<NB;k++){var cxb=L+(k+0.5)*bwp,j;
+        for(j=0;j<bP[k].length;j++)dotB(cxb,cy-8-j*dyP,true,!dec(bP[k][j]));
+        for(j=0;j<bN[k].length;j++)dotB(cxb,cy+8+j*dyN,false,!!dec(bN[k][j]));}
       var mid=(m0+m1)/2, Tmain=mid;
       if(P.rts&&P.rts.length){Tmain=P.rts[0];for(var ti=1;ti<P.rts.length;ti++){if(Math.abs(P.rts[ti]-mid)<Math.abs(Tmain-mid))Tmain=P.rts[ti];}}
       var xT=px(Tmain), yTop=16, yBot=H-THS-6;
