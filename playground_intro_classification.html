@@ -83,6 +83,7 @@
   .dtab th{position:sticky;top:0}
   .dtab tr.tp td{background:#FBE9E4}.dtab tr.fn td{background:#FAEFD6}.dtab tr.fp td{background:#E3F1EE}.dtab tr.tn td{background:#E9F0F8}   /* สีแถว = สีช่อง confusion matrix */
   .below .excalc{width:100%;box-sizing:border-box}
+  .pg .panel .dgrid{row-gap:5px}   /* Bivariate มี control 11 แถว (+ query point) → บีบช่องว่างให้พอดี 1 หน้า */
   /* summary tab */
   .summary{display:none;flex-direction:column;gap:16px;min-height:0;overflow:visible}
   .summary.on{display:flex;flex:1}
@@ -139,6 +140,7 @@
       <div id="grp-ex"><div class="dhd" id="hd-ex"></div>
       <div class="dgrid">
         <div class="drow" id="row-x0"><span class="dlab" id="lbl-x0"></span><input type="range" id="Rx0" min="0.3" max="4.7" step="0.1" value="2.6"><input class="num" type="number" id="Nx0" min="0.3" max="4.7" step="0.1" value="2.6"></div>
+        <div class="drow" id="row-xy0"><span class="dlab" id="lbl-xy0"></span><input type="range" id="Rxy0" min="0" max="12" step="0.1" value="4.5"><input class="num" type="number" id="Nxy0" min="0" max="12" step="0.1" value="4.5"></div>
       </div></div>
       <div id="grp-pos"><div class="dhd" id="hd-pos"></div>
       <div class="dgrid">
@@ -279,14 +281,14 @@
       prev=cur;if(out.length>=6)break;}return out;}
 
   // ---------- state ----------
-  var bases=['x0','mu0','muy0','mu1','muy1','s0','s1','p1','sev','n','k','depth'];
+  var bases=['x0','xy0','mu0','muy0','mu1','muy1','s0','s1','p1','sev','n','k','depth'];
   var modeM='logistic', curTab=0, dsIdx=0;
   var TABS=[
     {n:'Example',        dim:1, ex:true,  groups:['ex','pos','neg','rs'], rows:['x0','mu1','s1','mu0','s0']},   // n fix = 7 ต่อคลาส (Resample สุ่มได้)
-    {n:'Univariate',     dim:1, groups:['pos','neg','share','model','rs'], rows:['mu1','s1','mu0','s0','p1','n']},
-    {n:'Bivariate',      dim:2, groups:['pos','neg','share','model','rs'], rows:['mu1','muy1','s1','mu0','muy0','s0','p1','n']},
-    {n:'PDM univariate', dim:1, pdm:PDM1, groups:['ds','share','model','rs'], rows:['sev','n']},
-    {n:'PDM bivariate',  dim:2, pdm:PDM2, groups:['ds','share','model','rs'], rows:['sev','n']}];
+    {n:'Univariate',     dim:1, groups:['ex','pos','neg','share','model','rs'], rows:['x0','mu1','s1','mu0','s0','p1','n']},
+    {n:'Bivariate',      dim:2, groups:['ex','pos','neg','share','model','rs'], rows:['x0','xy0','mu1','muy1','s1','mu0','muy0','s0','p1','n']},
+    {n:'PDM univariate', dim:1, pdm:PDM1, groups:['ex','ds','share','model','rs'], rows:['x0','sev','n']},
+    {n:'PDM bivariate',  dim:2, pdm:PDM2, groups:['ex','ds','share','model','rs'], rows:['x0','xy0','sev','n']}];
   var MC='#1e3a8a',Rd='#B0503A',Bl='#3F6E99';
   function OC(y,yh){return y?(yh?'#E07A5F':'#E3B23C'):(yh?'#5BA8A0':'#5B8FB9');}   // สีตามผล: TP coral · FN ทอง · FP เขียวน้ำทะเล · TN ฟ้า (= confusion matrix / ตาราง)
   var MODELS=[{key:'logistic',name:'Logistic regression'},{key:'nb',name:'Naive Bayes'},{key:'knn',name:'KNN'},{key:'tree',name:'Decision tree'}];
@@ -328,6 +330,7 @@
   function renderTexts(){if(!window.katex)return;for(var id in MT){var el=document.getElementById(id);if(el)K(MT[id],el);}
     for(var nid in NOTES){var ne=document.getElementById(nid);if(ne)kxProse(ne,NOTES[nid]);}
     K(dim()===2?'\\mu_{1+}':'\\mu_+',document.getElementById('lbl-mu1'));K(dim()===2?'\\mu_{1-}':'\\mu_-',document.getElementById('lbl-mu0'));
+    K(dim()===2?'x_{01}':'x_0',document.getElementById('lbl-x0'));K('x_{02}',document.getElementById('lbl-xy0'));
     K(isEX()?'\\textcolor{#B0503A}{\\text{Cancer }(y=+)}':'\\textcolor{#B0503A}{\\text{Positive class}}',document.getElementById('hd-pos'));
     K(isEX()?'\\textcolor{#3F6E99}{\\text{Healthy }(y=-)}':'\\textcolor{#3F6E99}{\\text{Negative class}}',document.getElementById('hd-neg'));
     K(isEX()?'\\text{Points per class}':isPDM()?'\\text{Fault shift }\\delta\\ \\&\\ \\text{hours}':'\\text{Class balance \\& size}',document.getElementById('hd-share'));
@@ -435,6 +438,11 @@
     ctx.textAlign='right';ctx.fillStyle='#8A6510'; ctx.fillText('FN '+P.FN, xT-12, yTop);
     ctx.textAlign='left'; ctx.fillStyle='#2E7D70'; ctx.fillText('FP '+P.FP, xT+12, yBot);
     ctx.textAlign='right';ctx.fillStyle='#3F6E99'; ctx.fillText('TN '+P.TN, xT-12, yBot);ctx.textAlign='left';
+    // query point x0: เส้นประเทา + จุดบนเส้นโค้ง + ป้าย x_0
+    if(P.x0){var xq=px(P.x0[0]),pq=Math.max(0,Math.min(1,m.post(P.x0)));if(xq>=L&&xq<=L+pw){
+      ctx.strokeStyle='#444';ctx.setLineDash([4,4]);ctx.lineWidth=1.3;ctx.beginPath();ctx.moveTo(xq,py(1));ctx.lineTo(xq,py(0));ctx.stroke();ctx.setLineDash([]);
+      ctx.fillStyle='#444';ctx.beginPath();ctx.arc(xq,py(pq),5,0,7);ctx.fill();ctx.strokeStyle='#fff';ctx.lineWidth=1.5;ctx.stroke();
+      lb('x_0',xq+(xq>L+pw/2?-9:9),py(0.5)+18,{align:xq>L+pw/2?'right':'left',color:'#444'});}}
   }
   function draw2(P){
     var L=52,Rm=16,TOP=22,BOT=34,pw=W-L-Rm,ph=H-TOP-BOT,m=P.m,xmin=P.xmin,xmax=P.xmax,ymin=P.ymin,ymax=P.ymax;
@@ -451,6 +459,10 @@
     ctx.textBaseline='alphabetic';var lb=labs(cv);lb(P.ax[1],x0+4,y0-8);lb(P.ax[0],x1,y1+30,{align:'right'});
     var k;for(k=0;k<P.X.length;k++){var v=P.X[k],yv=P.ys[k],xp=px(v[0]),yp=py(v[1]);if(xp<x0-4||xp>x1+4||yp<y0-4||yp>y1+4)continue;
       var pr=m.post(v)>0.5?1:0;ctx.fillStyle=OC(yv,pr);ctx.beginPath();ctx.arc(xp,yp,4,0,7);ctx.fill();}   // สีจุดตามผล TP/FN/FP/TN
+    // query point x0: จุดดำขอบขาว + ป้าย x_0
+    if(P.x0){var qx=px(P.x0[0]),qy=py(P.x0[1]);if(qx>=x0&&qx<=x1&&qy>=y0&&qy<=y1){
+      ctx.fillStyle='#222';ctx.beginPath();ctx.arc(qx,qy,6,0,7);ctx.fill();ctx.strokeStyle='#fff';ctx.lineWidth=2;ctx.stroke();
+      lb('\\mathbf x_0',qx+(qx>x0+pw/2?-10:10),qy+5,{align:qx>x0+pw/2?'right':'left',color:'#222'});}}
   }
   function draw(P){try{ctx.setTransform(SC,0,0,SC,0,0);ctx.clearRect(0,0,W,H);(P.dim===2?draw2:draw1)(P);}
     catch(e){ctx.setTransform(SC,0,0,SC,0,0);ctx.fillStyle='#c0392b';ctx.font='15px KaTeX_Main,serif';ctx.textAlign='left';ctx.fillText('draw err: '+e.message,10,20);}}
@@ -484,30 +496,26 @@
     var Ls=f.leaves;if(Ls.length===1)return ['\\text{always }'+(Ls[0].p>0.5?POS():NEG())];
     return Ls.map(function(l,i){var c=l.cond.map(function(q){return sym[q.f]+(q.lt?'<':'\\ge ')+fx(q.t,dec);}).join('\\ \\&\\ ');
       var last=(i===Ls.length-1&&Ls.length===2);return (last?'\\text{else }':'\\text{if }'+c+'\\text{ then }')+(l.p>0.5?POS():NEG());});}
-  function fillCalc2(F,sym,dec,C){var el=document.getElementById('mcalc');if(!el)return;var f=F[modeM],D=sym.length,h='',d;
-    var n=C.TP+C.FN+C.FP+C.TN;
+  // กล่องคำนวณ (สั้น): บรรทัดโมเดล (แทนค่าสัมประสิทธิ์แล้ว) → query point x0 → กฎ → accuracy
+  function fillCalc2(F,sym,dec,C,Q){var el=document.getElementById('mcalc');if(!el)return;var f=F[modeM],D=sym.length,h='',d;
+    var n=C.TP+C.FN+C.FP+C.TN,p0=f.post(Q),xq=D===1?'x_0':'\\mathbf x_0';
+    var qv=D===1?'x_0='+fx(Q[0],dec):'\\mathbf x_0=('+fx(Q[0],dec)+',\\ '+fx(Q[1],dec)+')';
+    function zAt(){var z=f.B,s='';for(d=0;d<D;d++){z+=f.W[d]*Q[d];s+=(d?sgn(f.W[d]):fx(f.W[d]))+'\\cdot'+fx(Q[d],dec);}return {z:z,s:s+sgn(f.B)};}
+    var yh=p0>0.5?POS():NEG();
     if(modeM==='logistic'){
-      var zs=D===1?'z=w\\,x+b':'z=w_1x_1+w_2x_2+b';
-      h+=cline(['\\hat p=\\sigma(z)=\\dfrac{1}{1+e^{-z}},',zs]);
-      var fit=[];for(d=0;d<D;d++)fit.push((D===1?'w':'w_'+(d+1))+'='+fx(f.W[d]));fit.push('b='+fx(f.B));
-      h+=cline(['\\text{fit by gradient descent: }'+fit.join(',\\ '),'\\Rightarrow\\ z='+linExpr(f,sym)]);
-      if(D===1)h+=cline(['\\hat p=0.5\\iff z=0\\iff '+sym[0]+'=-b/w='+fx(-f.B/f.W[0],dec)]);
-      else h+=cline(['\\hat p=0.5\\iff z=0\\iff x_2=-(w_1x_1+b)/w_2','='+fx(-f.W[0]/f.W[1])+'\\,x_1'+sgn(-f.B/f.W[1])]);}
+      h+=cline(['\\hat p=\\sigma(z)=\\dfrac{1}{1+e^{-z}},','z='+linExpr(f,sym)]);
+      var q=zAt();h+=cline([qv+':\\ z='+q.s+'='+fx(q.z)+',','\\hat p(x_0)=\\sigma('+fx(q.z)+')='+fx(p0)+'\\Rightarrow '+yh]);}
     else if(modeM==='nb'){
       var st=[];for(d=0;d<D;d++){var j=D===1?'':'_'+(d+1),jj=D===1?'':(d+1);st.push('\\bar x'+(D===1?'_+':'_{'+jj+'+}')+'='+fx(f.mp[d])+',\\ \\bar x'+(D===1?'_-':'_{'+jj+'-}')+'='+fx(f.mq[d])+',\\ s'+j+'^2='+fx(f.v[d]));}
-      h+=cline(['\\hat p(x\\mid c)=\\mathcal N(x;\\bar x_c,s^2)\\ \\text{(shared }s^2\\text{)},','\\pi_+='+fx(f.pi1)+',\\ \\pi_-='+fx(1-f.pi1)]);
-      h+=cline(st.map(function(s,i){return s+(i<st.length-1?',':'');}));
-      if(D===1){
-        h+=cline(['z=\\ln\\dfrac{\\pi_+f_+(x)}{\\pi_-f_-(x)}=\\dfrac{\\bar x_+-\\bar x_-}{s^2}\\,x-\\dfrac{\\bar x_+^2-\\bar x_-^2}{2s^2}+\\ln\\dfrac{\\pi_+}{\\pi_-}']);
-        h+=cline(['=\\dfrac{'+fx(f.mp[0])+'-'+fx(f.mq[0])+'}{'+fx(f.v[0])+'}\\,x-\\dfrac{'+fx(f.mp[0])+'^2-'+fx(f.mq[0])+'^2}{2\\cdot'+fx(f.v[0])+'}+\\ln\\dfrac{'+fx(f.pi1)+'}{'+fx(1-f.pi1)+'}','='+linExpr(f,sym)]);
-        h+=cline(['\\hat p=0.5\\iff z=0\\iff x='+fx(-f.B/f.W[0],dec)]);}
-      else{
-        h+=cline(['z=\\ln\\dfrac{\\pi_+f_+(\\mathbf x)}{\\pi_-f_-(\\mathbf x)}=w_1x_1+w_2x_2+b,','w_j=\\dfrac{\\bar x_{j+}-\\bar x_{j-}}{s_j^2},','b=\\ln\\dfrac{\\pi_+}{\\pi_-}-\\sum_j\\dfrac{\\bar x_{j+}^2-\\bar x_{j-}^2}{2s_j^2}']);
-        h+=cline(['w_1='+fx(f.W[0])+',\\ w_2='+fx(f.W[1])+',\\ b='+fx(f.B),'\\Rightarrow\\ z='+linExpr(f,sym)]);}}
+      h+=cline(['\\hat p(x\\mid c)=\\mathcal N(x;\\bar x_c,s^2):'].concat(st.map(function(s){return s+',';})).concat(['\\pi_+='+fx(f.pi1)]));
+      h+=cline(['z=\\ln\\dfrac{\\pi_+f_+(x)}{\\pi_-f_-(x)}='+linExpr(f,sym)]);
+      var q2=zAt();h+=cline([qv+':\\ z='+q2.s+'='+fx(q2.z)+',','\\hat p(x_0)=\\sigma('+fx(q2.z)+')='+fx(p0)+'\\Rightarrow '+yh]);}
     else if(modeM==='knn'){
-      h+=cline(['\\hat p(\\mathbf x)=\\dfrac{1}{k}\\sum_{i\\in N_k(\\mathbf x)}y_i,','k='+f.k+',','\\text{no formula to fit — the data itself is the model}']);}
+      h+=cline(['\\hat p(\\mathbf x)=\\dfrac{1}{k}\\sum_{i\\in N_k(\\mathbf x)}y_i,','k='+f.k]);
+      h+=cline([qv+':\\ \\hat p(x_0)=\\dfrac{'+Math.round(p0*f.k)+'}{'+f.k+'}='+fx(p0)+'\\Rightarrow '+yh]);}
     else{
-      h+=cline(['\\text{split on }'+(D===1?'x':'x_j')+'<t\\text{ that lowers Gini impurity most, depth}\\le '+Math.round(gv('depth'))+',','\\hat p=\\text{fraction of }+\\text{ in the leaf}']);}
+      h+=cline(['\\hat p=\\text{fraction of }+\\text{ in the leaf (splits chosen by Gini)}']);
+      h+=cline([qv+':\\ \\hat p(x_0)='+fx(p0)+'\\Rightarrow '+yh]);}
     h+=cline(ruleLines(f,sym,dec));
     h+=cline(['\\text{accuracy}=\\dfrac{\\mathrm{TP}+\\mathrm{TN}}{n}=\\dfrac{'+C.TP+'+'+C.TN+'}{'+n+'}='+fx((C.TP+C.TN)/n)]);
     el.innerHTML=h;}
@@ -546,13 +554,14 @@
     if(isEX()){showEx(true);var x0=gv('x0');exBuild();fillDtab();drawExPdf(x0);drawExPost(x0);fillCalc(x0);return;}
     showEx(false);
     var D=dim(),S=dataset(),X=S.X,ys=S.ys,kk=Math.round(gv('k')),dp=Math.round(gv('depth')),k;
+    syncQueryPDM(S);var Q=D===1?[gv('x0')]:[gv('x0'),gv('xy0')];   // query point
     var F={logistic:fitLogistic(X,ys),nb:fitNB(X,ys),knn:fitKNN(X,ys,kk,S.scale),tree:fitTree(X,ys,dp)};
     MODELS.forEach(function(m){var f=F[m.key];f.err=trainErr(f.post,X,ys);f.xstar=(D===1&&f.linear)?crossings1(f.post,S.xmin,S.xmax):[];});
     var f1=F[modeM],TP=0,FN=0,FP=0,TN=0,Tmain=S.mid;
     for(k=0;k<X.length;k++){var pr=f1.post(X[k])>0.5;if(ys[k]){if(pr)TP++;else FN++;}else{if(pr)FP++;else TN++;}}
     if(f1.xstar.length){Tmain=f1.xstar[0];for(k=1;k<f1.xstar.length;k++){if(Math.abs(f1.xstar[k]-S.mid)<Math.abs(Tmain-S.mid))Tmain=f1.xstar[k];}}
-    var DP={dim:D,xmin:S.xmin,xmax:S.xmax,ymin:S.ymin,ymax:S.ymax,X:X,ys:ys,m:f1,TP:TP,FN:FN,FP:FP,TN:TN,Tmain:Tmain,ax:S.ax};
-    fillCM(DP);sizeCanvas();draw(DP);fillCalc2(F,S.sym,S.dec,{TP:TP,FN:FN,FP:FP,TN:TN});fillModTab(S,f1);fillLegend();   // sizeCanvas หลัง fillCM: สลับ 1-D↔2-D กล่องกราฟเปลี่ยนรูปทรง ต้องตั้งบัฟเฟอร์ใหม่ก่อนวาด (ไม่งั้นภาพยืด)
+    var DP={dim:D,xmin:S.xmin,xmax:S.xmax,ymin:S.ymin,ymax:S.ymax,X:X,ys:ys,m:f1,TP:TP,FN:FN,FP:FP,TN:TN,Tmain:Tmain,ax:S.ax,x0:Q};
+    fillCM(DP);sizeCanvas();draw(DP);fillCalc2(F,S.sym,S.dec,{TP:TP,FN:FN,FP:FP,TN:TN},Q);fillModTab(S,f1);fillLegend();   // sizeCanvas หลัง fillCM: สลับ 1-D↔2-D กล่องกราฟเปลี่ยนรูปทรง ต้องตั้งบัฟเฟอร์ใหม่ก่อนวาด (ไม่งั้นภาพยืด)
     if(fitPlot()){sizeCanvas();draw(DP);}
     var dl=document.getElementById('dleft'),mn=document.getElementById('main');   // ตารางข้อมูลสูงไม่เกินคอลัมน์ขวา → เลื่อนในตาราง
     if(dl&&mn&&innerWidth>820)dl.style.maxHeight=Math.round(mn.getBoundingClientRect().height)+'px';else if(dl)dl.style.maxHeight='300px';
@@ -572,14 +581,19 @@
     document.getElementById('hd-hp').className='dhd'+((sk||sd)?'':' hid');}
   function setDsSeg(){var bs=document.querySelectorAll('#dsSeg button');for(var i=0;i<bs.length;i++)bs[i].className=(parseInt(bs[i].getAttribute('data-ds'),10)===dsIdx)?'on':'';}
   // ค่า control จำแยกตามชนิด tab: sim (Univariate/Bivariate) · ex (Example, สเกล PSA) · pdm
-  var MEM={sim:{mu1:6.0,s1:1.0,mu0:3.0,s0:1.0,n:20},ex:{mu1:2.8,s1:0.82,mu0:1.5,s0:0.61,n:7},pdm:{n:240}};   // sim n=20 เท่ากับ Classifier Evaluation (ตารางอ่านได้)
+  var MEM={sim:{x0:4.5,xy0:4.5,mu1:6.0,s1:1.0,mu0:3.0,s0:1.0,n:20},ex:{x0:2.6,mu1:2.8,s1:0.82,mu0:1.5,s0:0.61,n:7},pdm:{n:240}};   // sim n=20 เท่ากับ Classifier Evaluation · pdm x0/xy0 ตั้งจากช่วงข้อมูลตอน upd
   function kind(){return isEX()?'ex':isPDM()?'pdm':'sim';}
-  var RANGE={sim:{mu:[1,9,0.1],s:[0.4,2.5,0.1],n:[12,60,4]},ex:{mu:[0.5,4.5,0.1],s:[0.2,1.5,0.01],n:[3,12,1]},pdm:{n:[40,1440,40]}};
+  var RANGE={sim:{mu:[1,9,0.1],s:[0.4,2.5,0.1],n:[12,60,4],x0:[0,12,0.1]},ex:{mu:[0.5,4.5,0.1],s:[0.2,1.5,0.01],n:[3,12,1],x0:[0.3,4.7,0.1]},pdm:{n:[40,1440,40]}};
   function setRange(b,r){['R','N'].forEach(function(p){var e=document.getElementById(p+b);e.min=r[0];e.max=r[1];e.step=r[2];});}
   function syncRows(){var t=T(),kd=kind();['ex','pos','neg','ds','share','model','rs'].forEach(function(g){document.getElementById('grp-'+g).style.display=(t.groups.indexOf(g)>=0)?'':'none';});
-    ['x0','mu1','muy1','s1','mu0','muy0','s0','p1','sev','n'].forEach(function(b){document.getElementById('row-'+b).style.display=(t.rows.indexOf(b)>=0)?'':'none';});
-    var R=RANGE[kd];if(R.mu){setRange('mu1',R.mu);setRange('mu0',R.mu);setRange('s1',R.s);setRange('s0',R.s);}setRange('n',R.n);
+    ['x0','xy0','mu1','muy1','s1','mu0','muy0','s0','p1','sev','n'].forEach(function(b){document.getElementById('row-'+b).style.display=(t.rows.indexOf(b)>=0)?'':'none';});
+    var R=RANGE[kd];if(R.mu){setRange('mu1',R.mu);setRange('mu0',R.mu);setRange('s1',R.s);setRange('s0',R.s);}setRange('n',R.n);if(R.x0){setRange('x0',R.x0);setRange('xy0',R.x0);}
     var M=MEM[kd];for(var b in M)sv(b,M[b]);}
+  // PDM: ช่วง x0/xy0 = ช่วงข้อมูลของชุดที่เลือก (ค่าเริ่ม = กึ่งกลาง) · จำค่าต่อชุด/แกน
+  function syncQueryPDM(S){if(!isPDM())return;var M=MEM.pdm,ds=T().n+dsIdx;
+    [['x0',S.xmin,S.xmax],['xy0',S.ymin,S.ymax]].forEach(function(q){if(q[0]==='xy0'&&dim()!==2)return;var lo=q[1],hi=q[2],st=Math.pow(10,Math.floor(Math.log10((hi-lo)/100)));
+      var r=function(v){return +(v.toFixed(4));};   // ตัดเศษ floating (64.32000000000001)
+      setRange(q[0],[r(Math.floor(lo/st)*st),r(Math.ceil(hi/st)*st),st]);var key=q[0]+'@'+ds;if(M[key]===undefined)M[key]=r(Math.round((lo+hi)/2/st)*st);sv(q[0],M[key]);});}
   function applyTab(k){curTab=k;var t=TABS[k];dsIdx=0;
     var btns=document.querySelectorAll('.tabbtn');for(var i=0;i<btns.length;i++)btns[i].className='tabbtn'+(i===k?' on':'');
     if(t.summary){document.getElementById('mainPanel').style.display='none';document.getElementById('summaryPanel').className='summary on';renderTexts();return;}
@@ -589,6 +603,7 @@
   TABS.forEach(function(t,i){var el=document.createElement('button');el.className='tabbtn';K('\\text{'+t.n+'}',el);el.addEventListener('click',function(){applyTab(i);});tb.appendChild(el);});
   bases.forEach(function(b){var Re=document.getElementById('R'+b),Ne=document.getElementById('N'+b);
     function rem(){var M=MEM[kind()];if(M&&(b in M))M[b]=parseFloat(Re.value);
+      if(isPDM()&&(b==='x0'||b==='xy0'))MEM.pdm[b+'@'+T().n+dsIdx]=parseFloat(Re.value);   // query point ของ PDM จำต่อชุดข้อมูล
       if(isEX()&&(b==='s1'||b==='s0')){var v=parseFloat(Re.value);sv(b==='s1'?'s0':'s1',v);MEM.ex.s1=v;MEM.ex.s0=v;}   // Example: σ ร่วม (σ+ = σ−) ปรับจากตัวไหนก็ได้
       if(isEX()&&(b==='mu1'||b==='s1'||b==='mu0'||b==='s0'||b==='n'))EX.fixed=false;}   // แตะ μ/σ ใน Example → สุ่มข้อมูลใหม่
     Re.addEventListener('input',function(){Ne.value=Re.value;rem();upd();});Ne.addEventListener('input',function(){Re.value=Ne.value;rem();upd();});});
