@@ -14,6 +14,7 @@
      โครง/ฟอนต์ = .distcls กลาง (เหมือน 1-D Bayes) · ตาราง = .mtab กลาง 15px */
   /* หน้าจอไม่พอ → เลื่อนทั้งหน้าได้ (ตารางข้อมูลแสดงครบทุกแถว) · แผงควบคุมตรึงบนขณะเลื่อน */
   html,body.pg{height:auto;overflow:auto}
+  html{scrollbar-gutter:stable}   /* เผื่อที่ scrollbar เสมอ → ความกว้างหน้าเท่ากันทุกแท็บ ไม่ขยับเมื่อแท็บใดยาวกว่า */
   .pg .wrap{height:auto;max-height:none;overflow:visible}
   .pg .layout>.panel{position:sticky;top:10px}
   .layout{align-items:start}
@@ -31,7 +32,10 @@
   /* รูปรวมจัตุรัส 300 เท่ากันทุกแท็บ · แท็บ ROC: กราฟ ROC จัตุรัสขนาดเดียวกัน วางใต้ (บน–ล่าง) → 64+300+30+300 พอดี 1 หน้า */
   /* ขนาดจัตุรัสตามความสูงจอ: (100vh − หัว/legend/ช่องว่าง 190px) ÷ 2 อยู่ระหว่าง 200–300 → รูป + ROC ซ้อนกันพอดี 1 หน้าทุกจอ */
   /* สูงของแต่ละรูป = (100vh − หัว 64 − ช่องว่าง) ÷ 2 → รูปรวม + ROC ซ้อนกันเต็มจอพอดี · กว้างเต็มคอลัมน์ (legend ย้ายไปแผงควบคุม) */
-  :root{--sq:clamp(220px,calc((100vh - 92px)/2),360px)}
+  :root{--sq:clamp(220px,calc((100vh - 122px)/2),360px)}   /* หัว 64 + legend 30 + ช่องว่าง → รูปรวม + ROC ซ้อนกันพอดี */
+  /* ตาราง metric: แท็บ Example / Threshold & metrics อยู่ใต้กราฟ (การ์ดขาว) · แท็บ ROC อยู่ในแผงควบคุม */
+  .main #grp-met{margin-top:0;border-top:0;padding:8px 14px 6px;background:#fff;border:1px solid var(--line);border-radius:12px}
+  .main #grp-met .mtab,.main #grp-met .mtab th,.main #grp-met .mtab td{font-size:15px}
   .pg.distcls .canvasbox{flex:1 1 auto;width:100%;height:var(--sq)}
   .toprow{display:flex;gap:16px;align-items:center}
   .toprow .canvasbox{margin:0}
@@ -85,7 +89,9 @@
       <div class="toprow" id="toprow">
         <div class="canvasbox"><canvas id="cv"></canvas></div>
       </div>
+      <div class="classleg" id="classleg"></div>
       <div class="rocbox" id="rocbox"><canvas id="cvroc"></canvas></div>
+      <!-- #grp-met (ตาราง metric) ถูกย้ายมาไว้ตรงนี้ด้วย JS ในแท็บ Example / Threshold & metrics · แท็บ ROC อยู่ในแผงควบคุม -->
       </div>
     </div>
 
@@ -100,7 +106,6 @@
       <div class="dgrid">
         <div class="drow" id="row-t"><span class="dlab" id="lbl-t"></span><input type="range" id="Rt" min="0.5" max="4.5" step="0.1" value="2.2"><input class="num" type="number" id="Nt" min="0.5" max="4.5" step="0.1" value="2.2"></div>
       </div></div>
-      <div class="classleg" id="classleg"></div>
       <div id="grp-rs" class="tgls"><button class="primary" id="resample" style="width:100%"></button></div>
       <div id="grp-met"><div class="dhd" id="hd-met"></div>
       <div class="tblbox"><table class="mtab" id="mtab">
@@ -127,7 +132,8 @@
   // x ~ N(μ_c, σ) ต่อคลาส (ปัด 1 ตำแหน่ง แบบสไลด์ PSA) · แบบจำลอง: p̂ = σ(z), z = (μ+−μ−)/σ² · (x − (μ++μ−)/2) + ln(π+/π−)  (log-odds เชิงเส้นใน x)
   var DS=[{lab:'Separated',m1:3.0,m0:1.4,s:0.55,pi:0.5},{lab:'Unseparated',m1:2.3,m0:1.6,s:0.6,pi:0.5},{lab:'Imbalanced',m1:2.8,m0:1.4,s:0.55,pi:0.15}];
   var XMIN=0,XMAX=5;
-  var TABS=[{n:'Example',key:'ex'},{n:'Threshold \\& metrics',key:'thr'},{n:'ROC \\& AUC',key:'roc'}];
+  // ชื่อแท็บ = ลำดับเนื้อหา: ตัดสินจากค่าดิบ x → ตัดสินจากคะแนนแบบจำลอง p̂ → กวาด threshold ทุกค่า (ROC)
+  var TABS=[{n:'\\text{Threshold on }x',key:'ex'},{n:'\\text{Threshold on }\\hat p',key:'thr'},{n:'\\text{ROC \\& AUC}',key:'roc'}];
   var EXN=20;   // Example: n คงที่ 20 แถว
   var curTab=0,dsIdx=0;
   var MC='#1e3a8a',Rd='#B0503A',Bl='#3F6E99';
@@ -280,7 +286,8 @@
     document.querySelector('.main').className='main'+(k==='roc'?' roc':'');
     document.getElementById('stage').className='stage'+(isEX()?'':' wide');
     document.getElementById('row-n').style.display=isEX()?'none':'';
-    document.getElementById('grp-met').style.display='';   // metric ทุกแท็บ (Example ด้วย)
+    var gm=document.getElementById('grp-met');gm.style.display='';   // metric ทุกแท็บ: ex/thr ใต้กราฟ · roc ในแผงควบคุม (ใต้กราฟมี ROC แล้ว)
+    var host=(k==='roc')?document.querySelector('.panel'):document.querySelector('.main');if(gm.parentElement!==host)host.appendChild(gm);
     drawStrip(t,C);if(k==='roc')drawRoc(t,R);fillTable(C,R);fillLegend();fillDtab(t);}
 
   // ---------- controls ----------
@@ -290,7 +297,7 @@
     if(e){TMEM.ex=Math.min(hi,Math.max(lo,TMEM.ex));sv('t',TMEM.ex.toFixed(1));}else{TMEM.p=Math.min(hi,Math.max(lo,TMEM.p));sv('t',TMEM.p.toFixed(2));}}
   function applyTab(k){curTab=k;var btns=document.querySelectorAll('.tabbtn');for(var i=0;i<btns.length;i++)btns[i].className='tabbtn'+(i===k?' on':'');renderTexts();dataset();setTRange();upd();}
   var tb=document.getElementById('tabs');
-  TABS.forEach(function(t,i){var el=document.createElement('button');el.className='tabbtn';K('\\text{'+t.n+'}',el);el.addEventListener('click',function(){applyTab(i);});tb.appendChild(el);});
+  TABS.forEach(function(t,i){var el=document.createElement('button');el.className='tabbtn';K(t.n,el);el.addEventListener('click',function(){applyTab(i);});tb.appendChild(el);});
   ['n','t'].forEach(function(b){var Re=document.getElementById('R'+b),Ne=document.getElementById('N'+b);
     function after(){if(b==='t'){if(isEX())TMEM.ex=gv('t');else TMEM.p=gv('t');}if(b==='n'){dataset();setTRange();}upd();}
     Re.addEventListener('input',function(){Ne.value=(b==='t')?parseFloat(Re.value).toFixed(isEX()?1:2):Re.value;after();});
