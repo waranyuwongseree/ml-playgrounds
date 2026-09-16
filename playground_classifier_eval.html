@@ -12,6 +12,19 @@
      โครง/ฟอนต์ = .distcls กลาง (เหมือน 1-D Bayes / Intro to Classification) · ตาราง = .mtab กลาง 15px */
   .layout{align-items:start}
   .distcls .stage{gap:6px}
+  /* Example: ตารางข้อมูลซ้าย (232px) · กราฟ + confusion matrix ขวา — แบบ Introduction to Classification */
+  .stage .main{display:flex;flex-direction:column;gap:6px;flex:1 1 auto;min-width:0}
+  .exleft{display:none;flex:0 0 232px;min-width:0}
+  .stage.ex{flex-direction:row;gap:18px;align-items:flex-start}
+  .stage.ex .exleft{display:block}
+  .stage.ex .tblbox{display:none}
+  .stage.ex .canvasbox{height:220px}
+  .dtab{width:100%;border-collapse:collapse;font-size:15px}
+  .dtab th{background:var(--navy);color:#fff;font-weight:400;padding:5px 6px;text-align:center}
+  .dtab td{padding:2px 6px;text-align:center;color:var(--ink);line-height:1.35;background:#fff}
+  .dtab tr.alt td{background:#f1f4f9}
+  .dtab tr.err td{background:#FAEFD6}   /* แถวที่ทำนายผิด (FN/FP) */
+  .dtab .katex{font-size:1em}
   .pg.distcls .canvasbox{height:clamp(200px,30vh,260px)}
   /* แถวบน: [ROC จัตุรัส (เฉพาะแท็บ ROC)] + [score strip] */
   .toprow{display:flex;gap:22px;align-items:stretch}
@@ -22,7 +35,7 @@
   .toprow.roc .canvasbox{height:300px}
   /* แถวล่าง: confusion matrix (ซ้าย, แบบ 2-D Bayes) + ตาราง (ขวา) */
   .distcls .below{min-height:0;padding:8px 14px 8px;display:flex;gap:22px;align-items:flex-start}
-  .cmwrap{flex:0 0 340px;min-width:0}
+  .cmwrap{flex:0 1 340px;max-width:100%;min-width:0}
   .cm{display:grid;grid-template-columns:auto 1fr 1fr;gap:10px;font-size:15px;width:100%;align-items:center}
   .cm .hh{display:flex;align-items:center;justify-content:center;color:#555;font-size:18px;padding:2px 6px;text-align:center;white-space:nowrap}
   .cm .cell{border-radius:14px;padding:16px 8px;text-align:center}.cm .cell b{font-size:24px;display:block;font-variant-numeric:tabular-nums;font-weight:400}.cm .cell span{font-size:16px}
@@ -58,7 +71,10 @@
   <div class="hdr"><h1 id="h1">Classifier Evaluation</h1><div class="tabs" id="tabs"></div></div>
 
   <div class="layout" id="mainPanel">
-    <div class="stage">
+    <div class="stage" id="stage">
+      <!-- Example: ตารางข้อมูลซ้าย (แบบ Introduction to Classification) -->
+      <div class="exleft" id="exleft"><table class="dtab" id="dtab"><thead><tr><th id="dt-p"></th><th id="dt-y"></th><th id="dt-yh"></th></tr></thead><tbody id="dtbody"></tbody></table></div>
+      <div class="main">
       <div class="toprow" id="toprow">
         <div class="rocbox" id="rocbox"><canvas id="cvroc"></canvas></div>
         <div class="canvasbox"><canvas id="cv"></canvas></div>
@@ -74,6 +90,7 @@
           <thead><tr><th id="th-a"></th><th id="th-b"></th><th class="r" id="th-c"></th></tr></thead>
           <tbody id="mbody"></tbody>
         </table></div>
+      </div>
       </div>
     </div>
 
@@ -108,7 +125,9 @@
   // ---------- datasets (MLCC: Separated · Unseparated · Imbalanced) ----------
   // คะแนน = \hat p = σ(±d + s·z): บวกอยู่ทางขวา ลบอยู่ทางซ้าย · d = ระยะแยก · π+ = สัดส่วนบวก
   var DS=[{lab:'Separated',d:1.7,s:1.0,pi:0.5},{lab:'Unseparated',d:0.7,s:1.1,pi:0.5},{lab:'Imbalanced',d:1.4,s:1.0,pi:0.12}];
-  var TABS=[{n:'Thresholding',key:'thr'},{n:'Accuracy, precision \\& recall',key:'apr'},{n:'ROC \\& AUC',key:'roc'}];
+  var TABS=[{n:'Example',key:'ex'},{n:'Thresholding',key:'thr'},{n:'Accuracy, precision \\& recall',key:'apr'},{n:'ROC \\& AUC',key:'roc'}];
+  var EXN=12;   // Example: n คงที่ 12 แถว นับ TP/FN/FP/TN จากตารางได้ด้วยมือ
+  function isEX(){return TABS[curTab].key==='ex';}
   var curTab=0,dsIdx=0;
   var MC='#1e3a8a',Rd='#B0503A',Bl='#3F6E99';
   function gv(b){return parseFloat(document.getElementById('R'+b).value);}
@@ -118,7 +137,8 @@
   var MT={'h1':'\\text{Classifier Evaluation}','resample':'\\text{Resample points}',
     'hd-ds':'\\text{Data}','hd-th':'\\text{Classification threshold}','lbl-n':'n','lbl-t':'t',
     'ds-0':'\\text{Separated}','ds-1':'\\text{Unseparated}','ds-2':'\\text{Imbalanced}',
-    'ch-pp':'\\hat y=+','ch-pn':'\\hat y=-','ch-ap':'\\text{actual }+','ch-an':'\\text{actual }-','cs-tp':'\\mathrm{TP}','cs-fn':'\\mathrm{FN}','cs-fp':'\\mathrm{FP}','cs-tn':'\\mathrm{TN}'};
+    'ch-pp':'\\hat y=+','ch-pn':'\\hat y=-','ch-ap':'\\text{actual }+','ch-an':'\\text{actual }-','cs-tp':'\\mathrm{TP}','cs-fn':'\\mathrm{FN}','cs-fp':'\\mathrm{FP}','cs-tn':'\\mathrm{TN}',
+    'dt-p':'\\textcolor{#fff}{\\hat p}','dt-y':'\\textcolor{#fff}{y}','dt-yh':'\\textcolor{#fff}{\\hat y}'};
   function K(tex,el){if(!el)return;try{katex.render(tex,el,{throwOnError:false});}catch(e){el.textContent=tex;}}
   function kx(t){try{return window.katex?katex.renderToString(t,{throwOnError:false}):t;}catch(e){return t;}}
   function renderTexts(){if(!window.katex)return;for(var id in MT)K(MT[id],document.getElementById(id));
@@ -132,8 +152,9 @@
 
   // ---------- data ----------
   var D={pos:[],neg:[],all:[]};
-  function dataset(){var c=DS[dsIdx],n=Math.round(gv('n')),i;D.pos=[];D.neg=[];D.all=[];
-    for(i=0;i<n;i++){var isPos=U[i]<c.pi,v=sig((isPos?c.d:-c.d)+c.s*Z[i]);if(isPos)D.pos.push(v);else D.neg.push(v);D.all.push({s:v,y:isPos?1:0});}
+  function dataset(){var c=DS[dsIdx],n=isEX()?EXN:Math.round(gv('n')),i;D.pos=[];D.neg=[];D.all=[];
+    var nP=isEX()?Math.max(2,Math.round(c.pi*n)):-1;   // Example: บังคับให้มีบวกอย่างน้อย 2 (ชุด Imbalanced)
+    for(i=0;i<n;i++){var isPos=isEX()?(i<nP):(U[i]<c.pi),v=sig((isPos?c.d:-c.d)+c.s*Z[i]);if(isPos)D.pos.push(v);else D.neg.push(v);D.all.push({s:v,y:isPos?1:0});}
     if(D.pos.length===0){D.pos.push(sig(c.d));D.all[0]={s:D.pos[0],y:1};D.neg.shift();}}
   function confusion(t){var TP=0,FN=0,FP=0,TN=0,i;for(i=0;i<D.pos.length;i++){if(D.pos[i]>=t)TP++;else FN++;}
     for(i=0;i<D.neg.length;i++){if(D.neg[i]>=t)FP++;else TN++;}return {TP:TP,FN:FN,FP:FP,TN:TN};}
@@ -163,7 +184,7 @@
     var NB=40,bw=1/NB,bp=[],bn=[],b;for(b=0;b<NB;b++){bp.push([]);bn.push([]);}
     D.pos.forEach(function(s){bp[Math.min(NB-1,Math.floor(s/bw))].push(s);});D.neg.forEach(function(s){bn[Math.min(NB-1,Math.floor(s/bw))].push(s);});
     var mx=1;for(b=0;b<NB;b++)mx=Math.max(mx,bp[b].length,bn[b].length);
-    var bwp=pw/NB,r=Math.min(bwp/2-0.6,4.5),dy=Math.min(2*r+1.2,(ph/2-8)/mx);r=Math.min(r,dy/2-0.3);
+    var bwp=pw/NB,r=Math.min(bwp/2-0.6,D.all.length<=20?6:4.5),dy=Math.min(2*r+1.2,(ph/2-8)/mx);r=Math.min(r,dy/2-0.3);   // n น้อย (Example) → จุดใหญ่ขึ้น
     function dot(x,y,pos,miss){g.fillStyle=pos?'rgba(224,122,95,0.9)':'rgba(91,143,185,0.85)';g.beginPath();g.arc(x,y,r,0,7);g.fill();
       if(miss){g.strokeStyle=pos?'#5B8FB9':'#E07A5F';g.lineWidth=1.6;g.beginPath();g.arc(x,y,r+2,0,7);g.stroke();}}
     for(b=0;b<NB;b++){var cx=L+(b+0.5)*bwp;
@@ -228,13 +249,20 @@
     var h='';rows.forEach(function(r){h+='<tr><td>'+kx(r[0])+'</td><td>'+kx(r[1])+'</td><td>'+kx(r[2])+'</td></tr>';});
     document.getElementById('mbody').innerHTML=h;}
 
+  // Example: ตาราง p̂ | y | ŷ เรียงตาม p̂ มากไปน้อย · แถวที่ทำนายผิดพื้นเหลือง
+  function fillDtab(t){var tb=document.getElementById('dtbody');if(!tb)return;var arr=D.all.slice().sort(function(a,b){return b.s-a.s;}),h='';
+    function cls(y){return y?'\\textcolor{'+Rd+'}{\\text{positive}}':'\\textcolor{'+Bl+'}{\\text{negative}}';}
+    arr.forEach(function(d,i){var yh=d.s>=t?1:0;h+='<tr class="'+((i%2)?'alt':'')+(yh!==d.y?' err':'')+'"><td>'+kx(d.s.toFixed(2))+'</td><td>'+kx(cls(d.y))+'</td><td>'+kx(cls(yh))+'</td></tr>';});
+    tb.innerHTML=h;}
   function upd(){var t=gv('t'),C=confusion(t),R=roc();
     document.getElementById('toprow').className='toprow'+(T().key==='roc'?' roc':'');
-    drawStrip(t,C);if(T().key==='roc')drawRoc(t,R);fillCM(C);fillTable(C,R);fillLegend();}
+    document.getElementById('stage').className='stage'+(isEX()?' ex':'');
+    document.getElementById('row-n').style.display=isEX()?'none':'';
+    drawStrip(t,C);if(T().key==='roc')drawRoc(t,R);fillCM(C);fillTable(C,R);fillLegend();if(isEX())fillDtab(t);}
 
   // ---------- controls ----------
   function setDsSeg(){var bs=document.querySelectorAll('#dsSeg button');for(var i=0;i<bs.length;i++)bs[i].className=(parseInt(bs[i].getAttribute('data-ds'),10)===dsIdx)?'on':'';}
-  function applyTab(k){curTab=k;var btns=document.querySelectorAll('.tabbtn');for(var i=0;i<btns.length;i++)btns[i].className='tabbtn'+(i===k?' on':'');renderTexts();upd();}
+  function applyTab(k){curTab=k;var btns=document.querySelectorAll('.tabbtn');for(var i=0;i<btns.length;i++)btns[i].className='tabbtn'+(i===k?' on':'');renderTexts();dataset();upd();}   // n ต่างกันระหว่าง Example (12) กับแท็บอื่น → สุ่มชุดใหม่ตามแท็บ
   var tb=document.getElementById('tabs');
   TABS.forEach(function(t,i){var el=document.createElement('button');el.className='tabbtn';K('\\text{'+t.n+'}',el);el.addEventListener('click',function(){applyTab(i);});tb.appendChild(el);});
   ['n','t'].forEach(function(b){var Re=document.getElementById('R'+b),Ne=document.getElementById('N'+b);
