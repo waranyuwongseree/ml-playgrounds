@@ -232,7 +232,7 @@
     if(!thinA)lb('\\text{predicted }+',L-46,(TOP+yT)/2,{rot:true});if(!thinB)lb('\\text{predicted }-',L-46,(yT+TOP+ph)/2,{rot:true});}   // ป้ายแถวแนวตั้งซ้ายสุด · แถวบาง → ไม่ใส่
 
   function drawRoc(t,R){var sz=prep(cvr,ctr),W=sz.W,H=sz.H,g=ctr;
-    var L=36,Rm=12,TOP=14,BOT=34,pw=W-L-Rm,ph=H-TOP-BOT,i;
+    var L=48,Rm=14,TOP=14,BOT=34,pw=W-L-Rm,ph=H-TOP-BOT,i;   // L กว้างพอให้ป้าย TPR (แนวตั้ง) ไม่ชิดขอบและไม่ทับ tick
     function px(f){return L+f*pw;} function py(v){return TOP+ph-v*ph;}
     g.strokeStyle='rgba(128,128,128,0.25)';g.lineWidth=1;[0.25,0.5,0.75].forEach(function(v){g.beginPath();g.moveTo(px(v),py(0));g.lineTo(px(v),py(1));g.moveTo(px(0),py(v));g.lineTo(px(1),py(v));g.stroke();});
     g.strokeStyle='rgba(128,128,128,0.6)';g.strokeRect(px(0),py(1),pw,ph);
@@ -249,7 +249,7 @@
     if(ly>py(0.18)&&lx+wl>px(0.5))ly=py(tpr)-8;if(ly-12<TOP)ly=py(tpr)+16;
     g.fillText(tl,lx,ly);
     g.fillStyle='rgba(90,90,90,0.9)';g.textAlign='center';g.fillText('FPR',px(0.5),H-5);
-    g.save();g.translate(10,py(0.5));g.rotate(-Math.PI/2);g.fillText('TPR',0,0);g.restore();
+    g.save();g.translate(16,py(0.5));g.rotate(-Math.PI/2);g.fillText('TPR',0,0);g.restore();   // baseline ที่ x=16 → ตัวอักษรอยู่ช่วง 5–16 ไม่ชิดขอบ
     var lb=labs(cvr);lb('\\text{AUC}='+R.auc.toFixed(2),px(0.97),py(0.06),{align:'right',color:MC});}
 
   // ---------- ตารางข้อมูล (ซ้าย): x | (p̂) | y | ŷ เรียงตามคะแนนมากไปน้อย · สีแถว = ผล TP/FN/FP/TN ----------
