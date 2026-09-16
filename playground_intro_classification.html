@@ -308,7 +308,7 @@
     'lbl-x0':'x_0','lbl-muy1':'\\mu_{2+}','lbl-muy0':'\\mu_{2-}','lbl-s0':'\\sigma_-','lbl-s1':'\\sigma_+','lbl-p1':'\\pi_+','lbl-sev':'\\delta','lbl-n':'n','lbl-k':'k','lbl-depth':'\\text{depth}',
     'th-m':'\\text{model}','th-f':'z','th-r':'\\text{rule}','th-e':'\\text{accuracy}',
     'dt-x':'\\textcolor{#fff}{\\text{PSA }(x)}','dt-y':'\\textcolor{#fff}{\\text{Class }(y)}',
-    'ch-pp':'\\hat y=+','ch-pn':'\\hat y=-','ch-ap':'\\text{actual }+','ch-an':'\\text{actual }-','cs-tp':'\\mathrm{TP}','cs-fn':'\\mathrm{FN}','cs-fp':'\\mathrm{FP}','cs-tn':'\\mathrm{TN}',
+    'ch-pp':'\\text{predicted }+','ch-pn':'\\text{predicted }-','ch-ap':'\\text{actual }+','ch-an':'\\text{actual }-','cs-tp':'\\mathrm{TP}','cs-fn':'\\mathrm{FN}','cs-fp':'\\mathrm{FP}','cs-tn':'\\mathrm{TN}',
     's-found':'\\text{1) Classification = estimate }P(y{=}+\\mid \\mathbf x)\\text{, then decide}',
     'fl-target':'\\text{target}','fe-target':'P(y{=}+\\mid \\mathbf x)\\quad\\text{(probability the object is positive given its features; predicted class = }+\\text{ when it exceeds }\\tfrac12)',
     'fl-rule':'\\text{decision rule}','fe-rule':'\\hat y=+\\iff P(y{=}+\\mid \\mathbf x)>\\tfrac12\\iff z>0\\ \\ (\\hat P=\\sigma(z))',
@@ -523,7 +523,7 @@
     el.innerHTML=h;}
   // ---------- ตารางข้อมูลซ้าย: x | y | ŷ (2-D: x_1 | x_2 | y | ŷ) เรียงตาม x มากไปน้อย · สีแถว = ผล TP/FN/FP/TN ----------
   function fillModTab(S,f){var hd=document.getElementById('mthead'),tb=document.getElementById('mtbody');if(!hd||!tb)return;
-    var W=function(t){return '\\textcolor{#fff}{'+t+'}';},cols=S.sym.concat(['y','\\hat y']);
+    var W=function(t){return '\\textcolor{#fff}{'+t+'}';},cols=S.sym.concat(['\\text{actual}','\\text{predicted}']);   // คำเดียวกับ confusion matrix
     hd.innerHTML=cols.map(function(t){return '<th>'+kx(W(t))+'</th>';}).join('');
     var idx=[],i;for(i=0;i<S.X.length;i++)idx.push(i);idx.sort(function(a,b){return S.X[b][0]-S.X[a][0];});
     function cls(y){return y?'\\textcolor{#B0503A}{+}':'\\textcolor{#3F6E99}{-}';}
