@@ -1,0 +1,254 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Classifier Evaluation</title>
+<link rel="stylesheet" href="pg_style.css?v=24">
+<link rel="stylesheet" href="vendor/katex/katex.min.css">
+<script src="vendor/katex/katex.min.js"></script>
+<style>
+  /* classifier-evaluation — 3 แท็บตาม MLCC (Thresholding · Accuracy/precision/recall · ROC & AUC)
+     โครง/ฟอนต์ = .distcls กลาง (เหมือน 1-D Bayes / Intro to Classification) · ตาราง = .mtab กลาง 15px */
+  .layout{align-items:start}
+  .distcls .stage{gap:6px}
+  .pg.distcls .canvasbox{height:clamp(200px,30vh,260px)}
+  /* แถวบน: [ROC จัตุรัส (เฉพาะแท็บ ROC)] + [score strip] */
+  .toprow{display:flex;gap:22px;align-items:stretch}
+  .toprow .canvasbox{flex:1 1 auto;width:auto;min-width:0;margin:0}
+  .rocbox{display:none;flex:none;aspect-ratio:1/1;height:300px;background:#fff;border:1px solid var(--line);border-radius:12px;position:relative}
+  .rocbox canvas{width:100%;height:100%;display:block}
+  .toprow.roc .rocbox{display:block}
+  .toprow.roc .canvasbox{height:300px}
+  /* แถวล่าง: confusion matrix (ซ้าย, แบบ 2-D Bayes) + ตาราง (ขวา) */
+  .distcls .below{min-height:0;padding:8px 14px 8px;display:flex;gap:22px;align-items:flex-start}
+  .cmwrap{flex:0 0 340px;min-width:0}
+  .cm{display:grid;grid-template-columns:auto 1fr 1fr;gap:10px;font-size:15px;width:100%;align-items:center}
+  .cm .hh{display:flex;align-items:center;justify-content:center;color:#555;font-size:18px;padding:2px 6px;text-align:center;white-space:nowrap}
+  .cm .cell{border-radius:14px;padding:16px 8px;text-align:center}.cm .cell b{font-size:24px;display:block;font-variant-numeric:tabular-nums;font-weight:400}.cm .cell span{font-size:16px}
+  .cm .katex{font-size:1em}
+  .tp{background:#FBE9E4;color:#8A3B2C}.fn{background:#FAEFD6;color:#8A6510}.fp{background:#E3F1EE;color:#2E7D70}.tn{background:#E9F0F8;color:#3F6E99}
+  .tblbox{flex:1 1 auto;min-width:0}
+  .pg .mtab{margin:0}
+  .pg .mtab th,.pg .mtab td{padding:7px 10px;font-size:15px;vertical-align:middle;line-height:1.45}
+  .pg .mtab th{white-space:normal}
+  .pg .mtab th.r{text-align:right}
+  .pg .mtab td{font-weight:400;color:var(--ink);font-variant-numeric:normal;text-align:left}
+  .pg .mtab td:first-child{white-space:nowrap}
+  .pg .mtab td .katex{white-space:nowrap}   /* สูตรไม่ตัดบรรทัดกลางสมการ */
+  .pg .mtab td:last-child{text-align:right;white-space:nowrap}
+  .pg .mtab th .katex,.pg .mtab td .katex{font-size:1em;line-height:1.2;vertical-align:baseline}
+  .pg .mtab th.r .katex,.pg .mtab td:last-child .katex{display:block;text-align:right}
+  .pg .mtab th.r .katex-html,.pg .mtab td:last-child .katex-html{display:inline-block}
+  /* ป้าย KaTeX ทับ canvas (ตัวแปร/ตัวห้อย) — ขนาดเท่าฟอนต์ canvas 13px */
+  .canvasbox,.rocbox{position:relative}
+  .cvlab{position:absolute;left:0;top:0;width:100%;height:100%;pointer-events:none;overflow:hidden;font-size:13px;line-height:1}
+  .cvlab>span{position:absolute;white-space:nowrap;color:rgba(90,90,90,0.9)}
+  .cvlab .katex{font-size:1em}
+  .seg2{display:flex;flex-wrap:wrap;border:1px solid var(--line);border-radius:8px;overflow:hidden;margin-bottom:6px;background:#fff}
+  .seg2 button{flex:1 1 auto;font:inherit;font-size:14px;padding:6px 8px;border:0;background:#fff;color:#555;cursor:pointer;white-space:nowrap}
+  .seg2 button.on{background:var(--navy);color:#fff}
+  .seg2 .katex{font-size:1em}
+  .tgls{display:flex;flex-direction:column;gap:9px;margin-top:10px}
+  @media(max-width:820px){.distcls .below{flex-direction:column}.cmwrap{flex:none;width:100%}.toprow{flex-direction:column}.rocbox{height:auto;width:100%}}
+</style>
+</head>
+<body class="pg distcls">
+<div class="wrap">
+  <div class="hdr"><h1 id="h1">Classifier Evaluation</h1><div class="tabs" id="tabs"></div></div>
+
+  <div class="layout" id="mainPanel">
+    <div class="stage">
+      <div class="toprow" id="toprow">
+        <div class="rocbox" id="rocbox"><canvas id="cvroc"></canvas></div>
+        <div class="canvasbox"><canvas id="cv"></canvas></div>
+      </div>
+      <div class="classleg" id="classleg"></div>
+      <div class="below" id="below">
+        <div class="cmwrap" id="cmwrap"><div class="cm">
+          <div class="hh"></div><div class="hh" id="ch-pp"></div><div class="hh" id="ch-pn"></div>
+          <div class="hh" id="ch-ap"></div><div class="cell tp"><b id="c-tp">0</b><span id="cs-tp"></span></div><div class="cell fn"><b id="c-fn">0</b><span id="cs-fn"></span></div>
+          <div class="hh" id="ch-an"></div><div class="cell fp"><b id="c-fp">0</b><span id="cs-fp"></span></div><div class="cell tn"><b id="c-tn">0</b><span id="cs-tn"></span></div>
+        </div></div>
+        <div class="tblbox"><table class="mtab" id="mtab">
+          <thead><tr><th id="th-a"></th><th id="th-b"></th><th class="r" id="th-c"></th></tr></thead>
+          <tbody id="mbody"></tbody>
+        </table></div>
+      </div>
+    </div>
+
+    <!-- CONTROL -->
+    <div class="panel">
+      <div id="grp-ds"><div class="dhd" id="hd-ds"></div>
+      <div class="seg2" id="dsSeg"><button data-ds="0" id="ds-0" class="on"></button><button data-ds="1" id="ds-1"></button><button data-ds="2" id="ds-2"></button></div>
+      <div class="dgrid">
+        <div class="drow" id="row-n"><span class="dlab" id="lbl-n"></span><input type="range" id="Rn" min="40" max="400" step="20" value="100"><input class="num" type="number" id="Nn" min="40" max="400" step="20" value="100"></div>
+      </div></div>
+      <div id="grp-th"><div class="dhd" id="hd-th"></div>
+      <div class="dgrid">
+        <div class="drow" id="row-t"><span class="dlab" id="lbl-t"></span><input type="range" id="Rt" min="0.01" max="0.99" step="0.01" value="0.50"><input class="num" type="number" id="Nt" min="0.01" max="0.99" step="0.01" value="0.50"></div>
+      </div></div>
+      <div id="grp-rs" class="tgls"><button class="primary" id="resample" style="width:100%"></button></div>
+    </div>
+  </div>
+</div>
+
+<script>
+(function(){
+  "use strict";
+  // ---------- rng ----------
+  function mulberry32(a){return function(){a|=0;a=a+0x6D2B79F5|0;var t=Math.imul(a^a>>>15,1|a);
+    t=t+Math.imul(t^t>>>7,61|t)^t;return((t^t>>>14)>>>0)/4294967296;};}
+  var MAXN=400,Z=[],U=[];
+  function regen(seed){var rng=mulberry32(seed),i;function g(){var u=rng()||1e-9,v=rng();return Math.sqrt(-2*Math.log(u))*Math.cos(2*Math.PI*v);}
+    Z=[];U=[];for(i=0;i<MAXN;i++){Z.push(g());U.push(rng());}}
+  var seed=20260916;regen(seed);
+  function sig(z){return 1/(1+Math.exp(-z));}
+
+  // ---------- datasets (MLCC: Separated · Unseparated · Imbalanced) ----------
+  // คะแนน = \hat p = σ(±d + s·z): บวกอยู่ทางขวา ลบอยู่ทางซ้าย · d = ระยะแยก · π+ = สัดส่วนบวก
+  var DS=[{lab:'Separated',d:1.7,s:1.0,pi:0.5},{lab:'Unseparated',d:0.7,s:1.1,pi:0.5},{lab:'Imbalanced',d:1.4,s:1.0,pi:0.12}];
+  var TABS=[{n:'Thresholding',key:'thr'},{n:'Accuracy, precision \\& recall',key:'apr'},{n:'ROC \\& AUC',key:'roc'}];
+  var curTab=0,dsIdx=0;
+  var MC='#1e3a8a',Rd='#B0503A',Bl='#3F6E99';
+  function gv(b){return parseFloat(document.getElementById('R'+b).value);}
+  function T(){return TABS[curTab];}
+
+  // ---------- KaTeX static labels ----------
+  var MT={'h1':'\\text{Classifier Evaluation}','resample':'\\text{Resample points}',
+    'hd-ds':'\\text{Data}','hd-th':'\\text{Classification threshold}','lbl-n':'n','lbl-t':'t',
+    'ds-0':'\\text{Separated}','ds-1':'\\text{Unseparated}','ds-2':'\\text{Imbalanced}',
+    'ch-pp':'\\hat y=+','ch-pn':'\\hat y=-','ch-ap':'\\text{actual }+','ch-an':'\\text{actual }-','cs-tp':'\\mathrm{TP}','cs-fn':'\\mathrm{FN}','cs-fp':'\\mathrm{FP}','cs-tn':'\\mathrm{TN}'};
+  function K(tex,el){if(!el)return;try{katex.render(tex,el,{throwOnError:false});}catch(e){el.textContent=tex;}}
+  function kx(t){try{return window.katex?katex.renderToString(t,{throwOnError:false}):t;}catch(e){return t;}}
+  function renderTexts(){if(!window.katex)return;for(var id in MT)K(MT[id],document.getElementById(id));
+    var k=T().key;
+    K(k==='thr'?'\\text{total}':'\\text{metric}',document.getElementById('th-a'));
+    K('\\text{formula}',document.getElementById('th-b'));
+    K(k==='thr'?'\\text{count}':'\\text{value}',document.getElementById('th-c'));}
+  function clLine(name,lc,tc,shape){return '<span class="cli"><i class="'+(shape||'ln')+'" style="background:'+lc+'"></i><span>'+kx('\\textcolor{'+tc+'}{\\text{'+name+'}}')+'</span></span>';}
+  function fillLegend(){var el=document.getElementById('classleg');if(!el)return;
+    el.innerHTML=clLine('Positive class','#E07A5F',Rd,'ar')+clLine('Negative class','#5B8FB9',Bl,'ar')+clLine('threshold','#111','#111')+(T().key==='roc'?clLine('ROC curve',MC,MC):'');}
+
+  // ---------- data ----------
+  var D={pos:[],neg:[],all:[]};
+  function dataset(){var c=DS[dsIdx],n=Math.round(gv('n')),i;D.pos=[];D.neg=[];D.all=[];
+    for(i=0;i<n;i++){var isPos=U[i]<c.pi,v=sig((isPos?c.d:-c.d)+c.s*Z[i]);if(isPos)D.pos.push(v);else D.neg.push(v);D.all.push({s:v,y:isPos?1:0});}
+    if(D.pos.length===0){D.pos.push(sig(c.d));D.all[0]={s:D.pos[0],y:1};D.neg.shift();}}
+  function confusion(t){var TP=0,FN=0,FP=0,TN=0,i;for(i=0;i<D.pos.length;i++){if(D.pos[i]>=t)TP++;else FN++;}
+    for(i=0;i<D.neg.length;i++){if(D.neg[i]>=t)FP++;else TN++;}return {TP:TP,FN:FN,FP:FP,TN:TN};}
+  // ROC: กวาด threshold ทุกค่าที่เป็นไปได้ (ทุกคะแนนที่มี) → (FPR,TPR) · AUC = พื้นที่ (trapezoid) = P(\hat p_+ > \hat p_-)
+  function roc(){var pts=[{f:0,t:0}],P=D.pos.length,N=D.neg.length,arr=D.all.slice().sort(function(a,b){return b.s-a.s;}),tp=0,fp=0,i=0;
+    while(i<arr.length){var s=arr[i].s;while(i<arr.length&&arr[i].s===s){if(arr[i].y)tp++;else fp++;i++;}pts.push({f:N?fp/N:0,t:P?tp/P:0});}
+    var auc=0;for(i=1;i<pts.length;i++)auc+=(pts[i].f-pts[i-1].f)*(pts[i].t+pts[i-1].t)/2;return {pts:pts,auc:auc};}
+
+  // ---------- canvas ----------
+  var cv=document.getElementById('cv'),ctx=cv.getContext('2d'),cvr=document.getElementById('cvroc'),ctr=cvr.getContext('2d');
+  function prep(c,g){var w=Math.round(c.clientWidth)||600,h=Math.round(c.clientHeight)||200,dpr=window.devicePixelRatio||1;
+    c.width=Math.round(w*dpr);c.height=Math.round(h*dpr);g.setTransform(dpr,0,0,dpr,0,0);g.clearRect(0,0,w,h);return {W:w,H:h};}
+  // ป้ายที่มีตัวแปร/ตัวห้อย → KaTeX overlay ทับ canvas (baseline วัดจริง)
+  function labs(c){var p=c.parentElement,Ly=p.querySelector('.cvlab');if(!Ly){Ly=document.createElement('div');Ly.className='cvlab';p.appendChild(Ly);}Ly.innerHTML='';
+    var ox=c.clientLeft||0,oy=c.clientTop||0;
+    return function(tex,x,y,o){o=o||{};var s=document.createElement('span');K(tex,s);if(o.color)s.style.color=o.color;
+      var pr=document.createElement('span');pr.style.cssText='display:inline-block;width:0;height:0;vertical-align:baseline';s.appendChild(pr);
+      s.style.left=(x+ox)+'px';s.style.top='0px';s.style.transform='translateX('+(o.align==='right'?'-100%':o.align==='center'?'-50%':'0')+')';Ly.appendChild(s);
+      var sr=s.getBoundingClientRect(),base=pr.getBoundingClientRect().top-sr.top;
+      s.style.top=(oy+(o.vt==='middle'?y-sr.height/2:o.vt==='top'?y:y-base))+'px';};}
+
+  // score strip: จุดซ้อนเป็นแท่ง (บวกขึ้นบน ลบลงล่าง) บนแกน \hat p · เส้นประดำ = threshold · TP/FN/FP/TN ข้างเส้นแบบ 1-D Bayes
+  function drawStrip(t,C){var sz=prep(cv,ctx),W=sz.W,H=sz.H,g=ctx;
+    var L=16,Rm=16,TOP=22,BOT=54,pw=W-L-Rm,ph=H-TOP-BOT,mid=TOP+ph/2,i;   // BOT: แถว tick (+15) · TN/FP (+31) · threshold (+50) ไม่ทับกัน
+    function px(s){return L+s*pw;}
+    g.fillStyle='rgba(91,143,185,0.07)';g.fillRect(L,TOP,px(t)-L,ph);g.fillStyle='rgba(224,122,95,0.08)';g.fillRect(px(t),TOP,L+pw-px(t),ph);
+    var NB=40,bw=1/NB,bp=[],bn=[],b;for(b=0;b<NB;b++){bp.push([]);bn.push([]);}
+    D.pos.forEach(function(s){bp[Math.min(NB-1,Math.floor(s/bw))].push(s);});D.neg.forEach(function(s){bn[Math.min(NB-1,Math.floor(s/bw))].push(s);});
+    var mx=1;for(b=0;b<NB;b++)mx=Math.max(mx,bp[b].length,bn[b].length);
+    var bwp=pw/NB,r=Math.min(bwp/2-0.6,4.5),dy=Math.min(2*r+1.2,(ph/2-8)/mx);r=Math.min(r,dy/2-0.3);
+    function dot(x,y,pos,miss){g.fillStyle=pos?'rgba(224,122,95,0.9)':'rgba(91,143,185,0.85)';g.beginPath();g.arc(x,y,r,0,7);g.fill();
+      if(miss){g.strokeStyle=pos?'#5B8FB9':'#E07A5F';g.lineWidth=1.6;g.beginPath();g.arc(x,y,r+2,0,7);g.stroke();}}
+    for(b=0;b<NB;b++){var cx=L+(b+0.5)*bwp;
+      for(i=0;i<bp[b].length;i++)dot(cx,mid-4-r-i*dy,true,bp[b][i]<t);
+      for(i=0;i<bn[b].length;i++)dot(cx,mid+4+r+i*dy,false,bn[b][i]>=t);}
+    // แกน \hat p
+    g.strokeStyle='rgba(128,128,128,0.6)';g.lineWidth=1;g.beginPath();g.moveTo(L,mid);g.lineTo(L+pw,mid);g.stroke();
+    g.fillStyle='rgba(128,128,128,0.9)';g.font='13px KaTeX_Main,serif';g.textAlign='center';g.textBaseline='alphabetic';
+    for(var a=0;a<=1.0001;a+=0.25)g.fillText(a.toFixed(2),px(a),TOP+ph+15);
+    // threshold
+    var xT=px(t);g.strokeStyle='#111';g.fillStyle='#111';g.lineWidth=1.8;g.setLineDash([5,4]);g.beginPath();g.moveTo(xT,TOP-4);g.lineTo(xT,TOP+ph+4);g.stroke();g.setLineDash([]);
+    g.font='15px KaTeX_Main,serif';g.textAlign='center';g.fillText('threshold '+t.toFixed(2),xT,H-4);
+    g.textAlign='left'; g.fillStyle='#B0503A';g.fillText('TP '+C.TP,xT+12,TOP-8);
+    g.textAlign='right';g.fillStyle='#8A6510';g.fillText('FN '+C.FN,xT-12,TOP-8);
+    g.textAlign='left'; g.fillStyle='#2E7D70';g.fillText('FP '+C.FP,xT+12,TOP+ph+31);
+    g.textAlign='right';g.fillStyle='#3F6E99';g.fillText('TN '+C.TN,xT-12,TOP+ph+31);
+    var wide=pw>560;   // แถบแคบ (แท็บ ROC) → ตัดคำ predicted … และย่อป้ายแกน ไม่ให้ทับ TP/FN/FP/TN
+    if(wide){g.font='13px KaTeX_Main,serif';g.fillStyle='rgba(90,90,90,0.9)';g.textAlign='left';g.fillText('predicted negative',L+4,TOP-8);g.textAlign='right';g.fillText('predicted positive',L+pw-4,TOP-8);}
+    var lb=labs(cv);lb(wide?'\\hat p=P(y=+\\mid x)':'\\hat p',L+pw,TOP+ph+31,{align:'right'});}
+
+  function drawRoc(t,R){var sz=prep(cvr,ctr),W=sz.W,H=sz.H,g=ctr;
+    var L=40,Rm=14,TOP=16,BOT=36,pw=W-L-Rm,ph=H-TOP-BOT,i;
+    function px(f){return L+f*pw;} function py(v){return TOP+ph-v*ph;}
+    g.strokeStyle='rgba(128,128,128,0.25)';g.lineWidth=1;[0.25,0.5,0.75].forEach(function(v){g.beginPath();g.moveTo(px(v),py(0));g.lineTo(px(v),py(1));g.moveTo(px(0),py(v));g.lineTo(px(1),py(v));g.stroke();});
+    g.strokeStyle='rgba(128,128,128,0.6)';g.strokeRect(px(0),py(1),pw,ph);
+    g.fillStyle='rgba(128,128,128,0.9)';g.font='13px KaTeX_Main,serif';g.textAlign='center';g.textBaseline='alphabetic';
+    [0,0.5,1].forEach(function(v){g.fillText(v.toFixed(1),px(v),py(0)+15);});g.textAlign='right';g.textBaseline='middle';[0,0.5,1].forEach(function(v){g.fillText(v.toFixed(1),px(0)-6,py(v));});g.textBaseline='alphabetic';
+    // เส้นทแยง = เดาสุ่ม (AUC 0.5)
+    g.strokeStyle='rgba(17,17,17,0.45)';g.setLineDash([5,4]);g.beginPath();g.moveTo(px(0),py(0));g.lineTo(px(1),py(1));g.stroke();g.setLineDash([]);
+    // พื้นที่ใต้โค้ง + โค้ง ROC
+    var P=R.pts;g.fillStyle='rgba(30,58,138,0.10)';g.beginPath();g.moveTo(px(0),py(0));for(i=0;i<P.length;i++)g.lineTo(px(P[i].f),py(P[i].t));g.lineTo(px(1),py(0));g.closePath();g.fill();
+    g.strokeStyle=MC;g.lineWidth=2.2;g.beginPath();for(i=0;i<P.length;i++){i?g.lineTo(px(P[i].f),py(P[i].t)):g.moveTo(px(P[i].f),py(P[i].t));}g.stroke();
+    // จุด threshold ปัจจุบัน
+    var C=confusion(t),tpr=D.pos.length?C.TP/D.pos.length:0,fpr=D.neg.length?C.FP/D.neg.length:0;
+    g.fillStyle=MC;g.beginPath();g.arc(px(fpr),py(tpr),5.5,0,7);g.fill();g.strokeStyle='#fff';g.lineWidth=2;g.stroke();
+    g.fillStyle='#111';g.font='13px KaTeX_Main,serif';g.textAlign=fpr>0.55?'right':'left';g.fillText('threshold '+t.toFixed(2),px(fpr)+(fpr>0.55?-10:10),py(tpr)+(tpr>0.85?16:-8));
+    g.fillStyle='rgba(90,90,90,0.9)';g.textAlign='center';g.fillText('FPR',px(0.5),H-6);
+    g.save();g.translate(11,py(0.5));g.rotate(-Math.PI/2);g.fillText('TPR',0,0);g.restore();
+    var lb=labs(cvr);lb('\\text{AUC}='+R.auc.toFixed(3),px(0.97),py(0.06),{align:'right',color:MC});}
+
+  // ---------- confusion + table ----------
+  function fillCM(C){K(String(C.TP),document.getElementById('c-tp'));K(String(C.FN),document.getElementById('c-fn'));K(String(C.FP),document.getElementById('c-fp'));K(String(C.TN),document.getElementById('c-tn'));}
+  function frac(num,den,nv,dv){return '\\dfrac{'+num+'}{'+den+'}=\\dfrac{'+nv+'}{'+dv+'}';}
+  function val(nv,dv){return dv>0?(nv/dv).toFixed(3):'\\text{--}';}
+  function fillTable(C,R){var k=T().key,rows=[],TP=C.TP,FN=C.FN,FP=C.FP,TN=C.TN,n=TP+FN+FP+TN;
+    if(k==='thr'){
+      rows=[['\\text{predicted positive}','\\mathrm{TP}+\\mathrm{FP}='+TP+'+'+FP,String(TP+FP)],
+            ['\\text{predicted negative}','\\mathrm{FN}+\\mathrm{TN}='+FN+'+'+TN,String(FN+TN)],
+            ['\\text{actual positive}','\\mathrm{TP}+\\mathrm{FN}='+TP+'+'+FN,String(TP+FN)],
+            ['\\text{actual negative}','\\mathrm{FP}+\\mathrm{TN}='+FP+'+'+TN,String(FP+TN)],
+            ['\\text{all examples}','n',String(n)]];}
+    else if(k==='apr'){
+      rows=[['\\text{accuracy}',frac('\\mathrm{TP}+\\mathrm{TN}','\\mathrm{TP}+\\mathrm{TN}+\\mathrm{FP}+\\mathrm{FN}',TP+'+'+TN,n),val(TP+TN,n)],
+            ['\\text{recall (TPR)}',frac('\\mathrm{TP}','\\mathrm{TP}+\\mathrm{FN}',TP,TP+FN),val(TP,TP+FN)],
+            ['\\text{false positive rate}',frac('\\mathrm{FP}','\\mathrm{FP}+\\mathrm{TN}',FP,FP+TN),val(FP,FP+TN)],
+            ['\\text{precision}',frac('\\mathrm{TP}','\\mathrm{TP}+\\mathrm{FP}',TP,TP+FP),val(TP,TP+FP)],
+            ['F_1',frac('2\\,\\mathrm{TP}','2\\,\\mathrm{TP}+\\mathrm{FP}+\\mathrm{FN}',2*TP,2*TP+FP+FN),val(2*TP,2*TP+FP+FN)]];}
+    else {
+      rows=[['\\text{TPR}',frac('\\mathrm{TP}','\\mathrm{TP}+\\mathrm{FN}',TP,TP+FN),val(TP,TP+FN)],
+            ['\\text{FPR}',frac('\\mathrm{FP}','\\mathrm{FP}+\\mathrm{TN}',FP,FP+TN),val(FP,FP+TN)],
+            ['\\text{AUC}','P(\\hat p_+>\\hat p_-)\\ \\text{(area under ROC)}',R.auc.toFixed(3)]];}
+    var h='';rows.forEach(function(r){h+='<tr><td>'+kx(r[0])+'</td><td>'+kx(r[1])+'</td><td>'+kx(r[2])+'</td></tr>';});
+    document.getElementById('mbody').innerHTML=h;}
+
+  function upd(){var t=gv('t'),C=confusion(t),R=roc();
+    document.getElementById('toprow').className='toprow'+(T().key==='roc'?' roc':'');
+    drawStrip(t,C);if(T().key==='roc')drawRoc(t,R);fillCM(C);fillTable(C,R);fillLegend();}
+
+  // ---------- controls ----------
+  function setDsSeg(){var bs=document.querySelectorAll('#dsSeg button');for(var i=0;i<bs.length;i++)bs[i].className=(parseInt(bs[i].getAttribute('data-ds'),10)===dsIdx)?'on':'';}
+  function applyTab(k){curTab=k;var btns=document.querySelectorAll('.tabbtn');for(var i=0;i<btns.length;i++)btns[i].className='tabbtn'+(i===k?' on':'');renderTexts();upd();}
+  var tb=document.getElementById('tabs');
+  TABS.forEach(function(t,i){var el=document.createElement('button');el.className='tabbtn';K('\\text{'+t.n+'}',el);el.addEventListener('click',function(){applyTab(i);});tb.appendChild(el);});
+  ['n','t'].forEach(function(b){var Re=document.getElementById('R'+b),Ne=document.getElementById('N'+b);
+    Re.addEventListener('input',function(){Ne.value=(b==='t')?parseFloat(Re.value).toFixed(2):Re.value;if(b==='n')dataset();upd();});
+    Ne.addEventListener('input',function(){Re.value=Ne.value;if(b==='n')dataset();upd();});});
+  document.querySelectorAll('#dsSeg button').forEach(function(b){b.addEventListener('click',function(){dsIdx=parseInt(b.getAttribute('data-ds'),10);setDsSeg();dataset();upd();});});
+  document.getElementById('resample').addEventListener('click',function(){seed=(seed*1664525+1013904223)>>>0;regen(seed);dataset();upd();});
+  window.addEventListener('resize',function(){upd();});
+
+  renderTexts();setDsSeg();dataset();applyTab(0);
+  requestAnimationFrame(function(){renderTexts();upd();});
+  setTimeout(function(){renderTexts();upd();},300);
+  if(document.fonts&&document.fonts.ready)document.fonts.ready.then(function(){upd();});
+})();
+</script>
+</body>
+</html>
