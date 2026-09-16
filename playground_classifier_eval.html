@@ -27,6 +27,7 @@
   .dtab th{background:var(--navy);color:#fff;font-weight:400;padding:5px 6px;text-align:center}
   .dtab td{padding:1px 6px;text-align:center;color:var(--ink);line-height:1.35;background:#fff}
   .dtab tr.tp td{background:#FBE9E4}.dtab tr.fn td{background:#FAEFD6}.dtab tr.fp td{background:#E3F1EE}.dtab tr.tn td{background:#E9F0F8}
+  .dtab tr.cut td{border-top:2px dashed #111}   /* เส้นประ threshold ในตาราง: เหนือแถวแรกที่อยู่ใต้ threshold (predicted −) */
   .dtab .katex{font-size:1em}
   /* รูปรวม (score × actual class) = จัตุรัส 280 เท่ากันทุกแท็บ · แท็บ ROC: กราฟ ROC จัตุรัสขนาดเดียวกันวางข้าง → พอดี 1 หน้า */
   /* รูปรวมจัตุรัส 300 เท่ากันทุกแท็บ · แท็บ ROC: กราฟ ROC จัตุรัสขนาดเดียวกัน วางใต้ (บน–ล่าง) → 64+300+30+300 พอดี 1 หน้า */
@@ -255,8 +256,8 @@
   // ---------- ตารางข้อมูล (ซ้าย): x | (p̂) | y | ŷ เรียงตามคะแนนมากไปน้อย · สีแถว = ผล TP/FN/FP/TN ----------
   function fillDtab(t){var tb=document.getElementById('dtbody');if(!tb)return;var arr=D.all.slice().sort(function(a,b){return sc(b)-sc(a);}),h='';
     function cls(y){return y?'\\textcolor{'+Rd+'}{+}':'\\textcolor{'+Bl+'}{-}';}
-    arr.forEach(function(d){var yh=sc(d)>=t?1:0,k=d.y?(yh?'tp':'fn'):(yh?'fp':'tn');
-      h+='<tr class="'+k+'"><td>'+kx(d.x.toFixed(1))+'</td>'+(isEX()?'':'<td>'+kx(d.p.toFixed(2))+'</td>')+'<td>'+kx(cls(d.y))+'</td><td>'+kx(cls(yh))+'</td></tr>';});
+    var cut=-1;arr.forEach(function(d,i){var yh=sc(d)>=t?1:0,k=d.y?(yh?'tp':'fn'):(yh?'fp':'tn');if(!yh&&cut<0)cut=i;   // แถวแรกที่อยู่ใต้ threshold
+      h+='<tr class="'+k+(cut===i?' cut':'')+'"><td>'+kx(d.x.toFixed(1))+'</td>'+(isEX()?'':'<td>'+kx(d.p.toFixed(2))+'</td>')+'<td>'+kx(cls(d.y))+'</td><td>'+kx(cls(yh))+'</td></tr>';});
     tb.innerHTML=h;}
 
   // ---------- confusion + ตารางสูตร ----------
