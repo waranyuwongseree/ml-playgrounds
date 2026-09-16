@@ -426,9 +426,14 @@
     var lb=labs(cv);lb('P(y=+\\mid x)',L+4,TOP-8);
     lb(P.ax[0],L+pw,py(0)+31,{align:'right'});
     var k;
-    for(k=0;k<P.X.length;k++){var xv=P.X[k][0],yv=P.ys[k],xp=px(xv);if(xp<L-4||xp>L+pw+4)continue;
-      var yp=yv?py(1)+9+(k%3)*7:py(0)-9-(k%3)*7;
-      var pr=m.post([xv])>0.5?1:0;dotAt(ctx,xp,yp,yv,pr,4.5);}
+    // dot plot ซ้อนเป็น histogram: บวกซ้อนลงจากขอบบน ลบซ้อนขึ้นจากขอบล่าง (ช่องละ ~11px) · n มาก → บีบระยะให้พอดีครึ่งกราฟ
+    var rD=4.5,bwp=2*rD+2,NBn=Math.max(1,Math.floor(pw/bwp)),binsP=[],binsN=[];for(k=0;k<NBn;k++){binsP.push([]);binsN.push([]);}
+    for(k=0;k<P.X.length;k++){var xv=P.X[k][0],xp=px(xv);if(xp<L||xp>L+pw)continue;var bi=Math.min(NBn-1,Math.floor((xp-L)/bwp));(P.ys[k]?binsP:binsN)[bi].push(k);}
+    var mxS=1;for(k=0;k<NBn;k++)mxS=Math.max(mxS,binsP[k].length,binsN[k].length);
+    var dyS=Math.min(2*rD+1,(ph/2-14)/mxS);
+    for(k=0;k<NBn;k++){var cxb=L+(k+0.5)*bwp,j;
+      for(j=0;j<binsP[k].length;j++){var ip=binsP[k][j];dotAt(ctx,cxb,py(1)+9+j*dyS,1,m.post(P.X[ip])>0.5?1:0,rD);}
+      for(j=0;j<binsN[k].length;j++){var iq=binsN[k][j];dotAt(ctx,cxb,py(0)-9-j*dyS,0,m.post(P.X[iq])>0.5?1:0,rD);}}
     var N=320,dx=(xmax-xmin)/N;
     ctx.strokeStyle=MC;ctx.lineWidth=2.4;ctx.beginPath();
     for(i=0;i<=N;i++){x=xmin+i*dx;var Y=py(Math.max(0,Math.min(1,m.post([x]))));i===0?ctx.moveTo(px(x),Y):ctx.lineTo(px(x),Y);}ctx.stroke();
@@ -540,7 +545,10 @@
       var n1=Math.max(1,Math.round(n*p1)),n0=Math.max(1,n-n1);
       for(k=0;k<n1;k++){X.push(D===1?[m1+s1*Z1[k]]:[m1+s1*Z1[k],my1+s1*Z1y[k]]);ys.push(1);}
       for(k=0;k<n0;k++){X.push(D===1?[m0+s0*Z0[k]]:[m0+s0*Z0[k],my0+s0*Z0y[k]]);ys.push(0);}
-      return {X:X,ys:ys,xmin:-2,xmax:14,ymin:-2,ymax:14,sym:sym,ax:D===1?['x']:['x_1','x_2'],dec:2,mid:(m0+m1)/2};}
+      // ช่วงแกน = ช่วงข้อมูล ± 0.5 ปัดเป็นจำนวนเต็ม (ไม่กว้างเกิน)
+      var xs=X.map(function(v){return v[0];}),lo=Math.floor(Math.min.apply(null,xs)-0.5),hi=Math.ceil(Math.max.apply(null,xs)+0.5),ylo=-2,yhi=14;
+      if(D===2){var ysv=X.map(function(v){return v[1];});ylo=Math.floor(Math.min.apply(null,ysv)-0.5);yhi=Math.ceil(Math.max.apply(null,ysv)+0.5);}
+      return {X:X,ys:ys,xmin:lo,xmax:hi,ymin:ylo,ymax:yhi,sym:sym,ax:D===1?['x']:['x_1','x_2'],dec:2,mid:(m0+m1)/2};}
     var c=T().pdm[dsIdx],S=SET(c.ds);if(!S)return {X:[[0],[1]],ys:[0,1],xmin:0,xmax:1,ymin:0,ymax:1,sym:sym,ax:c.ax,dec:2,mid:0.5};
     var sev=gv('sev'),cols=c.f.map(function(f){return S.col[f];}),lo=[],hi=[],mg=[];
     cols.forEach(function(col,d){var s=0,cnt=0;for(var i=0;i<S.n;i++)if(!S.bad[i]){s+=col[i];cnt++;}mg.push(s/(cnt||1));});
