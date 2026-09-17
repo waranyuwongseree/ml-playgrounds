@@ -7,7 +7,6 @@
 <link rel="stylesheet" href="pg_style.css?v=24">
 <link rel="stylesheet" href="vendor/katex/katex.min.css">
 <script src="vendor/katex/katex.min.js"></script>
-<script src="day4_data.js"></script>
 <style>
   /* intro-classification — โครง/ฟอนต์ = .distcls กลาง (เหมือน 1-D Bayes); ตาราง = .mtab กลาง 15px */
   .layout{align-items:start}
@@ -246,6 +245,8 @@
   // nm = ชื่อย่อของตัวแปรสำหรับหัวตาราง (เช่น "temp (x)") · สมการยังใช้สัญลักษณ์ x, x_1, x_2 เหมือนเดิม
   var PDM1=[{ds:'along_the_model',f:['bearing_temp_c'],lab:'Along the model',ax:[AXT],nm:['temp']},
             {ds:'broken_relation',f:['bearing_temp_c'],lab:'Broken relation',ax:[AXT],nm:['temp']}];
+  // ตัวแปรของแท็บจำลอง (ชื่อ/หน่วย/สเกลจากปั๊มจริง): V2.c = จุดกึ่งกลางระหว่างสองคลาส · V2.s = ส่วนเบี่ยงเบนมาตรฐานต่อแกน (ใช้เป็นสเกลระยะของ k-NN ด้วย)
+  var V1={ax:[AXT],nm:['temp'],decs:[1]},V2={ax:[AXF,'x_2=\\text{discharge pressure (bar)}'],nm:['flow','pressure'],decs:[1,2],c:[147.8,8.09],s:[6,0.27]};
   var PDM2=[{ds:'broken_relation',f:['flow_m3h','discharge_pressure_bar'],lab:'Broken relation',ax:[AXF,'x_2=\\text{discharge pressure (bar)}'],nm:['flow','pressure']},
             {ds:'along_the_model',f:['flow_m3h','motor_current_a'],       lab:'Along the model',ax:[AXF,'x_2=\\text{motor current (A)}'],nm:['flow','current']}];
 
@@ -301,11 +302,10 @@
   var modeM='knn', curTab=0, dsIdx=0;   // ลำดับแบบจำลอง: k-NN (เริ่มที่ k = 1) → Tree → Naive Bayes → Logistic
   var TABS=[
     // แท็บ Example (PSA) ย้ายไป 1-D Bayes แล้ว · univariate สองแท็บอยู่ติดกัน แล้วค่อย bivariate
+    // แท็บ PDM (ข้อมูลจริง) รวมเข้ากับแท็บจำลองแล้ว: ข้อมูลจำลองบนชื่อ/สเกลตัวแปรของปั๊ม ใช้ control ชุดเดียว (ดู V1/V2 และ dataset())
     {n:'Univariate',     dim:1, groups:['ex','pos','neg','share','model','rs'], rows:['x0','mu1','mu0','sg','p1','n']},   // σ ร่วมตัวเดียว (sg) แทน σ+ / σ−
-    {n:'PDM univariate', dim:1, pdm:PDM1, groups:['ex','ds','share','model','rs'], rows:['x0','sev','n']},
-    // Bivariate: control ลดเหลือ ระยะห่างระหว่างคลาส d + σ ร่วม (แทน μ 4 ตัว + σ 2 ตัว) — บทเรียนของแท็บนี้คือรูปร่างเส้นแบ่งของแต่ละแบบจำลอง
-    {n:'Bivariate',      dim:2, groups:['ex','share','model','rs'], rows:['x0','xy0','sep','sg','p1','n']},
-    {n:'PDM bivariate',  dim:2, pdm:PDM2, groups:['ex','ds','share','model','rs'], rows:['x0','xy0','sev','n']}];
+    // Bivariate: control = ระยะห่างระหว่างคลาส d + σ ร่วม — บทเรียนของแท็บนี้คือรูปร่างเส้นแบ่งของแต่ละแบบจำลอง
+    {n:'Bivariate',      dim:2, groups:['ex','share','model','rs'], rows:['x0','xy0','sep','sg','p1','n']}];
   var MC='#1e3a8a',Rd='#B0503A',Bl='#3F6E99';
   // จุดข้อมูล: สี = actual class (coral +, ฟ้า −) · ✗ ขาว = ทำนายผิด (predicted อ่านจากตำแหน่งเทียบ threshold/region)
   function dotAt(g,x,y,yv,pr,r){g.fillStyle=yv?'rgba(224,122,95,0.9)':'rgba(91,143,185,0.85)';g.beginPath();g.arc(x,y,r,0,7);g.fill();
@@ -524,7 +524,7 @@
     if(f.linear){
       if(sym.length===1){if(Math.abs(f.W[0])<1e-9)return ['\\text{always }'+(f.B>0?POS():NEG())];
         var t=-f.B/f.W[0];return ['\\text{if }'+sym[0]+(f.W[0]>0?'>':'<')+fx(t,dec)+'\\text{ then }'+POS()+'\\text{, else }'+NEG()];}
-      return ['\\text{if }z>0\\text{ then }'+POS()+'\\text{, else }'+NEG()];}
+      return ['\\text{if }\\hat p(\\mathbf x)>0.5\\text{ then }'+POS()+'\\text{, else }'+NEG()];}   // 2-D: ไม่มีตัวแปร z แล้ว → เขียนเงื่อนไขด้วย p̂ ตรง ๆ
     if(f.k)return [f.k===1?'y=\\text{class of the nearest point}':'y=\\text{majority of the }'+f.k+'\\text{ nearest points}'];
     var Ls=f.leaves;if(Ls.length===1)return ['\\text{always }'+(Ls[0].p>0.5?POS():NEG())];
     return Ls.map(function(l,i){var c=l.cond.map(function(q){return sym[q.f]+(q.lt?'<':'\\ge ')+fx(q.t,dec);}).join('\\ \\&\\ ');
@@ -564,7 +564,7 @@
       if(wd>av&&av>0){var fs=parseFloat(getComputedStyle(sp).fontSize);sp.style.fontSize=Math.max(10,Math.floor(fs*av/wd*10)/10)+'px';}});}   // d2 = bivariate: สมการยาว → ป้ายแคบลง ตัวเล็กลงเล็กน้อย · ไม่แสดง accuracy (เรื่อง metric อยู่ใน Classification Metrics)
   // ---------- ตารางข้อมูลซ้าย: x | y | ŷ (2-D: x_1 | x_2 | y | ŷ) เรียงตาม x มากไปน้อย · สีแถว = ผล TP/FN/FP/TN ----------
   function fillModTab(S,f){var hd=document.getElementById('mthead'),tb=document.getElementById('mtbody');if(!hd||!tb)return;
-    var W=function(t){return '\\textcolor{#fff}{'+t+'}';},nm=isPDM()?T().pdm[dsIdx].nm:null;
+    var W=function(t){return '\\textcolor{#fff}{'+t+'}';},nm=S.nm||(isPDM()?T().pdm[dsIdx].nm:null);
     var hasP=(modeM!=='tree');   // tree ให้คลาสโดยตรง ไม่แสดงคอลัมน์ p̂
     var cols=S.sym.map(function(s,i){return nm?'\\text{'+nm[i].charAt(0).toUpperCase()+nm[i].slice(1)+' }('+s+')':s;}).concat(hasP?['\\hat p']:[]).concat(['\\text{Actual}','\\text{Predicted}']);   // p̂ = ความน่าจะเป็นจากแบบจำลองที่เลือก (logistic/NB = σ(z) · k-NN = สัดส่วนเพื่อนบ้าน · tree = สัดส่วนในใบ)   // PDM: ชื่อจริง (สัญลักษณ์) · คำเดียวกับ confusion matrix
     hd.innerHTML=cols.map(function(t){return '<th>'+kx(W(t))+'</th>';}).join('');
@@ -572,22 +572,25 @@
     var idx=[],i;for(i=0;i<S.X.length;i++)idx.push(i);idx.sort(function(a,b){return S.X[b][0]-S.X[a][0];});
     function cls(y){return y?'\\textcolor{#B0503A}{+}':'\\textcolor{#3F6E99}{-}';}
     var h='';idx.forEach(function(i){var y=S.ys[i],ph=f.post(S.X[i]),yh=ph>0.5?1:0,k=y?(yh?'tp':'fn'):(yh?'fp':'tn');
-      h+='<tr class="'+k+'">'+S.X[i].map(function(v){return '<td>'+kx(fx(v,S.dec===2&&!isPDM()?1:2))+'</td>';}).join('')+(hasP?'<td>'+kx(ph.toFixed(2))+'</td>':'')+'<td>'+kx(cls(y))+'</td><td>'+kx(cls(yh))+'</td></tr>';});
+      h+='<tr class="'+k+'">'+S.X[i].map(function(v,j){return '<td>'+kx(fx(v,S.decs?S.decs[j]:2))+'</td>';}).join('')+(hasP?'<td>'+kx(ph.toFixed(2))+'</td>':'')+'<td>'+kx(cls(y))+'</td><td>'+kx(cls(yh))+'</td></tr>';});
     tb.innerHTML=h;}
 
   // ---------- data for the current tab ----------
   function dataset(){var D=dim(),n=Math.round(gv('n')),X=[],ys=[],k;
     var sym=D===1?['x']:['x_1','x_2'];
     if(!isPDM()){var m0=gv('mu0'),m1=gv('mu1'),my0=gv('muy0'),my1=gv('muy1'),s0=gv('s0'),s1=gv('s1'),p1=gv('p1');
-      s0=s1=gv('sg');   // σ ร่วมทั้งสองคลาส (ทั้ง 1-D และ 2-D)
-      if(D===2){var dd=gv('sep')/2;m1=my1=4.5+dd;m0=my0=4.5-dd;}   // Bivariate: สองคลาสห่างกัน d ตามแนวทแยง รอบจุด (4.5, 4.5) · σ ร่วม
-      var n1=Math.max(1,Math.round(n*p1)),n0=Math.max(1,n-n1);
-      for(k=0;k<n1;k++){X.push(D===1?[m1+s1*Z1[k]]:[m1+s1*Z1[k],my1+s1*Z1y[k]]);ys.push(1);}
-      for(k=0;k<n0;k++){X.push(D===1?[m0+s0*Z0[k]]:[m0+s0*Z0[k],my0+s0*Z0y[k]]);ys.push(0);}
-      // ช่วงแกน = ช่วงข้อมูล ± 0.5 ปัดเป็นจำนวนเต็ม (ไม่กว้างเกิน)
-      var xs=X.map(function(v){return v[0];}),lo=Math.floor(Math.min.apply(null,xs)-0.5),hi=Math.ceil(Math.max.apply(null,xs)+0.5),ylo=-2,yhi=14;
-      if(D===2){var ysv=X.map(function(v){return v[1];});ylo=Math.floor(Math.min.apply(null,ysv)-0.5);yhi=Math.ceil(Math.max.apply(null,ysv)+0.5);}
-      return {X:X,ys:ys,xmin:lo,xmax:hi,ymin:ylo,ymax:yhi,sym:sym,ax:D===1?['x']:['x_1','x_2'],dec:2,mid:(m0+m1)/2};}
+      // ข้อมูลจำลอง (normal) บนสเกล/ชื่อตัวแปรของปั๊ม (predictive maintenance) — control ชุดเดียว ไม่ต้องมีแท็บ PDM แยก
+      //   1-D: x = bearing temperature (°C) · μ+, μ−, σ ร่วม    2-D: x1 = flow (m³/h), x2 = discharge pressure (bar) · fault = flow สูงขึ้น + pressure ต่ำลง
+      //   2-D สร้างในหน่วยมาตรฐาน: ศูนย์กลางคลาสห่างกัน d ตามแนว (+1, −1) · σ = ตัวคูณการกระจาย แล้วแปลงเป็นหน่วยจริงด้วย V2.c + V2.s·z
+      var sg=gv('sg'),n1=Math.max(1,Math.round(n*p1)),n0=Math.max(1,n-n1),V=D===1?V1:V2;
+      if(D===1){for(k=0;k<n1;k++){X.push([m1+sg*Z1[k]]);ys.push(1);}for(k=0;k<n0;k++){X.push([m0+sg*Z0[k]]);ys.push(0);}}
+      else{var dd=gv('sep')/2,c=V2.c,s=V2.s;
+        for(k=0;k<n1;k++){X.push([c[0]+s[0]*( dd+sg*Z1[k]),c[1]+s[1]*(-dd+sg*Z1y[k])]);ys.push(1);}
+        for(k=0;k<n0;k++){X.push([c[0]+s[0]*(-dd+sg*Z0[k]),c[1]+s[1]*( dd+sg*Z0y[k])]);ys.push(0);}}
+      // ช่วงแกน = ช่วงข้อมูล + ขอบ 8% (ไม่กว้างเกิน · ใช้ได้ทุกสเกล)
+      var rng=function(j){var a=X.map(function(v){return v[j];}),lo=Math.min.apply(null,a),hi=Math.max.apply(null,a),pad=((hi-lo)||1)*0.08;return [lo-pad,hi+pad];};
+      var rx=rng(0),ry=D===2?rng(1):[0,1];
+      return {X:X,ys:ys,xmin:rx[0],xmax:rx[1],ymin:ry[0],ymax:ry[1],sym:sym,ax:V.ax,nm:V.nm,decs:V.decs,dec:2,mid:D===1?(m0+m1)/2:(rx[0]+rx[1])/2,scale:D===2?V2.s:undefined};}
     var c=T().pdm[dsIdx],S=SET(c.ds);if(!S)return {X:[[0],[1]],ys:[0,1],xmin:0,xmax:1,ymin:0,ymax:1,sym:sym,ax:c.ax,dec:2,mid:0.5};
     var sev=gv('sev'),cols=c.f.map(function(f){return S.col[f];}),lo=[],hi=[],mg=[];
     cols.forEach(function(col,d){var s=0,cnt=0;for(var i=0;i<S.n;i++)if(!S.bad[i]){s+=col[i];cnt++;}mg.push(s/(cnt||1));});
@@ -604,6 +607,8 @@
     if(T().summary)return;
     if(isEX()){showEx(true);var x0=gv('x0');exBuild();fillDtab();drawExPdf(x0);drawExPost(x0);fillCalc(x0);return;}
     showEx(false);
+    // k ของ k-NN: เลขคี่ (ไม่มีคะแนนเสมอ) และไม่เกินจำนวนจุด n
+    var nK=Math.round(gv('n')),kMax=Math.max(1,nK%2?nK:nK-1);setRange('k',[1,kMax,2]);if(gv('k')>kMax)sv('k',kMax);if(Math.round(gv('k'))%2===0)sv('k',Math.round(gv('k'))-1);
     var D=dim(),S=dataset(),X=S.X,ys=S.ys,kk=Math.round(gv('k')),dp=Math.round(gv('depth')),k;
     syncQueryPDM(S);var Q=D===1?[gv('x0')]:[gv('x0'),gv('xy0')];   // query point
     var F={logistic:fitLogistic(X,ys),nb:fitNB(X,ys),knn:fitKNN(X,ys,kk,S.scale),tree:fitTree(X,ys,dp)};
@@ -647,23 +652,22 @@
     document.getElementById('hd-hp').style.display=(sk||sd)?'':'none';}
   function setDsSeg(){var bs=document.querySelectorAll('#dsSeg button');for(var i=0;i<bs.length;i++)bs[i].className=(parseInt(bs[i].getAttribute('data-ds'),10)===dsIdx)?'on':'';}
   // ค่า control จำแยกตามชนิด tab: sim (Univariate/Bivariate) · ex (Example, สเกล PSA) · pdm
-  var MEM={sim:{x0:4.5,xy0:4.5,mu1:6.0,s1:1.0,mu0:3.0,s0:1.0,sep:3.0,sg:1.0,n:20},ex:{x0:2.6,mu1:2.8,s1:0.82,mu0:1.5,s0:0.61,n:7},pdm:{n:20}};   // sim n=20 เท่ากับ Classifier Evaluation · pdm x0/xy0 ตั้งจากช่วงข้อมูลตอน upd
+  var MEM={sim:{mu1:70.8,s1:1.0,mu0:68.5,s0:1.0,sep:3.0,sg:1.0,n:20},   /* μ บนสเกลอุณหภูมิแบริ่ง (°C): healthy ≈ 68.5 · fault ≈ 70.8 (ค่าจากข้อมูลปั๊มจริง) */ex:{x0:2.6,mu1:2.8,s1:0.82,mu0:1.5,s0:0.61,n:7},pdm:{n:20}};   // sim n=20 เท่ากับ Classifier Evaluation · pdm x0/xy0 ตั้งจากช่วงข้อมูลตอน upd
   function kind(){return isEX()?'ex':isPDM()?'pdm':'sim';}
-  var RANGE={sim:{mu:[1,9,0.1],s:[0.4,2.5,0.1],n:[12,60,4],x0:[0,12,0.1]},ex:{mu:[0.5,4.5,0.1],s:[0.2,1.5,0.01],n:[3,12,1],x0:[0.3,4.7,0.1]},pdm:{n:[20,1440,20]}};   /* ทุกแท็บเริ่มที่ n = 20 (ตารางเห็นครบไม่ต้องเลื่อน) */
+  var RANGE={sim:{mu:[65,75,0.1],s:[0.4,2.5,0.1],n:[12,60,4]},ex:{mu:[0.5,4.5,0.1],s:[0.2,1.5,0.01],n:[3,12,1],x0:[0.3,4.7,0.1]},pdm:{n:[20,1440,20]}};   /* ทุกแท็บเริ่มที่ n = 20 (ตารางเห็นครบไม่ต้องเลื่อน) */
   function setRange(b,r){['R','N'].forEach(function(p){var e=document.getElementById(p+b);e.min=r[0];e.max=r[1];e.step=r[2];});}
   function syncRows(){var t=T(),kd=kind();['ex','pos','neg','ds','share','model','rs'].forEach(function(g){document.getElementById('grp-'+g).style.display=(t.groups.indexOf(g)>=0)?'':'none';});
     ['x0','xy0','mu1','muy1','s1','mu0','muy0','s0','sep','sg','p1','sev','n'].forEach(function(b){document.getElementById('row-'+b).style.display=(t.rows.indexOf(b)>=0)?'':'none';});
     var R=RANGE[kd];if(R.mu){setRange('mu1',R.mu);setRange('mu0',R.mu);setRange('s1',R.s);setRange('s0',R.s);}setRange('n',R.n);if(R.x0){setRange('x0',R.x0);setRange('xy0',R.x0);}
     var M=MEM[kd];for(var b in M){if(b.indexOf('@')<0)sv(b,M[b]);}}   // ข้าม key ของ query point PDM (x0@ชุด)
   // PDM: ช่วง x0/xy0 = ช่วงข้อมูลของชุดที่เลือก (ค่าเริ่ม = กึ่งกลาง) · จำค่าต่อชุด/แกน
-  function syncQueryPDM(S){
-    if(!isPDM()){   // ข้อมูลจำลอง: ช่วง testing point = ช่วงแกนของกราฟ (ตามข้อมูล) → จุดไม่หลุดนอกกราฟ · ค่าที่จำไว้ถูกหนีบเข้าช่วง
-      [['x0',S.xmin,S.xmax],['xy0',S.ymin,S.ymax]].forEach(function(q){if(q[0]==='xy0'&&dim()!==2)return;setRange(q[0],[q[1],q[2],0.1]);
-        var v=Math.min(q[2],Math.max(q[1],gv(q[0])));sv(q[0],v);MEM.sim[q[0]]=v;});return;}
-    var M=MEM.pdm,ds=T().n+dsIdx;
+  // ช่วง testing point = ช่วงแกนของกราฟ (ตามข้อมูล) → จุดไม่หลุดนอกกราฟ · step ตามสเกลของแกน (flow 0.1 · pressure 0.01) · จำค่าต่อแท็บ/แกน แล้วหนีบเข้าช่วง
+  var QM={};
+  function syncQueryPDM(S){var ds=T().n+dsIdx;
     [['x0',S.xmin,S.xmax],['xy0',S.ymin,S.ymax]].forEach(function(q){if(q[0]==='xy0'&&dim()!==2)return;var lo=q[1],hi=q[2],st=Math.pow(10,Math.floor(Math.log10((hi-lo)/100)));
       var r=function(v){return +(v.toFixed(4));};   // ตัดเศษ floating (64.32000000000001)
-      setRange(q[0],[r(Math.floor(lo/st)*st),r(Math.ceil(hi/st)*st),st]);var key=q[0]+'@'+ds;if(M[key]===undefined)M[key]=r(Math.round((lo+hi)/2/st)*st);sv(q[0],M[key]);});}
+      var a=r(Math.ceil(lo/st)*st),b=r(Math.floor(hi/st)*st);setRange(q[0],[a,b,st]);var key=q[0]+'@'+ds;if(QM[key]===undefined)QM[key]=r(Math.round((lo+hi)/2/st)*st);
+      QM[key]=Math.min(b,Math.max(a,QM[key]));sv(q[0],QM[key]);});}
   function applyTab(k){curTab=k;var t=TABS[k];dsIdx=0;
     var btns=document.querySelectorAll('.tabbtn');for(var i=0;i<btns.length;i++)btns[i].className='tabbtn'+(i===k?' on':'');
     if(t.summary){document.getElementById('mainPanel').style.display='none';document.getElementById('summaryPanel').className='summary on';renderTexts();return;}
@@ -674,7 +678,7 @@
   bases.forEach(function(b){var Re=document.getElementById('R'+b),Ne=document.getElementById('N'+b);
     function rem(){var M=MEM[kind()];if(M&&(b in M))M[b]=parseFloat(Re.value);
       if(b==='x0'||b==='xy0')QT[T().n+dsIdx]=true;   // ผู้ใช้เลื่อน testing point เอง → เลิกตาม threshold
-      if(isPDM()&&(b==='x0'||b==='xy0'))MEM.pdm[b+'@'+T().n+dsIdx]=parseFloat(Re.value);   // query point ของ PDM จำต่อชุดข้อมูล
+      if(b==='x0'||b==='xy0')QM[b+'@'+T().n+dsIdx]=parseFloat(Re.value);   // query point ของ PDM จำต่อชุดข้อมูล
       if(isEX()&&(b==='s1'||b==='s0')){var v=parseFloat(Re.value);sv(b==='s1'?'s0':'s1',v);MEM.ex.s1=v;MEM.ex.s0=v;}   // Example: σ ร่วม (σ+ = σ−) ปรับจากตัวไหนก็ได้
       if(isEX()&&(b==='mu1'||b==='s1'||b==='mu0'||b==='s0'||b==='n'))EX.fixed=false;}   // แตะ μ/σ ใน Example → สุ่มข้อมูลใหม่
     Re.addEventListener('input',function(){Ne.value=Re.value;rem();upd();});Ne.addEventListener('input',function(){Re.value=Ne.value;rem();upd();});});
