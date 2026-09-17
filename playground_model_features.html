@@ -76,7 +76,7 @@
       <div class="dhd" id="hd-hp"></div>
       <div class="dgrid">
         <div class="drow" id="row-k"><span class="dlab" id="lbl-k"></span><input type="range" id="Rk" min="1" max="39" step="2" value="5"><input class="num" type="number" id="Nk" min="1" max="39" step="2" value="5"></div>
-        <div class="drow" id="row-depth"><span class="dlab" id="lbl-depth"></span><input type="range" id="Rdepth" min="1" max="3" step="1" value="3"><input class="num" type="number" id="Ndepth" min="1" max="3" step="1" value="3"></div>
+        <div class="drow" id="row-depth"><span class="dlab" id="lbl-depth"></span><input type="range" id="Rdepth" min="1" max="3" step="1" value="2"><input class="num" type="number" id="Ndepth" min="1" max="3" step="1" value="2"></div>
       </div></div>
       <div id="grp-feat"><div class="dhd" id="hd-feat"></div>
       <div class="seg2" id="featSeg"><button data-v="raw" id="ft-raw" class="on"></button><button data-v="sq" id="ft-sq"></button><button data-v="int" id="ft-int"></button></div></div>
@@ -96,7 +96,7 @@
      Test accuracy วัดบนจุดใหม่ NTEST จุดจากเครื่องกำเนิดเดียวกัน (ไม่แสดงในกราฟ) — กราฟ/ตาราง/ป้ายนับ = ข้อมูลฝึก n จุด
      ========================================================================================== */
   var NTEST=800;
-  var SHOW_ACC=false,SHOW_PRED=true;   // SHOW_ACC: บรรทัด Test accuracy ปิดไว้ก่อนตามคำขอ (2026-09-18) · SHOW_PRED: คอลัมน์ Predicted, ✗, ป้ายนับ TP/FN/FP/TN — ต้องแสดง (เคยปิดผิดไปครั้งหนึ่ง: คำขอคือให้ลบแค่รายการ "Predicted region" ใน legend)
+  var SHOW_PRED=true;   // SHOW_PRED: คอลัมน์ Predicted, ✗, ป้ายนับ TP/FN/FP/TN — ต้องแสดง (เคยปิดผิดไปครั้งหนึ่ง: คำขอคือให้ลบแค่รายการ "Predicted region" ใน legend)
   var TABS=[{n:'\\text{Raw Features}',fe:false},{n:'\\text{Feature Engineering}',fe:true}];
   var MODELS=[{k:'knn',n:'k\\text{-NN}'},{k:'tree',n:'\\text{Tree}'},{k:'nb',n:'\\text{Naive Bayes}',s:'\\text{NB}'},{k:'logistic',n:'\\text{Logistic}'}];
   // คอลัมน์ที่สร้างเพิ่มคำนวณจากค่าที่ normalise แล้ว z_j = (x_j − x̄_j)/s_j — เหมือน workflow (Normalizer → Expression) และตัวเลขในตารางอยู่ในสเกลเดียวกันทุกชุดข้อมูล
@@ -242,8 +242,8 @@
     else{var first=true,ind=function(tex,dp){var t=first?'Decision rule':'';first=false;return '<span class="ln tr"><span class="lb">'+(t?kx('\\textbf{'+t+'}'):'')+'</span><span class="bd" style="padding-left:'+(dp*24)+'px"><span>'+kx(tex)+'</span></span></span>';};
       (function walk(nd,dp){if(nd.leaf){h+=ind('\\text{always }'+(nd.p>0.5?POS():NEG()),dp);return;}var lf=function(k){return k.leaf?'\\ '+(k.p>0.5?POS():NEG()):'';};
         h+=ind('\\textbf{if }'+F.names[nd.f]+'<'+nd.t.toFixed(nd.f<2?Math.max(1,DM().dec[nd.f]):2)+'\\textbf{ then}'+lf(nd.left),dp);if(!nd.left.leaf)walk(nd.left,dp+1);h+=ind('\\textbf{else}'+lf(nd.right),dp);if(!nd.right.leaf)walk(nd.right,dp+1);})(M.root,0);}
-    // เทียบ: แท็บ 1 = 4 แบบจำลองบน feature ดิบ · แท็บ 2 = 3 ชุด feature ของแบบจำลองที่เลือก (ตัวที่กำลังแสดง = ตัวหนาสีกรมท่า)
-    if(SHOW_ACC)h+=lline('Test accuracy',accs.map(function(a){return (a.on?'\\textcolor{'+MC+'}{\\boldsymbol{':'{{')+a.n+'\\ '+a.v.toFixed(2)+'}}'+(a.last?'':'\\ \\cdot');}),' lnwr');   /* ชื่อคลาสห้ามใช้ "wrap" — ชนกับ .wrap (กรอบหน้า) ใน pg_style.css */   // ยาวเกิน → ตัดบรรทัดระหว่างรายการ (ไม่ย่อฟอนต์)
+    // performance: train กับ test คู่กันเสมอ (test = ตัวหนาสีกรมท่า เพราะเป็นค่าที่ใช้ตัดสิน) — เปลี่ยนแบบจำลอง/feature แล้วเทียบสองค่านี้
+    h+=lline('Accuracy',['\\text{train }'+accs.train.toFixed(2)+'\\ (n='+Math.round(gv('n'))+'),','\\text{test }\\textcolor{'+MC+'}{\\mathbf{'+accs.test.toFixed(2)+'}}\\ ('+NTEST+'\\text{ new points})']);
     document.getElementById('mcalc').innerHTML=h;}   // ห้ามย่อฟอนต์ให้พอดีกล่อง (มาตรฐาน: สมการ ≥ 14px) — ยาวเกินให้ตัดบรรทัดระหว่างชิ้น
 
   // ---------- static labels ----------
@@ -267,8 +267,8 @@
     setSeg('patSeg',pat);setSeg('modelSeg',selModel);setSeg('featSeg',feat);
     var TR=gen(U,n,noise),TE=gen(TU,NTEST,noise);setZS(TR);var M=fit(model,fk,TR),cnt={TP:0,FN:0,FP:0,TN:0},i;
     for(i=0;i<n;i++){var p=M.post(phi(TR.X[i],fk))>0.5;if(TR.y[i]){if(p)cnt.TP++;else cnt.FN++;}else{if(p)cnt.FP++;else cnt.TN++;}}
-    var accs=!SHOW_ACC?[]:fe?FEATS.map(function(f,j){return {n:f.s||f.n,v:acc(f.k===fk?M:fit(model,f.k,TR),f.k,TE),on:f.k===fk,last:j===FEATS.length-1};})
-               :MODELS.map(function(m,j){return {n:m.s||m.n,v:acc(m.k===model?M:fit(m.k,'raw',TR),'raw',TE),on:m.k===model,last:j===MODELS.length-1};});
+    // performance ของคู่ (แบบจำลอง, feature) ที่กำลังแสดง: train = ข้อมูล n จุดในกราฟ/ตาราง · test = จุดใหม่ NTEST จุดจากเครื่องกำเนิดเดียวกัน (ไม่แสดงในกราฟ) — ช่องว่างระหว่างสองค่า = overfitting
+    var accs={train:acc(M,fk,TR),test:acc(M,fk,TE)};
     fillTab(M,fk,TR);fillCalc(M,fk,accs);fillLegend();sizeCanvas();draw(M,fk,TR,cnt);
     // ตารางสูงอย่างน้อย 20 แถว (หรือเท่าคอลัมน์กราฟ) ไม่เกินขอบจอ — เกินนั้นเลื่อนในตาราง
     var dl=document.getElementById('dleft'),mn=document.getElementById('main');
