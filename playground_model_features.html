@@ -95,7 +95,7 @@
      Test accuracy วัดบนจุดใหม่ NTEST จุดจากเครื่องกำเนิดเดียวกัน (ไม่แสดงในกราฟ) — กราฟ/ตาราง/ป้ายนับ = ข้อมูลฝึก n จุด
      ========================================================================================== */
   var NTEST=800;
-  var SHOW_ACC=false,SHOW_PRED=false;   // ปิดไว้ก่อนตามคำขอ (2026-09-18): บรรทัด Test accuracy · ป้าย predicted ทุกที่ (คอลัมน์ Predicted, ✗, ป้ายนับ TP/FN/FP/TN, สีแถวตามผลทำนาย) — เปิดกลับได้ที่นี่
+  var SHOW_ACC=false,SHOW_PRED=true;   // SHOW_ACC: บรรทัด Test accuracy ปิดไว้ก่อนตามคำขอ (2026-09-18) · SHOW_PRED: คอลัมน์ Predicted, ✗, ป้ายนับ TP/FN/FP/TN — ต้องแสดง (เคยปิดผิดไปครั้งหนึ่ง: คำขอคือให้ลบแค่รายการ "Predicted region" ใน legend)
   var TABS=[{n:'\\text{Raw Features}',fe:false},{n:'\\text{Feature Engineering}',fe:true}];
   var MODELS=[{k:'knn',n:'k\\text{-NN}'},{k:'tree',n:'\\text{Tree}'},{k:'nb',n:'\\text{Naive Bayes}',s:'\\text{NB}'},{k:'logistic',n:'\\text{Logistic}'}];
   // คอลัมน์ที่สร้างเพิ่มคำนวณจากค่าที่ normalise แล้ว z_j = (x_j − x̄_j)/s_j — เหมือน workflow (Normalizer → Expression) และตัวเลขในตารางอยู่ในสเกลเดียวกันทุกชุดข้อมูล
@@ -219,7 +219,7 @@
 
   // ---------- legend / table / calc ----------
   function clLine(name,lc,tc,shape){return '<span class="cli"><i class="'+(shape||'ln')+'" style="background:'+lc+'"></i><span>'+kx('\\textcolor{'+tc+'}{\\text{'+name+'}}')+'</span></span>';}
-  function fillLegend(){document.getElementById('classleg').innerHTML=clLine('Positive class','#E07A5F',Rd,'ar')+clLine('Negative class','#5B8FB9',Bl,'ar')+(SHOW_PRED?clLine('Misclassified (✗)','#888','#666'):'')+clLine('Decision region',MC,MC,'ar');}   // พื้นสี = ฝั่งของเส้นแบ่ง (สิ่งที่หน้านี้ต้องการให้ดู)
+  function fillLegend(){document.getElementById('classleg').innerHTML=clLine('Positive class','#E07A5F',Rd,'ar')+clLine('Negative class','#5B8FB9',Bl,'ar')+(SHOW_PRED?clLine('Misclassified (✗)','#888','#666'):'');}   // ไม่มีรายการ "Predicted region" ใน legend (ผู้ใช้ให้ลบ — ไม่สื่อความหมาย) · พื้นสีของกราฟยังอยู่
   function fillTab(M,fk,TR){var F=FT(fk),hasP=(model!=='tree'),Wt=function(t){return '\\textcolor{#fff}{'+t+'}';};
     var dm=DM();   // หัวตาราง = ชื่อตัวแปรของ workflow (สัญลักษณ์) · คอลัมน์ที่สร้างเพิ่มใช้สัญลักษณ์อย่างเดียว
     document.getElementById('mthead').innerHTML=dm.nm.concat(F.names.slice(2)).concat(hasP?['\\hat p']:[]).concat(SHOW_PRED?['\\text{Actual}','\\text{Predicted}']:['\\text{Actual}']).map(function(t){return '<th>'+kx(Wt(t))+'</th>';}).join('');
