@@ -463,10 +463,11 @@
     ctx.strokeStyle='#111';ctx.fillStyle='#111';ctx.lineWidth=1.8;ctx.textAlign='center';
     m.xstar.forEach(function(r){if(r<xmin||r>xmax)return;var main=Math.abs(r-P.Tmain)<1e-9;ctx.setLineDash([5,4]);ctx.beginPath();ctx.moveTo(px(r),main?yTop-12:py(1));ctx.lineTo(px(r),main?yBot+4:py(0));ctx.stroke();ctx.setLineDash([]);
       if(m.linear)ctx.fillText('Threshold '+r.toFixed(2),px(r),H-4);});   // 2 ตำแหน่ง ตรงกับกฎ if–then
-    ctx.textAlign='left'; ctx.fillStyle='#B0503A'; ctx.fillText('TP '+P.TP, xT+12, yTop);
-    ctx.textAlign='right';ctx.fillStyle='#8A6510'; ctx.fillText('FN '+P.FN, xT-12, yTop);
-    ctx.textAlign='left'; ctx.fillStyle='#2E7D70'; ctx.fillText('FP '+P.FP, xT+12, yBot);
-    ctx.textAlign='right';ctx.fillStyle='#3F6E99'; ctx.fillText('TN '+P.TN, xT-12, yBot);ctx.textAlign='left';
+    // ป้ายนับ 4 ค่า — ตำแหน่งเดิม (ซ้าย/ขวาของ threshold · บน = actual +, ล่าง = actual −) + สัญลักษณ์จุดแบบเดียวกับ bivariate: สี = actual class · ✗ = ทำนายผิด
+    //   ฝั่งขวาของเส้น: [จุด] ข้อความ · ฝั่งซ้าย: [จุด] ข้อความ ชิดเส้น (จุดอยู่หน้าข้อความเสมอ)
+    function cntLab(txt,col,right,y,yv,pr){ctx.fillStyle=col;var wt=ctx.measureText(txt).width,xs=right?xT+12+15:xT-12-wt;ctx.textAlign='left';ctx.fillText(txt,xs,y);dotAt(ctx,xs-9,y-5,yv,pr,5);}
+    cntLab('TP '+P.TP,'#B0503A',true, yTop,1,1);cntLab('FN '+P.FN,'#8A6510',false,yTop,1,0);
+    cntLab('FP '+P.FP,'#2E7D70',true, yBot,0,1);cntLab('TN '+P.TN,'#3F6E99',false,yBot,0,0);ctx.textAlign='left';
     // query point x0: เส้นประเทา + จุดบนเส้นโค้ง + ป้าย x_0
     if(P.x0){var xq=px(P.x0[0]),pq=Math.max(0,Math.min(1,m.post(P.x0)));if(xq>=L&&xq<=L+pw){
       ctx.strokeStyle='#444';ctx.setLineDash([4,4]);ctx.lineWidth=1.3;ctx.beginPath();ctx.moveTo(xq,py(1));ctx.lineTo(xq,py(0));ctx.stroke();ctx.setLineDash([]);
