@@ -636,9 +636,9 @@
     document.getElementById('hd-hp').style.display=(sk||sd)?'':'none';}
   function setDsSeg(){var bs=document.querySelectorAll('#dsSeg button');for(var i=0;i<bs.length;i++)bs[i].className=(parseInt(bs[i].getAttribute('data-ds'),10)===dsIdx)?'on':'';}
   // ค่า control จำแยกตามชนิด tab: sim (Univariate/Bivariate) · ex (Example, สเกล PSA) · pdm
-  var MEM={sim:{x0:4.5,xy0:4.5,mu1:6.0,s1:1.0,mu0:3.0,s0:1.0,sep:3.0,sg:1.0,n:20},ex:{x0:2.6,mu1:2.8,s1:0.82,mu0:1.5,s0:0.61,n:7},pdm:{n:240}};   // sim n=20 เท่ากับ Classifier Evaluation · pdm x0/xy0 ตั้งจากช่วงข้อมูลตอน upd
+  var MEM={sim:{x0:4.5,xy0:4.5,mu1:6.0,s1:1.0,mu0:3.0,s0:1.0,sep:3.0,sg:1.0,n:20},ex:{x0:2.6,mu1:2.8,s1:0.82,mu0:1.5,s0:0.61,n:7},pdm:{n:20}};   // sim n=20 เท่ากับ Classifier Evaluation · pdm x0/xy0 ตั้งจากช่วงข้อมูลตอน upd
   function kind(){return isEX()?'ex':isPDM()?'pdm':'sim';}
-  var RANGE={sim:{mu:[1,9,0.1],s:[0.4,2.5,0.1],n:[12,60,4],x0:[0,12,0.1]},ex:{mu:[0.5,4.5,0.1],s:[0.2,1.5,0.01],n:[3,12,1],x0:[0.3,4.7,0.1]},pdm:{n:[40,1440,40]}};
+  var RANGE={sim:{mu:[1,9,0.1],s:[0.4,2.5,0.1],n:[12,60,4],x0:[0,12,0.1]},ex:{mu:[0.5,4.5,0.1],s:[0.2,1.5,0.01],n:[3,12,1],x0:[0.3,4.7,0.1]},pdm:{n:[20,1440,20]}};   /* ทุกแท็บเริ่มที่ n = 20 (ตารางเห็นครบไม่ต้องเลื่อน) */
   function setRange(b,r){['R','N'].forEach(function(p){var e=document.getElementById(p+b);e.min=r[0];e.max=r[1];e.step=r[2];});}
   function syncRows(){var t=T(),kd=kind();['ex','pos','neg','ds','share','model','rs'].forEach(function(g){document.getElementById('grp-'+g).style.display=(t.groups.indexOf(g)>=0)?'':'none';});
     ['x0','xy0','mu1','muy1','s1','mu0','muy0','s0','sep','sg','p1','sev','n'].forEach(function(b){document.getElementById('row-'+b).style.display=(t.rows.indexOf(b)>=0)?'':'none';});
