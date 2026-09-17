@@ -575,7 +575,11 @@
     fillCM(DP);sizeCanvas();draw(DP);fillCalc2(F,S.sym,S.dec,{TP:TP,FN:FN,FP:FP,TN:TN},Q);fillModTab(S,f1);fillLegend();   // sizeCanvas หลัง fillCM: สลับ 1-D↔2-D กล่องกราฟเปลี่ยนรูปทรง ต้องตั้งบัฟเฟอร์ใหม่ก่อนวาด (ไม่งั้นภาพยืด)
     if(fitPlot()){sizeCanvas();draw(DP);}
     var dl=document.getElementById('dleft'),mn=document.getElementById('main');   // ตารางข้อมูลสูงไม่เกินคอลัมน์ขวา → เลื่อนในตาราง
-    if(dl&&mn&&innerWidth>820)dl.style.maxHeight=Math.round(mn.getBoundingClientRect().height)+'px';else if(dl)dl.style.maxHeight='300px';
+    // สูงอย่างน้อยพอแสดง 20 แถวเต็ม (หัว + 20 แถว) — เกิน 20 แถวจึงเลื่อนในตาราง · ไม่เกินขอบล่างของจอ
+    if(dl&&mn&&innerWidth>820){var rw=document.querySelectorAll('#mtbody tr'),tbl=document.getElementById('mtab'),h20=0;
+      if(rw.length)h20=Math.ceil(rw[Math.min(19,rw.length-1)].getBoundingClientRect().bottom-tbl.getBoundingClientRect().top)+2;
+      var cap=Math.max(200,innerHeight-Math.round(dl.getBoundingClientRect().top+window.scrollY)-10);
+      dl.style.maxHeight=Math.min(cap,Math.max(Math.round(mn.getBoundingClientRect().height),h20))+'px';}else if(dl)dl.style.maxHeight='300px';
     // ตาราง/กล่องคำนวณเพิ่งถูกเติม → คอลัมน์กราฟอาจเปลี่ยนความกว้าง (เปิดแท็บครั้งแรก) บัฟเฟอร์ไม่ตรงขนาดจริง = จุดเป็นวงรี → ตั้งขนาดใหม่แล้ววาดซ้ำ
     if(Math.round(cv.clientWidth)!==W||Math.round(cv.clientHeight)!==H){sizeCanvas();draw(DP);}
   }

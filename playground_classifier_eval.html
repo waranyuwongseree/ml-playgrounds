@@ -372,7 +372,11 @@
     drawStrip(t,C);if(k==='roc')drawRoc(t,R);fillTable(C,R);fillLegend();fillDtab(t);
     // ตารางข้อมูลสูงเท่าคอลัมน์กราฟ (เหมือน Introduction to Classification) → แถวเกินให้เลื่อนในตาราง
     var xl=document.getElementById('exleft'),mn=document.querySelector('.main');xl.style.maxHeight='0px';   /* ยุบก่อนวัด: ไม่ให้ตารางดันความสูงของ .main (flex stretch) */
-    xl.style.maxHeight=(innerWidth>820)?Math.round(mn.getBoundingClientRect().height)+'px':'300px';}
+    var mh=Math.round(mn.getBoundingClientRect().height);xl.style.maxHeight='none';
+    // สูงอย่างน้อยพอแสดง 20 แถวเต็ม (หัว + 20 แถว) — เกิน 20 จึงเลื่อนในตาราง · ไม่เกินขอบล่างของจอ
+    var rw=document.querySelectorAll('#dtbody tr'),h20=rw.length?Math.ceil(rw[Math.min(19,rw.length-1)].getBoundingClientRect().bottom-document.getElementById('dtab').getBoundingClientRect().top)+2:0;
+    var cap=Math.max(200,innerHeight-Math.round(xl.getBoundingClientRect().top+window.scrollY)-10);
+    xl.style.maxHeight=(innerWidth>820)?Math.min(cap,Math.max(mh,h20))+'px':'300px';}
 
   // ---------- controls ----------
   function setDsSeg(){var bs=document.querySelectorAll('#dsSeg button');for(var i=0;i<bs.length;i++)bs[i].className=(parseInt(bs[i].getAttribute('data-ds'),10)===dsIdx)?'on':'';}
