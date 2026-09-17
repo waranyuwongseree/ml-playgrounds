@@ -40,6 +40,28 @@
   .bcol{display:flex;flex-direction:column;align-items:center}
   .blab{font-size:13px;color:var(--muted);margin:2px 0}
   .ref{font-size:13px;color:#9ca3af}
+  /* ===== แท็บ Example (PSA จากสไลด์ — ย้ายมาจาก Introduction to Classification): ตารางข้อมูลซ้าย · pdf → posterior → คำนวณทีละขั้น ===== */
+  .exwrap{display:none;gap:18px;align-items:flex-start}
+  .exwrap.on{display:flex}
+  .exleft{flex:0 0 232px;min-width:0}
+  .exright{flex:1 1 auto;min-width:0;display:flex;flex-direction:column;gap:8px}
+  .excv{height:160px;position:relative}.excv.post{height:130px}
+  .excv canvas{width:100%;height:100%;display:block;border:1px solid var(--line);border-radius:10px;background:#fff}
+  .cvlab{position:absolute;left:0;top:0;width:100%;height:100%;pointer-events:none;overflow:hidden;font-size:13px;line-height:1}
+  .cvlab>span{position:absolute;white-space:nowrap;color:rgba(90,90,90,0.9)}   /* เฉพาะลูกตรง — ห้ามโดน span ภายในของ KaTeX */
+  .cvlab .katex{font-size:1em}
+  .excalc{background:#fff;border:1px solid var(--line);border-radius:12px;padding:8px 14px;font-size:14px;line-height:1.5;overflow:hidden}
+  .excalc .ln{display:block;white-space:normal;margin:2px 0}
+  .excalc .ln>span{display:inline-block;margin-right:.3em;vertical-align:middle}
+  .excalc .katex{font-size:1em}
+  .dtab{width:100%;border-collapse:collapse;font-size:15px}
+  .dtab th{background:var(--navy);color:#fff;font-weight:400;padding:5px 8px;text-align:center}
+  .dtab td{padding:2px 8px;text-align:center;color:var(--ink);line-height:1.35;background:#fff}
+  .dtab tr.alt td{background:#f1f4f9}
+  .dtab tr.ft td{background:#e6ebf4;text-align:left;padding:4px 10px;border-top:2px solid #fff}
+  .dtab tr.ft:first-of-type td{border-top:3px solid var(--navy)}
+  .dtab .katex{font-size:1em}
+  @media(max-width:640px){.exwrap.on{flex-direction:column}.exleft{flex:none}}
 </style>
 </head>
 <body class="pg distcls">
@@ -50,6 +72,15 @@
   <div class="layout" id="mainPanel">
     <!-- BODY -->
     <div class="stage">
+      <!-- Example layout (แท็บสุดท้าย) -->
+      <div class="exwrap" id="exwrap">
+        <div class="exleft"><table class="dtab" id="dtab"><thead><tr><th id="dt-x"></th><th id="dt-y"></th></tr></thead><tbody id="dtbody"></tbody></table></div>
+        <div class="exright">
+          <div class="excv"><canvas id="cvpdf"></canvas></div>
+          <div class="excv post"><canvas id="cvpost"></canvas></div>
+          <div class="excalc" id="excalc"></div>
+        </div>
+      </div>
       <div class="canvasbox"><canvas id="cv"></canvas></div>
       <div class="errbox" id="errbox" style="display:none"><canvas id="cverr"></canvas></div>
       <div class="classleg" id="classleg"></div>
@@ -85,6 +116,10 @@
       <div class="tgls" id="tgls">
         <button class="primary" id="resample" style="width:100%"></button>
       </div>
+      <div id="grp-x0" style="display:none"><div class="dhd" id="hd-x0"></div>
+      <div class="dgrid">
+        <div class="drow" id="row-x0"><span class="dlab" id="lbl-x0"></span><input type="range" id="Rx0" min="0.3" max="4.7" step="0.1" value="2.6"><input class="num" type="number" id="Nx0" min="0.3" max="4.7" step="0.1" value="2.6"></div>
+      </div></div>
     </div>
   </div>
 
@@ -158,13 +193,19 @@
     {n:'Single threshold (LDA)', en:['mu0','mu1','s0','p1','n'],      pre:{mu0:3.0,mu1:6.0,s0:1.0,s1:1.0,p1:0.50,n:120}, eqS:true,  eqP:false, tg:false},
     {n:'Double threshold (QDA)', en:['mu0','mu1','s0','s1','p1','n'], pre:{mu0:3.0,mu1:6.0,s0:1.0,s1:1.6,p1:0.50,n:120}, eqS:false, eqP:false, tg:false},
     {n:'Manual threshold', en:['mu0','mu1','s0','p1','n'], pre:{mu0:3.0,mu1:6.0,s0:1.0,s1:1.0,p1:0.50,n:120}, eqS:true, eqP:false, tg:false, manualT:true},
-    {n:'Summary', en:[], summary:true}
+    {n:'Summary', en:[], summary:true},
+    // Example (สไลด์ PSA): คำนวณ Bayes ด้วยมือจากข้อมูล 14 ค่า — pdf ต่อคลาส → posterior ที่ query point x0 · ช่วง slider เป็นสเกล PSA
+    {n:'Example', en:['mu0','mu1','s0','s1'], ex:true, pre:{mu1:2.8,s1:0.82,mu0:1.5,s0:0.61}, eqS:false, eqP:false}
   ];
+  var RANGE_SIM={mu:[1,7,0.1],s:[0.4,2.5,0.1]},RANGE_EX={mu:[0.5,4.5,0.1],s:[0.2,1.5,0.01]};
+  function setRange(b,r){['R','N'].forEach(function(p){var e=document.getElementById(p+b);e.min=r[0];e.max=r[1];e.step=r[2];});}
+  function isEX(){return !!TABS[curTab].ex;}
   function gv(b){return parseFloat(document.getElementById('R'+b).value);}
   function sv(b,v){document.getElementById('R'+b).value=v;document.getElementById('N'+b).value=v;}
 
   // ---------- KaTeX static labels ----------
   var MT={'h1':'\\text{1-D Bayes Classifier}','resample':'\\text{Resample points}',
+    'hd-x0':'\\text{Query point}','lbl-x0':'x_0','dt-x':'\\textcolor{#fff}{\\text{PSA }(x)}','dt-y':'\\textcolor{#fff}{\\text{Class }(y)}',
     'hd-pos':'\\textcolor{#B0503A}{\\text{Positive class}}','hd-neg':'\\textcolor{#3F6E99}{\\text{Negative class}}','hd-share':'\\text{Class balance \\& size}',
     'lbl-mu0':'\\mu_-','lbl-mu1':'\\mu_+','lbl-s0':'\\sigma_-','lbl-s1':'\\sigma_+','lbl-p1':'\\pi_+','lbl-n':'n','lbl-T':'\\textcolor{#111}{T}',
     'ch-pp':'\\hat y=1','ch-pn':'\\hat y=0','ch-ap':'\\text{actual }1','ch-an':'\\text{actual }0',
@@ -200,7 +241,8 @@
     'ref':'\\text{Ref: Duda, Hart \\& Stork, Pattern Classification, Ch.\\,2 (Bayesian decision theory)}'};
   function K(tex,el){try{katex.render(tex,el,{throwOnError:false});}catch(e){el.textContent=tex;}}
   function kxc(el,t){if(!el)return;if(window.katex){try{katex.render(t,el,{throwOnError:false});return;}catch(e){}}el.textContent=t;}
-  function renderTexts(){if(!window.katex)return;for(var id in MT){var el=document.getElementById(id);if(el)K(MT[id],el);}}
+  function renderTexts(){if(!window.katex)return;for(var id in MT){var el=document.getElementById(id);if(el)K(MT[id],el);}
+    if(isEX()){K('\\textcolor{#B0503A}{\\text{Cancer }(y=+)}',document.getElementById('hd-pos'));K('\\textcolor{#3F6E99}{\\text{Healthy }(y=-)}',document.getElementById('hd-neg'));}}
 
   // ---------- metric bars + legend (เหมือน drift) ----------
   function kx(t){try{return window.katex?katex.renderToString(t,{throwOnError:false}):t;}catch(e){return t;}}
@@ -350,9 +392,93 @@
     }catch(e){}
   }
 
+  // ---------- Example (สไลด์ PSA) — เริ่มด้วยข้อมูลสไลด์ 14 ค่า; แตะ μ/σ หรือ Resample → สุ่มจาก normal (n = 7 ต่อคลาส) ----------
+  var SLIDE={pos:[4.1,3.4,2.9,2.8,2.7,2.1,1.6],neg:[2.5,2.0,1.7,1.4,1.2,0.9,0.8]};
+  var EX={xmin:0,xmax:5,ax:'x=\\text{PSA }(\\mu\\text{g/L})',fixed:true,pos:SLIDE.pos.slice(),neg:SLIDE.neg.slice()};
+  function msd(a){var m=0,s=0,i;for(i=0;i<a.length;i++)m+=a[i];m/=a.length;for(i=0;i<a.length;i++)s+=(a[i]-m)*(a[i]-m);return [m,Math.sqrt(s/Math.max(1,a.length-1))];}
+  function exBuild(){ // ข้อมูล → สถิติ → pdf ต่อคลาส → posterior (per-class s แบบสไลด์)
+    if(!EX.fixed){var m1=gv('mu1'),m0=gv('mu0'),s=gv('s1'),n=7,k;   // σ ร่วม
+      // แพตเทิร์นเบี่ยงเบนชุดเดียว d_i ใช้กับทั้งสองคลาส: มาตรฐาน z → ×σ → ปัดกริด 0.1 → บังคับ Σd = 0 ⇒ x̄ = μ พอดี และ s+ = s−
+      var z=[],mz=0,sz=0;for(k=0;k<n;k++){z.push(Z1[k]);mz+=Z1[k];}mz/=n;for(k=0;k<n;k++)sz+=(z[k]-mz)*(z[k]-mz);sz=Math.sqrt(sz/(n-1))||1;
+      var d=[],sum=0;for(k=0;k<n;k++){var v=Math.round(s*(z[k]-mz)/sz*10)/10;d.push(v);sum+=Math.round(v*10);}
+      var idx=0;while(sum!==0){var st=sum>0?-1:1;d[idx%n]=Math.round(d[idx%n]*10+st)/10;sum+=st;idx++;}
+      var desc=function(a,b){return b-a;};
+      EX.pos=d.map(function(v){return Math.round((m1+v)*10)/10;}).sort(desc);EX.neg=d.map(function(v){return Math.round((m0+v)*10)/10;}).sort(desc);}
+    var all=EX.pos.concat(EX.neg),lo=Math.min.apply(null,all),hi=Math.max.apply(null,all);
+    EX.xmin=Math.min(0,Math.floor(lo-0.3));EX.xmax=Math.max(5,Math.ceil(hi+0.3));   // แกนขยายถ้าข้อมูลเกิน 0–5
+    EX.sp=msd(EX.pos);EX.sn=msd(EX.neg);var np=EX.pos.length,nn=EX.neg.length;EX.pip=np/(np+nn);
+    EX.fp=function(x){return pdf(x,EX.sp[0],EX.sp[1]);};EX.fn=function(x){return pdf(x,EX.sn[0],EX.sn[1]);};
+    EX.post=function(x){var a=EX.pip*EX.fp(x),b=(1-EX.pip)*EX.fn(x);return a/(a+b);};}
+  function prep(c){var w=Math.round(c.clientWidth)||600,h=Math.round(c.clientHeight)||180,dpr=window.devicePixelRatio||1;
+    c.width=Math.round(w*dpr);c.height=Math.round(h*dpr);var g=c.getContext('2d');g.setTransform(dpr,0,0,dpr,0,0);g.clearRect(0,0,w,h);return {g:g,W:w,H:h,c:c};}
+  // ป้ายในกราฟ = KaTeX overlay ทับ canvas (พิกัด CSS px เดียวกับ canvas · วัด baseline จริงด้วย probe)
+  function labs(c){var p=c.parentElement,Ly=p.querySelector('.cvlab');if(!Ly){Ly=document.createElement('div');Ly.className='cvlab';p.appendChild(Ly);}Ly.innerHTML='';
+    var ox=c.clientLeft||0,oy=c.clientTop||0;
+    return function(tex,x,y,o){o=o||{};var s=document.createElement('span');K(tex,s);if(o.color)s.style.color=o.color;
+      var pr=document.createElement('span');pr.style.cssText='display:inline-block;width:0;height:0;vertical-align:baseline';s.appendChild(pr);
+      s.style.left=(x+ox)+'px';s.style.top='0px';s.style.transform='translateX('+(o.align==='right'?'-100%':o.align==='center'?'-50%':'0')+')';Ly.appendChild(s);
+      var sr=s.getBoundingClientRect(),base=pr.getBoundingClientRect().top-sr.top;
+      s.style.top=(oy+(o.vt==='middle'?y-sr.height/2:o.vt==='top'?y:y-base))+'px';};}
+  function crossings1(post,xmin,xmax){var N=400,dx=(xmax-xmin)/N,out=[],i,prev=post(xmin)-0.5;
+    for(i=1;i<=N;i++){var x=xmin+i*dx,cur=post(x)-0.5;
+      if((prev<0&&cur>=0)||(prev>0&&cur<=0)){var xa=x-dx,t=Math.abs(prev)/(Math.abs(prev)+Math.abs(cur)||1);out.push(xa+t*dx);}
+      prev=cur;if(out.length>=6)break;}return out;}
+  function drawExPdf(x0){var c=prep(document.getElementById('cvpdf')),g=c.g,W=c.W,H=c.H;
+    var L=40,Rm=14,pw=W-L-Rm,TOP=24,BOT=36,ph=H-TOP-BOT,xmin=EX.xmin,xmax=EX.xmax,i;
+    function px(x){return L+(x-xmin)/(xmax-xmin)*pw;}
+    var fmax=Math.max(EX.fp(EX.sp[0]),EX.fn(EX.sn[0]))*1.1,base=TOP+ph;function py(f){return base-f/fmax*ph;}
+    var N=300,dx=(xmax-xmin)/N;
+    function curve(f,fill,stroke){g.beginPath();g.moveTo(px(xmin),base);for(i=0;i<=N;i++){var x=xmin+i*dx;g.lineTo(px(x),py(f(x)));}g.lineTo(px(xmax),base);g.closePath();
+      g.fillStyle=fill;g.fill();g.strokeStyle=stroke;g.lineWidth=1.8;g.beginPath();for(i=0;i<=N;i++){var x2=xmin+i*dx;i===0?g.moveTo(px(x2),py(f(x2))):g.lineTo(px(x2),py(f(x2)));}g.stroke();}
+    curve(EX.fn,'rgba(91,143,185,0.25)','#5B8FB9');curve(EX.fp,'rgba(224,122,95,0.25)','#E07A5F');
+    g.strokeStyle='rgba(128,128,128,0.6)';g.lineWidth=1;g.beginPath();g.moveTo(L,base);g.lineTo(L+pw,base);g.stroke();
+    g.fillStyle='rgba(128,128,128,0.9)';g.font='13px KaTeX_Main,serif';g.textAlign='center';g.textBaseline='alphabetic';
+    for(var a=Math.ceil(xmin);a<=xmax;a+=1)g.fillText(a,px(a),base+15);
+    var lb=labs(c.c);lb(EX.ax,L+pw,base+29,{align:'right'});
+    lb('f(x\\mid c)',L+4,TOP-9);   // สัญลักษณ์เดียวกับสมการในกล่องคำนวณ
+    EX.neg.forEach(function(x){g.fillStyle='rgba(91,143,185,0.9)';g.beginPath();g.arc(px(x),base-5,4.5,0,7);g.fill();});
+    EX.pos.forEach(function(x){g.fillStyle='rgba(224,122,95,0.9)';g.beginPath();g.arc(px(x),base-5,4.5,0,7);g.fill();});
+    lb('\\bar x_-='+EX.sn[0].toFixed(1)+',\\ s_-='+EX.sn[1].toFixed(2),px(EX.sn[0]),py(EX.fn(EX.sn[0]))-6,{align:'center',color:'#3F6E99'});
+    lb('\\bar x_+='+EX.sp[0].toFixed(1)+',\\ s_+='+EX.sp[1].toFixed(2),px(EX.sp[0]),py(EX.fp(EX.sp[0]))-6,{align:'center',color:'#B0503A'});
+    var xq=px(x0);g.strokeStyle='#444';g.setLineDash([5,4]);g.lineWidth=1.4;g.beginPath();g.moveTo(xq,TOP-2);g.lineTo(xq,base);g.stroke();g.setLineDash([]);
+    g.fillStyle='#444';g.beginPath();g.arc(xq,base-5,5.5,0,7);g.fill();g.strokeStyle='#fff';g.lineWidth=1.5;g.stroke();
+    [[EX.fp,'#B0503A'],[EX.fn,'#3F6E99']].forEach(function(q){g.fillStyle=q[1];g.beginPath();g.arc(xq,py(q[0](x0)),4,0,7);g.fill();});
+    lb('x_0='+x0.toFixed(1),xq,base+29,{align:'center',color:'#444'});}
+  function drawExPost(x0){var c=prep(document.getElementById('cvpost')),g=c.g,W=c.W,H=c.H;
+    var L=40,Rm=14,pw=W-L-Rm,TOP=22,BOT=34,ph=H-TOP-BOT,xmin=EX.xmin,xmax=EX.xmax,i;
+    function px(x){return L+(x-xmin)/(xmax-xmin)*pw;} function py(p){return TOP+(1-p)*ph;}
+    g.font='12px KaTeX_Main,serif';g.textBaseline='middle';
+    [0,0.5,1].forEach(function(p){g.strokeStyle=p===0.5?'rgba(17,17,17,0.55)':'rgba(128,128,128,0.35)';g.lineWidth=1;if(p===0.5)g.setLineDash([5,4]);
+      g.beginPath();g.moveTo(L,py(p));g.lineTo(L+pw,py(p));g.stroke();g.setLineDash([]);g.fillStyle='rgba(90,90,90,0.9)';g.textAlign='right';g.fillText(p===0.5?'0.5':String(p),L-6,py(p));});
+    g.textBaseline='alphabetic';g.textAlign='center';g.fillStyle='rgba(128,128,128,0.9)';for(var a=Math.ceil(xmin);a<=xmax;a+=1)g.fillText(a,px(a),py(0)+14);
+    var lb=labs(c.c);lb('P(\\text{cancer}\\mid x)',L+4,TOP-8);
+    var N=300,dx=(xmax-xmin)/N;g.strokeStyle=Navy;g.lineWidth=2.2;g.beginPath();
+    for(i=0;i<=N;i++){var x=xmin+i*dx;i===0?g.moveTo(px(x),py(EX.post(x))):g.lineTo(px(x),py(EX.post(x)));}g.stroke();
+    // threshold = จุดที่ P(cancer|x) = 0.5 (ป้ายไว้ด้านบน ไม่ชนป้าย x0 ด้านล่าง)
+    var xs=crossings1(EX.post,xmin,xmax);g.strokeStyle='#111';g.fillStyle='#111';g.lineWidth=1.6;g.textAlign='center';
+    xs.forEach(function(r){g.setLineDash([5,4]);g.beginPath();g.moveTo(px(r),py(1));g.lineTo(px(r),py(0));g.stroke();g.setLineDash([]);lb('\\text{threshold}='+r.toFixed(2),px(r),TOP-8,{align:'center',color:'#111'});});
+    var xq=px(x0),p0=EX.post(x0);g.strokeStyle='#444';g.setLineDash([5,4]);g.lineWidth=1.4;g.beginPath();g.moveTo(xq,TOP);g.lineTo(xq,py(0));g.stroke();g.setLineDash([]);
+    g.fillStyle=Navy;g.beginPath();g.arc(xq,py(p0),4.5,0,7);g.fill();
+    lb('P(\\text{cancer}\\mid x_0)='+p0.toFixed(2),xq+(xq>W/2?-8:8),py(p0)-8,{align:xq>W/2?'right':'left',color:Navy});
+    lb('x_0='+x0.toFixed(1),xq,py(0)+28,{align:'center',color:'#444'});}
+  function fillDtab(){var tb=document.getElementById('dtbody');if(!tb)return;var h='';
+    function rows(arr,cls,color){arr.forEach(function(x,i){h+='<tr class="'+((i%2)?'alt':'')+'"><td>'+kx(x.toFixed(1))+'</td><td>'+kx('\\textcolor{'+color+'}{\\text{'+cls+'}}')+'</td></tr>';});}
+    rows(EX.pos,'Cancer',Rd);rows(EX.neg,'Healthy',Bl);
+    h+='<tr class="ft"><td colspan="2">'+kx('\\textcolor{#B0503A}{\\bar x_+='+EX.sp[0].toFixed(1)+',\\ s_+='+EX.sp[1].toFixed(2)+'}')+'</td></tr>'
+      +'<tr class="ft"><td colspan="2">'+kx('\\textcolor{#3F6E99}{\\bar x_-='+EX.sn[0].toFixed(1)+',\\ s_-='+EX.sn[1].toFixed(2)+'}')+'</td></tr>'
+      +'<tr class="ft"><td colspan="2">'+kx('\\pi_+='+EX.pip.toFixed(2)+',\\ \\pi_-='+(1-EX.pip).toFixed(2))+'</td></tr>';
+    tb.innerHTML=h;}
+  function fillCalc(x0){var el=document.getElementById('excalc');if(!el)return;var fp=EX.fp(x0),fn=EX.fn(x0),pip=EX.pip,post=EX.post(x0),x=x0.toFixed(1);
+    function line(parts){return '<span class="ln">'+parts.map(function(p){return '<span>'+kx(p)+'</span>';}).join('')+'</span>';}   // ชิ้นละสมการย่อย ตัดบรรทัดระหว่างชิ้นได้
+    el.innerHTML=line(['f(x\\mid c)=\\dfrac{1}{s_c\\sqrt{2\\pi}}\\,e^{-\\frac{(x-\\bar x_c)^2}{2s_c^2}}'])
+      +line(['f(x_0{=}'+x+'\\mid\\text{cancer})','=\\dfrac{1}{'+EX.sp[1].toFixed(2)+'\\sqrt{2\\pi}}\\,e^{-\\frac{('+x+'-'+EX.sp[0].toFixed(1)+')^2}{2\\cdot '+EX.sp[1].toFixed(2)+'^2}}','='+fp.toFixed(2)])
+      +line(['f(x_0{=}'+x+'\\mid\\text{healthy})','=\\dfrac{1}{'+EX.sn[1].toFixed(2)+'\\sqrt{2\\pi}}\\,e^{-\\frac{('+x+'-'+EX.sn[0].toFixed(1)+')^2}{2\\cdot '+EX.sn[1].toFixed(2)+'^2}}','='+fn.toFixed(2)])
+      +line(['P(\\text{cancer}\\mid x_0)=\\dfrac{\\pi_+ f_+}{\\pi_+ f_+ + \\pi_- f_-}','=\\dfrac{'+pip.toFixed(2)+'\\cdot '+fp.toFixed(2)+'}{'+pip.toFixed(2)+'\\cdot '+fp.toFixed(2)+'+'+(1-pip).toFixed(2)+'\\cdot '+fn.toFixed(2)+'}','='+post.toFixed(2)]);}
+
   // ---------- main update ----------
   function upd(){
     if(TABS[curTab].summary)return;
+    if(isEX()){var xq0=gv('x0');exBuild();fillDtab();drawExPdf(xq0);drawExPost(xq0);fillCalc(xq0);return;}
     var m0=gv('mu0'),m1=gv('mu1'),p1=eqPrior?0.5:gv('p1'),n=Math.round(gv('n'));
     var s0=gv('s0'),s1=eqSigma?s0:gv('s1');
     if(eqSigma){sv('s1',s0);} if(eqPrior){sv('p1',0.5);}
@@ -400,13 +526,21 @@
       document.getElementById('summaryPanel').className='summary on';renderTexts();return;}
     document.getElementById('mainPanel').style.display='grid';
     document.getElementById('summaryPanel').className='summary';
+    // ช่วง slider: Example = สเกล PSA · แท็บอื่น = สเกลจำลอง (ตั้งช่วงก่อนใส่ค่า ไม่งั้นค่าถูกหนีบ)
+    var ex=!!T.ex,RG=ex?RANGE_EX:RANGE_SIM;setRange('mu1',RG.mu);setRange('mu0',RG.mu);setRange('s1',RG.s);setRange('s0',RG.s);
     if(T.pre)for(var b in T.pre)sv(b,T.pre[b]);
     if(T.eqS!==null) eqSigma=T.eqS;
     if(T.eqP!==null) eqPrior=T.eqP;
     var mt=!!T.manualT;
     document.getElementById('row-T').style.display=mt?'':'none';
-    document.getElementById('errbox').style.display=mt?'':'none';
-    document.querySelector('.below').style.display=mt?'none':'';
+    document.getElementById('errbox').style.display=(mt&&!ex)?'':'none';
+    document.querySelector('.below').style.display=(mt||ex)?'none':'';
+    document.getElementById('exwrap').className='exwrap'+(ex?' on':'');
+    document.querySelector('.stage>.canvasbox').style.display=ex?'none':'';document.getElementById('classleg').style.display=ex?'none':'';
+    document.getElementById('grp-x0').style.display=ex?'':'none';
+    document.getElementById('hd-share').style.display=ex?'none':'';document.getElementById('row-p1').style.display=ex?'none':'';document.getElementById('row-n').style.display=ex?'none':'';
+    if(ex){EX.fixed=true;EX.pos=SLIDE.pos.slice();EX.neg=SLIDE.neg.slice();}   // เข้าแท็บ = กลับไปข้อมูลสไลด์
+    renderTexts();
     syncLocks();
     sizeCanvas();upd();
   }
@@ -415,13 +549,15 @@
   var tb=document.getElementById('tabs');
   TABS.forEach(function(T,i){var el=document.createElement('button');el.className='tabbtn';K('\\text{'+T.n+'}',el);
     el.addEventListener('click',function(){applyTab(i);});tb.appendChild(el);});
-  bases.forEach(function(b){var Re=document.getElementById('R'+b),Ne=document.getElementById('N'+b);
-    Re.addEventListener('input',function(){Ne.value=Re.value;upd();});
-    Ne.addEventListener('input',function(){Re.value=Ne.value;upd();});});
+  bases.concat(['x0']).forEach(function(b){var Re=document.getElementById('R'+b),Ne=document.getElementById('N'+b);
+    function exTouch(){if(!isEX()||b==='x0')return;EX.fixed=false;   // Example: แตะ μ/σ → สุ่มข้อมูลใหม่จาก normal · σ ร่วม (σ+ = σ−) ปรับจากตัวไหนก็ได้
+      if(b==='s1'||b==='s0')sv(b==='s1'?'s0':'s1',parseFloat(Re.value));}
+    Re.addEventListener('input',function(){Ne.value=Re.value;exTouch();upd();});
+    Ne.addEventListener('input',function(){Re.value=Ne.value;exTouch();upd();});});
   (function(){var Re=document.getElementById('RT'),Ne=document.getElementById('NT');
     Re.addEventListener('input',function(){Ne.value=Re.value;upd();});
     Ne.addEventListener('input',function(){Re.value=Ne.value;upd();});})();
-  document.getElementById('resample').addEventListener('click',function(){seed=(seed*1664525+1013904223)>>>0;regen(seed);upd();});
+  document.getElementById('resample').addEventListener('click',function(){seed=(seed*1664525+1013904223)>>>0;regen(seed);if(isEX())EX.fixed=false;upd();});
   window.addEventListener('resize',function(){sizeCanvas();upd();});
 
   function boot(){renderTexts();fillLegend();applyTab(0);}

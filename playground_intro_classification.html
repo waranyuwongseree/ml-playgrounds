@@ -137,11 +137,6 @@
 
     <!-- CONTROL -->
     <div class="panel">
-      <div id="grp-ex"><div class="dhd" id="hd-ex"></div>
-      <div class="dgrid">
-        <div class="drow" id="row-x0"><span class="dlab" id="lbl-x0"></span><input type="range" id="Rx0" min="0.3" max="4.7" step="0.1" value="2.6"><input class="num" type="number" id="Nx0" min="0.3" max="4.7" step="0.1" value="2.6"></div>
-        <div class="drow" id="row-xy0"><span class="dlab" id="lbl-xy0"></span><input type="range" id="Rxy0" min="0" max="12" step="0.1" value="4.5"><input class="num" type="number" id="Nxy0" min="0" max="12" step="0.1" value="4.5"></div>
-      </div></div>
       <div id="grp-pos"><div class="dhd" id="hd-pos"></div>
       <div class="dgrid">
         <div class="drow" id="row-mu1"><span class="dlab" id="lbl-mu1"></span><input type="range" id="Rmu1" min="1" max="9" step="0.1" value="6.0"><input class="num" type="number" id="Nmu1" min="1" max="9" step="0.1" value="6.0"></div>
@@ -175,6 +170,12 @@
       </div>
       </div>
       <div id="grp-rs" class="tgls"><button class="primary" id="resample" style="width:100%"></button></div>
+      <!-- Query point: ล่างสุดของแผงควบคุม (ตั้งข้อมูล → เลือกแบบจำลอง → แล้วค่อยถามจุดใหม่) -->
+      <div id="grp-ex"><div class="dhd" id="hd-ex"></div>
+      <div class="dgrid">
+        <div class="drow" id="row-x0"><span class="dlab" id="lbl-x0"></span><input type="range" id="Rx0" min="0" max="12" step="0.1" value="4.5"><input class="num" type="number" id="Nx0" min="0" max="12" step="0.1" value="4.5"></div>
+        <div class="drow" id="row-xy0"><span class="dlab" id="lbl-xy0"></span><input type="range" id="Rxy0" min="0" max="12" step="0.1" value="4.5"><input class="num" type="number" id="Nxy0" min="0" max="12" step="0.1" value="4.5"></div>
+      </div></div>
     </div>
   </div>
 
@@ -285,10 +286,10 @@
   var bases=['x0','xy0','mu0','muy0','mu1','muy1','s0','s1','p1','sev','n','k','depth'];
   var modeM='logistic', curTab=0, dsIdx=0;
   var TABS=[
-    {n:'Example',        dim:1, ex:true,  groups:['ex','pos','neg','rs'], rows:['x0','mu1','s1','mu0','s0']},   // n fix = 7 ต่อคลาส (Resample สุ่มได้)
+    // แท็บ Example (PSA) ย้ายไป 1-D Bayes แล้ว · univariate สองแท็บอยู่ติดกัน แล้วค่อย bivariate
     {n:'Univariate',     dim:1, groups:['ex','pos','neg','share','model','rs'], rows:['x0','mu1','s1','mu0','s0','p1','n']},
-    {n:'Bivariate',      dim:2, groups:['ex','pos','neg','share','model','rs'], rows:['x0','xy0','mu1','muy1','s1','mu0','muy0','s0','p1','n']},
     {n:'PDM univariate', dim:1, pdm:PDM1, groups:['ex','ds','share','model','rs'], rows:['x0','sev','n']},
+    {n:'Bivariate',      dim:2, groups:['ex','pos','neg','share','model','rs'], rows:['x0','xy0','mu1','muy1','s1','mu0','muy0','s0','p1','n']},
     {n:'PDM bivariate',  dim:2, pdm:PDM2, groups:['ex','ds','share','model','rs'], rows:['x0','xy0','sev','n']}];
   var MC='#1e3a8a',Rd='#B0503A',Bl='#3F6E99';
   // จุดข้อมูล: สี = actual class (coral +, ฟ้า −) · ✗ ขาว = ทำนายผิด (predicted อ่านจากตำแหน่งเทียบ threshold/region)
@@ -510,21 +511,23 @@
     var qv=D===1?'x_0='+fx(Q[0],dec):'\\mathbf x_0=('+fx(Q[0],dec)+',\\ '+fx(Q[1],dec)+')';
     function zAt(){var z=f.B,s='';for(d=0;d<D;d++){z+=f.W[d]*Q[d];s+=(d?sgn(f.W[d]):fx(f.W[d]))+'\\cdot'+fx(Q[d],dec);}return {z:z,s:s+sgn(f.B)};}
     var yh=p0>0.5?POS():NEG();
+    // ลำดับบรรทัด: แบบจำลอง → กฎ if–then → query point · ไม่ใช้สัญลักษณ์ σ(z) เขียน 1/(1+e^{-z}) ตรง ๆ
+    var RL=cline(ruleLines(f,sym,dec));
     if(modeM==='logistic'){
-      h+=cline(['\\hat p=\\sigma(z),','z='+linExpr(f,sym)]);
-      var q=zAt();h+=cline([qv+':\\ z='+q.s+'='+fx(q.z)+',','\\hat p(x_0)=\\sigma('+fx(q.z)+')='+fx(p0)+'\\Rightarrow '+yh]);}
+      h+=cline(['\\hat p=\\dfrac{1}{1+e^{-z}},','z='+linExpr(f,sym)]);h+=RL;
+      var q=zAt();h+=cline([qv+':\\ z='+q.s+'='+fx(q.z)+',','\\hat p('+xq+')=\\dfrac{1}{1+e^{'+fx(-q.z)+'}}='+fx(p0)+'\\Rightarrow '+yh]);}
     else if(modeM==='nb'){
       var st=[];for(d=0;d<D;d++){var j=D===1?'':'_'+(d+1),jj=D===1?'':(d+1);st.push('\\bar x'+(D===1?'_+':'_{'+jj+'+}')+'='+fx(f.mp[d])+',\\ \\bar x'+(D===1?'_-':'_{'+jj+'-}')+'='+fx(f.mq[d])+',\\ s'+j+'^2='+fx(f.v[d]));}
       h+=cline(['\\hat p(x\\mid c)=\\mathcal N(x;\\bar x_c,s^2):'].concat(st.map(function(s){return s+',';})).concat(['\\pi_+='+fx(f.pi1)]));
       h+=cline(['z=\\ln\\dfrac{\\pi_+f_+(x)}{\\pi_-f_-(x)}='+linExpr(f,sym)]);
-      var q2=zAt();h+=cline([qv+':\\ z='+q2.s+'='+fx(q2.z)+',','\\hat p(x_0)=\\sigma('+fx(q2.z)+')='+fx(p0)+'\\Rightarrow '+yh]);}
+      h+=RL;
+      var q2=zAt();h+=cline([qv+':\\ z='+q2.s+'='+fx(q2.z)+',','\\hat p('+xq+')=\\dfrac{1}{1+e^{'+fx(-q2.z)+'}}='+fx(p0)+'\\Rightarrow '+yh]);}
     else if(modeM==='knn'){
-      h+=cline(['\\hat p(\\mathbf x)=\\dfrac{1}{k}\\sum_{i\\in N_k(\\mathbf x)}y_i,','k='+f.k]);
-      h+=cline([qv+':\\ \\hat p(x_0)=\\dfrac{'+Math.round(p0*f.k)+'}{'+f.k+'}='+fx(p0)+'\\Rightarrow '+yh]);}
+      h+=cline(['\\hat p(\\mathbf x)=\\dfrac{1}{k}\\sum_{i\\in N_k(\\mathbf x)}y_i,','k='+f.k]);h+=RL;
+      h+=cline([qv+':\\ \\hat p('+xq+')=\\dfrac{'+Math.round(p0*f.k)+'}{'+f.k+'}='+fx(p0)+'\\Rightarrow '+yh]);}
     else{
-      h+=cline(['\\hat p=\\text{fraction of }+\\text{ in the leaf (splits chosen by Gini)}']);
-      h+=cline([qv+':\\ \\hat p(x_0)='+fx(p0)+'\\Rightarrow '+yh]);}
-    h+=cline(ruleLines(f,sym,dec));
+      h+=cline(['\\hat p=\\text{fraction of }+\\text{ in the leaf (splits chosen by Gini)}']);h+=RL;
+      h+=cline([qv+':\\ \\hat p('+xq+')='+fx(p0)+'\\Rightarrow '+yh]);}
     el.innerHTML=h;}   // ไม่แสดง accuracy (เรื่อง metric อยู่ใน Classification Metrics)
   // ---------- ตารางข้อมูลซ้าย: x | y | ŷ (2-D: x_1 | x_2 | y | ŷ) เรียงตาม x มากไปน้อย · สีแถว = ผล TP/FN/FP/TN ----------
   function fillModTab(S,f){var hd=document.getElementById('mthead'),tb=document.getElementById('mtbody');if(!hd||!tb)return;
