@@ -41,7 +41,7 @@
   .main #grp-met .mtab,.main #grp-met .mtab th,.main #grp-met .mtab td{font-size:15px}
   .pg.distcls .canvasbox{flex:1 1 auto;width:100%;height:var(--sq)}
   /* แท็บที่มีตาราง metric 7 แถวใต้กราฟ: สูงของรูป = ที่เหลือจากหัว + legend + ตาราง (≈410px) → ยังพอดี 1 หน้า */
-  .pg.distcls .main:not(.roc) .canvasbox{height:clamp(200px,calc(100vh - 348px),380px)}
+  .pg.distcls .main:not(.roc) .canvasbox{height:clamp(200px,calc(100vh - 306px),400px)}
   .toprow{display:flex;gap:16px;align-items:center}
   .toprow .canvasbox{margin:0}
   .rocbox{display:none;width:100%;height:var(--sq);box-sizing:border-box;background:#fff;border:1px solid var(--line);border-radius:12px;position:relative}
@@ -67,7 +67,18 @@
   .pg .mtab{margin:0}
   .pg .mtab th,.pg .mtab td{padding:3px 10px;font-size:15px;vertical-align:middle;line-height:1.4}
   .pg .mtab th{white-space:normal}
-  .pg .mtab th.r{text-align:right}
+  .pg .mtab th.r{text-align:right;white-space:nowrap}
+  /* แถบ metric 2 คอลัมน์ (แบบ 1-D Bayes) — การ์ดขาว */
+  .mbarsbox{display:flex;gap:16px;align-items:flex-start;border:1px solid var(--line);border-radius:12px;padding:9px 10px;background:#fff;box-shadow:0 1px 3px rgba(0,0,0,.04)}
+  .distcls .mbarsbox .mbar .nm{font-size:13px}.mbarsbox .katex{font-size:1em}
+  .distcls .mbarsbox .mbar .nm .lab{white-space:nowrap}
+  .distcls .mbarsbox .mcol:first-child{flex:1.1}   /* คอลัมน์ซ้ายสูตรยาวกว่า */
+  .mbarsbox .trow{display:flex;align-items:center;gap:6px}.mbarsbox .trow .track{flex:1}
+  .mbarsbox .trow .tr{flex:none;width:32px;text-align:right;font-size:12px;color:#6b7280;line-height:1}
+  /* หัวตาราง metric: พื้นกรมท่า ตัวขาว เหมือนหัวตารางข้อมูลด้านซ้าย → แยกจากแถวเนื้อหาชัดเจน */
+  .pg .mtab thead th{background:var(--navy);color:#fff;font-weight:400;border-bottom:none;padding-top:5px;padding-bottom:5px}
+  .pg .mtab thead th:first-child{border-top-left-radius:6px}.pg .mtab thead th:last-child{border-top-right-radius:6px}
+  .pg .mtab td.r{text-align:right;white-space:nowrap}
   .pg .mtab td{font-weight:400;color:var(--ink);font-variant-numeric:normal;text-align:left}
   .pg .mtab td:first-child{white-space:nowrap}
   .pg .mtab td .katex{white-space:nowrap}
@@ -120,6 +131,7 @@
       </div></div>
       <div id="grp-rs" class="tgls"><button class="primary" id="resample" style="width:100%"></button></div>
       <div id="grp-met">
+      <div class="mbarsbox" id="mbars"></div>
       <div class="tblbox"><table class="mtab" id="mtab">
         <thead><tr><th id="th-a"></th><th id="th-b"></th><th class="r" id="th-c"></th></tr></thead>
         <tbody id="mbody"></tbody>
@@ -181,7 +193,7 @@
   function clLine(name,lc,tc,shape){return '<span class="cli"><i class="'+(shape||'ln')+'" style="background:'+lc+'"></i><span>'+kx('\\textcolor{'+tc+'}{\\text{'+name+'}}')+'</span></span>';}
   // legend: สีเดียวกับ confusion matrix / ตาราง — FN วงแหวนทอง · FP วงแหวนเขียวน้ำทะเล
   function fillLegend(){var el=document.getElementById('classleg');if(!el)return;
-    el.innerHTML=clLine('Fault hours (+)','#E07A5F',Rd,'ar')+clLine('Healthy hours (−)','#5B8FB9',Bl,'ar')+clLine('misclassified (✗)','#888','#666');}   // จุด = actual class · พื้นช่อง = ช่อง confusion matrix · ✗ = ผิด
+    el.innerHTML=clLine('Positive class','#E07A5F',Rd,'ar')+clLine('Negative class','#5B8FB9',Bl,'ar')+clLine('misclassified (✗)','#888','#666');}   // จุด = actual class · พื้นช่อง = ช่อง confusion matrix · ✗ = ผิด
 
   // ---------- data ----------
   var D={all:[],pos:[],neg:[]};
@@ -315,11 +327,21 @@
       // โหมด p̂: แสดงแบบจำลองที่แปลง x → p̂ และ threshold เทียบเท่าบนแกน x (p̂ เพิ่มตาม x → ตัดที่ p̂ = ตัดที่ x)
       if(!isEX()){var M=D.model,tt=TMEM.p,xt=(tt>0&&tt<1)?matchT(false,tt).toFixed(1):(tt<=0?'-\\infty':'\\infty');
         note='<span class="ln"><span>'+kx('\\hat p=\\sigma('+M.w.toFixed(2)+'\\,x'+(M.b<0?'-':'+')+Math.abs(M.b).toFixed(1)+')')+'</span><span>'+kx('\\qquad\\hat p\\ge '+tt.toFixed(2)+'\\iff x\\ge '+xt)+'</span></span>';}
-      rows=[['\\text{accuracy}',fr(cs('TP')+'+'+cs('TN'),'n'),vv(tp+'+'+tn,n,TP+TN,n)],
-            ['\\text{sensitivity (recall, TPR)}',fr(cs('TP'),cs('TP')+'+'+cs('FN')),vv(tp,tp+'+'+fn,TP,TP+FN)],
-            ['\\text{specificity (TNR)}',fr(cs('TN'),cs('TN')+'+'+cs('FP')),vv(tn,tn+'+'+fp,TN,TN+FP)],
-            ['\\text{precision}',fr(cs('TP'),cs('TP')+'+'+cs('FP')),vv(tp,tp+'+'+fp,TP,TP+FP)],
-            ['F_1',fr('2\\cdot\\text{precision}\\cdot\\text{recall}','\\text{precision}+\\text{recall}'),vv('2\\cdot'+tp,'2\\cdot'+tp+'+'+fp+'+'+fn,2*TP,2*TP+FP+FN)]];}
+      // คอลัมน์อ้างอิง: metric ที่ threshold มาตรฐาน p̂ = 0.5 (โหมด x = ค่า x เทียบเท่า) · ลูกศร = ค่าปัจจุบันสูง/ต่ำกว่าค่าอ้างอิง
+      var tR=isEX()?matchT(false,0.5):0.5,C0=confusion(tR);
+      var mets=function(c){var m=c.TP+c.FN+c.FP+c.TN;return [[c.TP+c.TN,m],[c.TP,c.TP+c.FN],[c.TN,c.TN+c.FP],[c.TP,c.TP+c.FP],[2*c.TP,2*c.TP+c.FP+c.FN]];},A=mets(C),B=mets(C0);
+      // แถบ metric แบบเดียวกับ 1-D Bayes: ชื่อ + สูตร | ค่า % · แถบเข้ม = threshold ปัจจุบัน · แถบจาง + เลขเล็ก = ที่ p̂ ≥ 0.50 · ลูกศร = สูง/ต่ำกว่าค่าอ้างอิง
+      var NM=['Accuracy','Sensitivity','Specificity','Precision','F_1'],
+          FMs=['('+cs('TP')+'+'+cs('TN')+')/n',cs('TP')+'/('+cs('TP')+'+'+cs('FN')+')',cs('TN')+'/('+cs('TN')+'+'+cs('FP')+')',cs('TP')+'/('+cs('TP')+'+'+cs('FP')+')','2PR/(P+R)'];
+      var refLab=isEX()?'x\\ge '+tR.toFixed(1):'\\hat p\\ge 0.50';
+      var bar=function(i){var a=A[i],b=B[i],ok=a[1]>0,v=ok?a[0]/a[1]:0,rk=b[1]>0,r=rk?b[0]/b[1]:0,d=v-r;
+        var arr=(!ok||!rk)?'':Math.abs(d)<0.005?'':d>0?'\\textcolor{#2E7D70}{\\uparrow}\\,':'\\textcolor{#B0503A}{\\downarrow}\\,';
+        return '<div class="mbar"><div class="nm"><span class="lab">'+kx((i===4?'F_1':'\\text{'+NM[i]+'}')+'\\;'+FMs[i])+'</span><span class="v" style="color:'+MC+'">'+kx(arr+(ok?Math.round(v*100)+'\\%':'\\text{--}'))
+          +'</span></div>'
+          +'<div class="trow"><div class="track"><span class="trainbar" style="width:'+(r*100)+'%;background:'+MC+'"></span><span class="fill" style="width:'+(v*100)+'%;background:'+MC+';opacity:.85;height:5px;top:3px"></span></div>'
+          +'<span class="tr">'+kx(rk?Math.round(r*100)+'\\%':'\\text{--}')+'</span></div></div>';};   // เลขเล็กท้ายแถบ = ค่าอ้างอิง
+      var key='<div class="mbar"><div class="nm"><span class="lab" style="color:#6b7280">'+kx('\\text{faint bar = at }'+refLab)+'</span></div></div>';
+      document.getElementById('mbars').innerHTML='<div class="mcol">'+bar(1)+bar(2)+bar(3)+'</div><div class="mcol">'+bar(0)+bar(4)+key+'</div>';}
     else if(k==='roc'){
       rows=[['\\text{TPR}',fr(cs('TP'),cs('TP')+'+'+cs('FN')),vv(tp,tp+'+'+fn,TP,TP+FN)],
             ['\\text{FPR}',fr(cs('FP'),cs('FP')+'+'+cs('TN')),vv(fp,fp+'+'+tn,FP,FP+TN)],
@@ -336,7 +358,8 @@
       function ln(ps){return '<span class="ln">'+ps.map(function(p){return '<span>'+kx(p)+'</span>';}).join('')+'</span>';}
       note=ln(['\\text{area: AUC}='].concat(parts.map(function(p,j){return (j?'+':'')+p;})).concat(['='+R.auc.toFixed(2)]))
           +ln(['\\text{ranking: AUC}=\\dfrac{\\#(\\hat p_+>\\hat p_-)+\\frac12\\#\\text{ties}}{n_+\\,n_-}','=\\dfrac{'+win+(tie?'+\\frac12\\cdot'+tie:'')+'}{'+D.pos.length+'\\cdot'+D.neg.length+'}','='+((win+tie/2)/np).toFixed(2)]);}
-    var h='';rows.forEach(function(r){h+='<tr><td>'+kx(r[0])+'</td><td>'+kx(r[1])+'</td><td>'+kx(r[2])+'</td></tr>';});
+    var h='';rows.forEach(function(r){h+='<tr>'+r.map(function(c,j){return '<td'+(j>=2?' class="r"':'')+'>'+kx(c)+'</td>';}).join('')+'</tr>';});
+    document.querySelector('#grp-met .tblbox').style.display=(k==='thr')?'none':'';document.getElementById('mbars').style.display=(k==='thr')?'':'none';
     document.getElementById('mbody').innerHTML=h;
     var an=document.getElementById('aucnote');if(an){an.innerHTML=note;an.style.display=note?'':'none';}}
 
