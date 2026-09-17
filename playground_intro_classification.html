@@ -86,8 +86,7 @@
   /* model tabs: ตารางข้อมูลซ้าย + คอลัมน์ขวา (แบบ Classifier Evaluation) — ตารางยาวเกินคอลัมน์ขวาให้เลื่อนในตาราง หัวตรึง */
   .stage.mod{flex-direction:row;gap:18px;align-items:flex-start}
   .dleft{display:none;flex:0 0 auto;min-width:0;overflow-y:auto;border-radius:8px;position:relative}   /* relative: ชิ้นส่วน absolute ของ KaTeX ในแถวที่ถูกซ่อนต้องถูก clip ด้วย ไม่งั้นหน้า scroll ยาว */
-  .stage.mod .dleft{display:block;flex:0 0 250px}   /* กว้างคงที่ → ตารางและกราฟของ Univariate = PDM univariate (250px เท่า Classification Metrics) */
-  .stage.mod.d2 .dleft{flex-basis:300px}            /* bivariate 5 คอลัมน์ → 300px เท่ากันทั้ง Bivariate และ PDM bivariate */
+  .stage.mod .dleft{display:block;flex:0 0 300px}   /* กว้างคงที่ 300px ทั้ง Univariate และ Bivariate (5 คอลัมน์ของ bivariate ต้องการ ~295px) → ตารางและกราฟเท่ากันทุกแท็บ */
   .main{display:flex;flex-direction:column;gap:6px;flex:1 1 auto;min-width:0}
   .dtab th{position:sticky;top:0}
   .dtab.c5{font-size:13.5px}.dtab.c5 th{padding:5px 4px}.dtab.c5 td{padding:2px 4px}
@@ -246,7 +245,7 @@
   var PDM1=[{ds:'along_the_model',f:['bearing_temp_c'],lab:'Along the model',ax:[AXT],nm:['temp']},
             {ds:'broken_relation',f:['bearing_temp_c'],lab:'Broken relation',ax:[AXT],nm:['temp']}];
   // ตัวแปรของแท็บจำลอง (ชื่อ/หน่วย/สเกลจากปั๊มจริง): V2.c = จุดกึ่งกลางระหว่างสองคลาส · V2.s = ส่วนเบี่ยงเบนมาตรฐานต่อแกน (ใช้เป็นสเกลระยะของ k-NN ด้วย)
-  var V1={ax:[AXT],nm:['temp'],decs:[1]},V2={ax:[AXF,'x_2=\\text{discharge pressure (bar)}'],nm:['flow','pressure'],decs:[1,2],c:[147.8,8.09],s:[6,0.27]};
+  var V1={ax:['x'],nm:['temp'],decs:[1]},V2={ax:['x_1','x_2'],nm:   /* แกนกราฟใช้แค่สัญลักษณ์ x, x_1, x_2 — ชื่อตัวแปรอยู่ที่หัวตาราง */['flow','pressure'],decs:[1,2],c:[147.8,8.09],s:[6,0.27]};
   var PDM2=[{ds:'broken_relation',f:['flow_m3h','discharge_pressure_bar'],lab:'Broken relation',ax:[AXF,'x_2=\\text{discharge pressure (bar)}'],nm:['flow','pressure']},
             {ds:'along_the_model',f:['flow_m3h','motor_current_a'],       lab:'Along the model',ax:[AXF,'x_2=\\text{motor current (A)}'],nm:['flow','current']}];
 
