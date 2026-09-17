@@ -207,8 +207,12 @@
     var L=34,Rm=12,TOP=40,BOT=32,pw=W_-L-Rm,ph=H_-TOP-BOT,x0=L,x1=L+pw,y0=TOP,y1=TOP+ph,i,j,st=5;
     var d=DM(),ax=d.lo[0],bx=d.hi[0],ay=d.lo[1],by=d.hi[1];
     function px(v){return x0+(v-ax)/(bx-ax)*pw;} function py(v){return y1-(v-ay)/(by-ay)*ph;}
-    for(i=x0;i<x1;i+=st)for(j=y0;j<y1;j+=st){var gx=ax+(i+st/2-x0)/pw*(bx-ax),gy=ay+(y1-(j+st/2))/ph*(by-ay);
-      g.fillStyle=M.post(phi([gx,gy],fk))>0.5?'rgba(224,122,95,0.16)':'rgba(91,143,185,0.16)';g.fillRect(i,j,Math.min(st,x1-i),Math.min(st,y1-j));}
+    // พื้น decision region: ประเมินทุก 1px (k-NN 2px เพราะช้ากว่า) ลง canvas ย่อย แล้ว drawImage ขยายเข้ากรอบ → เส้นแบ่งของ logistic / naive Bayes เรียบ (เดิมตาราง 5px เป็นขั้นบันได) ไม่มีรอยต่อระหว่างแถว
+    st=(model==='knn')?2:1;var nc=Math.max(1,Math.ceil(pw/st)),nr=Math.max(1,Math.ceil(ph/st)),off=document.createElement('canvas');off.width=nc;off.height=nr;
+    var og=off.getContext('2d'),im=og.createImageData(nc,nr),dd=im.data,q4=0;
+    for(j=0;j<nr;j++){var gy=by-(j+0.5)*st/ph*(by-ay);for(i=0;i<nc;i++){var pos=M.post(phi([ax+(i+0.5)*st/pw*(bx-ax),gy],fk))>0.5;
+        dd[q4]=pos?224:91;dd[q4+1]=pos?122:143;dd[q4+2]=pos?95:185;dd[q4+3]=41;q4+=4;}}
+    og.putImageData(im,0,0);g.save();g.beginPath();g.rect(x0,y0,pw,ph);g.clip();g.imageSmoothingEnabled=true;g.drawImage(off,0,0,nc,nr,x0,y0,nc*st,nr*st);g.restore();
     g.strokeStyle='rgba(128,128,128,0.45)';g.lineWidth=1;g.strokeRect(x0,y0,pw,ph);
     g.fillStyle='rgba(128,128,128,0.9)';g.font='14px KaTeX_Main,serif';g.textAlign='center';g.textBaseline='alphabetic';for(var a=ax;a<=bx+1e-9;a+=d.tick[0])g.fillText(String(a),px(a),y1+15);
     g.textAlign='right';g.textBaseline='middle';for(var b=ay;b<=by+1e-9;b+=d.tick[1])g.fillText(String(b),x0-6,py(b));g.textBaseline='alphabetic';
