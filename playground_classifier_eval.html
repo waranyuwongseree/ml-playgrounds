@@ -166,7 +166,8 @@
     return(_cache[name]={name:name,n:n,col:col,bad:bad});}
   // ชื่อแท็บ = ลำดับเนื้อหา: ตัดสินจากค่าดิบ x → ตัดสินจากคะแนนแบบจำลอง p̂ → กวาด threshold ทุกค่า (ROC)
   // แท็บ 1 รวม "ตัดที่ x" กับ "ตัดที่ p̂" ไว้ด้วยกัน — สลับด้วยปุ่ม Score (scMode) · แท็บ ROC ใช้ p̂ เสมอ
-  var TABS=[{n:'\\text{Threshold \\& Metrics}',key:'thr'},{n:'\\text{ROC \\& AUC}',key:'roc'}];
+  // แท็บ 2 = แท็บ 1 + เปรียบเทียบ metric กับ threshold มาตรฐาน p̂ = 0.5 (cmp)
+  var TABS=[{n:'\\text{Threshold \\& Metrics}',key:'thr'},{n:'\\text{Compare with }\\hat p=0.5',key:'thr',cmp:true},{n:'\\text{ROC \\& AUC}',key:'roc'}];
   var curTab=0,dsIdx=0,scMode='x';
   var MC='#1e3a8a',Rd='#B0503A',Bl='#3F6E99';
   var TMEM={ex:null,p:0.5,src:'p'};   // เริ่มที่ p̂ = 0.5 (x เริ่มที่ค่าเทียบเท่า)   // src = แกนที่ผู้ใช้ตั้ง threshold ล่าสุด (อีกแกนคำนวณตาม — ดู matchT)   // threshold จำแยก: Threshold on x (หน่วย °C, เริ่มที่กึ่งกลางช่วงข้อมูล) · แท็บอื่น (หน่วย p̂)
@@ -177,7 +178,7 @@
 
   // ---------- KaTeX static labels ----------
   var MT={'h1':'\\text{Classification Metrics}','resample':'\\text{Resample points}',
-    'hd-ds':'\\text{Data (pump bearing temperature)}','lbl-n':'n','lbl-t':'t',
+    'hd-ds':'\\text{Data}','lbl-n':'n','lbl-t':'t',
     'sc-x':'\\text{raw value }x','sc-p':'\\text{model probability }\\hat p',
     'ds-0':'\\text{Separated}','ds-1':'\\text{Unseparated}','ds-2':'\\text{Imbalanced}',
     'ch-pp':'\\hat y=+','ch-pn':'\\hat y=-','ch-ap':'\\text{actual }+','ch-an':'\\text{actual }-','cs-tp':'\\mathrm{TP}','cs-fn':'\\mathrm{FN}','cs-fp':'\\mathrm{FP}','cs-tn':'\\mathrm{TN}'};
@@ -334,11 +335,11 @@
       var NM=['Accuracy','Sensitivity','Specificity','Precision','F_1'],
           FMs=['('+cs('TP')+'+'+cs('TN')+')/n',cs('TP')+'/('+cs('TP')+'+'+cs('FN')+')',cs('TN')+'/('+cs('TN')+'+'+cs('FP')+')',cs('TP')+'/('+cs('TP')+'+'+cs('FP')+')','2PR/(P+R)'];
       // โหมด x: แถบกรมท่าล้วน (แบบ 1-D Bayes) ไม่เปรียบเทียบ · โหมด p̂: เทียบกับ p̂ ≥ 0.50 แบบ Data Drift — สีแถบ+ตัวเลข เขียว = ไม่ต่ำกว่าค่าอ้างอิง · แดง = ต่ำกว่า · แถบจาง + "at 0.50 …%" = ค่าอ้างอิง
-      var cmp=!isEX(),Gc='#3F8F6B';
+      var cmp=!!T().cmp,Gc='#3F8F6B',refTxt=isEX()?'x\\ge '+tR.toFixed(1):'0.50';
       var bar=function(i){var a=A[i],b=B[i],ok=a[1]>0,v=ok?a[0]/a[1]:0,rk=b[1]>0,r=rk?b[0]/b[1]:0,col=!cmp?MC:(v<r-0.005)?Rd:Gc;
         return '<div class="mbar"><div class="nm"><span class="lab">'+kx((i===4?'F_1':'\\text{'+NM[i]+'}')+'\\;'+FMs[i])+'</span><span class="v" style="color:'+col+'">'+kx(ok?Math.round(v*100)+'\\%':'\\text{--}')+'</span></div>'
           +'<div class="trow"><div class="track">'+(cmp?'<span class="trainbar" style="width:'+(r*100)+'%;background:'+col+'"></span>':'')+'<span class="fill" style="width:'+(v*100)+'%;background:'+col+'"></span></div>'
-          +(cmp?'<span class="tr">'+kx('\\text{at }0.50\\;\\,'+(rk?Math.round(r*100)+'\\%':'\\text{--}'))+'</span>':'')+'</div></div>';};
+          +(cmp?'<span class="tr">'+kx('\\text{at }'+refTxt+'\\;\\,'+(rk?Math.round(r*100)+'\\%':'\\text{--}'))+'</span>':'')+'</div></div>';};
       document.getElementById('mbars').innerHTML='<div class="mcol">'+bar(1)+bar(2)+bar(3)+'</div><div class="mcol">'+bar(0)+bar(4)+'</div>';}
     else if(k==='roc'){
       rows=[['\\text{TPR}',fr(cs('TP'),cs('TP')+'+'+cs('FN')),vv(tp,tp+'+'+fn,TP,TP+FN)],
