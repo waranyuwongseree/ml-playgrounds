@@ -41,6 +41,7 @@
   .excalc .ln{display:block;white-space:normal;margin:2px 0}
   .excalc .ln>span{display:inline-block;margin-right:.3em;vertical-align:middle}
   .excalc .katex{font-size:1em}
+  .excalc .ln.tr{margin:0;line-height:1.22;font-size:13.5px}   /* กฎของ tree (ลึก 3 = ได้ถึง ~14 บรรทัด) → บรรทัดชิดกัน */
   .dtab{width:100%;border-collapse:collapse;font-size:15px}
   .dtab th{background:var(--navy);color:#fff;font-weight:400;padding:5px 8px;text-align:center}
   .dtab td{padding:2px 8px;text-align:center;color:var(--ink);line-height:1.35;background:#fff}
@@ -169,13 +170,13 @@
         <div class="drow hid" id="row-hpblank"><span class="dlab">&nbsp;</span><input type="range" disabled><input class="num" type="number" disabled></div>
       </div>
       </div>
-      <div id="grp-rs" class="tgls"><button class="primary" id="resample" style="width:100%"></button></div>
-      <!-- Query point: ล่างสุดของแผงควบคุม (ตั้งข้อมูล → เลือกแบบจำลอง → แล้วค่อยถามจุดใหม่) -->
+      <!-- Testing point: ใต้ Model (ตั้งข้อมูล → เลือกแบบจำลอง → ทดสอบจุดใหม่) · Resample อยู่ล่างสุด -->
       <div id="grp-ex"><div class="dhd" id="hd-ex"></div>
       <div class="dgrid">
         <div class="drow" id="row-x0"><span class="dlab" id="lbl-x0"></span><input type="range" id="Rx0" min="0" max="12" step="0.1" value="4.5"><input class="num" type="number" id="Nx0" min="0" max="12" step="0.1" value="4.5"></div>
         <div class="drow" id="row-xy0"><span class="dlab" id="lbl-xy0"></span><input type="range" id="Rxy0" min="0" max="12" step="0.1" value="4.5"><input class="num" type="number" id="Nxy0" min="0" max="12" step="0.1" value="4.5"></div>
       </div></div>
+      <div id="grp-rs" class="tgls"><button class="primary" id="resample" style="width:100%"></button></div>
     </div>
   </div>
 
@@ -275,7 +276,7 @@
     var post=function(v){var nd=root;while(!nd.leaf)nd=(v[nd.f]<nd.t)?nd.left:nd.right;return nd.p;};
     var leaves=[];(function walk(nd,cond){if(nd.leaf){leaves.push({cond:cond,p:nd.p});return;}
       walk(nd.left,cond.concat([{f:nd.f,lt:true,t:nd.t}]));walk(nd.right,cond.concat([{f:nd.f,lt:false,t:nd.t}]));})(root,[]);
-    return {post:post,leaves:leaves,linear:false};}
+    return {post:post,leaves:leaves,root:root,linear:false};}
   function trainErr(post,X,ys){var e=0,i;for(i=0;i<X.length;i++){if((post(X[i])>0.5?1:0)!==ys[i])e++;}return e/X.length;}
   function crossings1(post,xmin,xmax){var N=400,dx=(xmax-xmin)/N,out=[],i,prev=post([xmin])-0.5;
     for(i=1;i<=N;i++){var x=xmin+i*dx,cur=post([x])-0.5;
@@ -304,7 +305,7 @@
 
   // ---------- KaTeX static labels ----------
   var MT={'h1':'\\text{Introduction to Classification}','resample':'\\text{Resample points}',
-    'hd-model':'\\text{Model}','hd-hp':'\\text{Model setting}','hd-ds':'\\text{Case study (pump, 1440 h)}','hd-ex':'\\text{Query point}',
+    'hd-model':'\\text{Model}','hd-hp':'\\text{Model setting}','hd-ds':'\\text{Case study (pump, 1440 h)}','hd-ex':'\\text{Testing point}',
     'sb-logistic':'\\text{Logistic}','sb-nb':'\\text{Naive Bayes}','sb-knn':'\\text{KNN}','sb-tree':'\\text{Tree}',
     'hd-pos':'\\textcolor{#B0503A}{\\text{Positive class}}','hd-neg':'\\textcolor{#3F6E99}{\\text{Negative class}}',
     'lbl-x0':'x_0','lbl-muy1':'\\mu_{2+}','lbl-muy0':'\\mu_{2-}','lbl-s0':'\\sigma_-','lbl-s1':'\\sigma_+','lbl-p1':'\\pi_+','lbl-sev':'\\delta','lbl-n':'n','lbl-k':'k','lbl-depth':'\\text{depth}',
@@ -513,20 +514,17 @@
     var yh=p0>0.5?POS():NEG();
     // ลำดับบรรทัด: แบบจำลอง → กฎ if–then → query point · ไม่ใช้สัญลักษณ์ σ(z) เขียน 1/(1+e^{-z}) ตรง ๆ
     var RL=cline(ruleLines(f,sym,dec));
-    if(modeM==='logistic'){
-      h+=cline(['\\hat p=\\dfrac{1}{1+e^{-z}},','z='+linExpr(f,sym)]);h+=RL;
-      var q=zAt();h+=cline([qv+':\\ z='+q.s+'='+fx(q.z)+',','\\hat p('+xq+')=\\dfrac{1}{1+e^{'+fx(-q.z)+'}}='+fx(p0)+'\\Rightarrow '+yh]);}
-    else if(modeM==='nb'){
-      var st=[];for(d=0;d<D;d++){var j=D===1?'':'_'+(d+1),jj=D===1?'':(d+1);st.push('\\bar x'+(D===1?'_+':'_{'+jj+'+}')+'='+fx(f.mp[d])+',\\ \\bar x'+(D===1?'_-':'_{'+jj+'-}')+'='+fx(f.mq[d])+',\\ s'+j+'^2='+fx(f.v[d]));}
-      h+=cline(['\\hat p(x\\mid c)=\\mathcal N(x;\\bar x_c,s^2):'].concat(st.map(function(s){return s+',';})).concat(['\\pi_+='+fx(f.pi1)]));
-      h+=cline(['z=\\ln\\dfrac{\\pi_+f_+(x)}{\\pi_-f_-(x)}='+linExpr(f,sym)]);
-      h+=RL;
-      var q2=zAt();h+=cline([qv+':\\ z='+q2.s+'='+fx(q2.z)+',','\\hat p('+xq+')=\\dfrac{1}{1+e^{'+fx(-q2.z)+'}}='+fx(p0)+'\\Rightarrow '+yh]);}
+    if(modeM==='logistic'||modeM==='nb'){   // logistic และ naive Bayes แสดงแบบเดียวกัน: p̂ = 1/(1+e^{-z}), z = … → กฎ if–then (ทั้งคู่ log-odds เชิงเส้น ต่างกันที่วิธีหา w, b)
+      h+=cline(['\\hat p=\\dfrac{1}{1+e^{-z}},','z='+linExpr(f,sym)]);h+=RL;}
     else if(modeM==='knn'){
       h+=cline(['\\hat p(\\mathbf x)=\\dfrac{1}{k}\\sum_{i\\in N_k(\\mathbf x)}y_i,','k='+f.k]);h+=RL;
       h+=cline([qv+':\\ \\hat p('+xq+')=\\dfrac{'+Math.round(p0*f.k)+'}{'+f.k+'}='+fx(p0)+'\\Rightarrow '+yh]);}
-    else{
-      h+=cline(['\\hat p=\\text{fraction of }+\\text{ in the leaf (splits chosen by Gini)}']);h+=RL;
+    else{   // tree: กฎ if–then แบบลำดับชั้น (เยื้องตามความลึก) — ใบที่อยู่ใต้เงื่อนไขเดียวกันเยื้องเท่ากัน
+      var ind=function(tex,dp){return '<span class="ln tr" style="padding-left:'+(dp*26)+'px"><span>'+kx(tex)+'</span></span>';};
+      (function walk(nd,dp){if(nd.leaf){h+=ind('\\text{always }'+(nd.p>0.5?POS():NEG()),dp);return;}   // รากเป็นใบ (ไม่มีการแบ่ง)
+        var c=sym[nd.f]+'<'+fx(nd.t,dec),lf=function(k){return k.leaf?'\\ '+(k.p>0.5?POS():NEG()):'';};
+        h+=ind('\\textbf{if }'+c+'\\textbf{ then}'+lf(nd.left),dp);if(!nd.left.leaf)walk(nd.left,dp+1);
+        h+=ind('\\textbf{else}'+lf(nd.right),dp);if(!nd.right.leaf)walk(nd.right,dp+1);})(f.root,0);
       h+=cline([qv+':\\ \\hat p('+xq+')='+fx(p0)+'\\Rightarrow '+yh]);}
     el.innerHTML=h;}   // ไม่แสดง accuracy (เรื่อง metric อยู่ใน Classification Metrics)
   // ---------- ตารางข้อมูลซ้าย: x | y | ŷ (2-D: x_1 | x_2 | y | ŷ) เรียงตาม x มากไปน้อย · สีแถว = ผล TP/FN/FP/TN ----------
@@ -597,8 +595,9 @@
   function setModelSeg(){var bs=document.querySelectorAll('#modelSeg button');for(var i=0;i<bs.length;i++)bs[i].className=(bs[i].getAttribute('data-m')===modeM)?'on':'';
     var sk=(modeM==='knn'),sd=(modeM==='tree');
     document.getElementById('row-k').style.display=sk?'':'none';document.getElementById('row-depth').style.display=sd?'':'none';
-    document.getElementById('row-hpblank').style.display=(sk||sd)?'none':'';
-    document.getElementById('hd-hp').className='dhd'+((sk||sd)?'':' hid');}
+    // logistic / naive Bayes ไม่มี hyperparameter → ซ่อนหัว "Model setting" และแถวว่างจริง ๆ (เดิมจองที่ไว้ ทำให้เกิดช่องว่างใหญ่ก่อน control ถัดไป)
+    document.getElementById('row-hpblank').style.display='none';
+    document.getElementById('hd-hp').style.display=(sk||sd)?'':'none';}
   function setDsSeg(){var bs=document.querySelectorAll('#dsSeg button');for(var i=0;i<bs.length;i++)bs[i].className=(parseInt(bs[i].getAttribute('data-ds'),10)===dsIdx)?'on':'';}
   // ค่า control จำแยกตามชนิด tab: sim (Univariate/Bivariate) · ex (Example, สเกล PSA) · pdm
   var MEM={sim:{x0:4.5,xy0:4.5,mu1:6.0,s1:1.0,mu0:3.0,s0:1.0,n:20},ex:{x0:2.6,mu1:2.8,s1:0.82,mu0:1.5,s0:0.61,n:7},pdm:{n:240}};   // sim n=20 เท่ากับ Classifier Evaluation · pdm x0/xy0 ตั้งจากช่วงข้อมูลตอน upd

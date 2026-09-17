@@ -113,13 +113,13 @@
         <div class="drow" id="row-n"><span class="dlab" id="lbl-n"></span><input type="range" id="Rn" min="20" max="400" step="10" value="120"><input class="num" type="number" id="Nn" min="20" max="400" step="10" value="120"></div>
         <div class="drow" id="row-T" style="display:none"><span class="dlab" id="lbl-T"></span><input type="range" id="RT" min="0" max="12" step="0.1" value="4.5"><input class="num" type="number" id="NT" min="0" max="12" step="0.1" value="4.5"></div>
       </div>
-      <div class="tgls" id="tgls">
-        <button class="primary" id="resample" style="width:100%"></button>
-      </div>
       <div id="grp-x0" style="display:none"><div class="dhd" id="hd-x0"></div>
       <div class="dgrid">
         <div class="drow" id="row-x0"><span class="dlab" id="lbl-x0"></span><input type="range" id="Rx0" min="0.3" max="4.7" step="0.1" value="2.6"><input class="num" type="number" id="Nx0" min="0.3" max="4.7" step="0.1" value="2.6"></div>
       </div></div>
+      <div class="tgls" id="tgls">
+        <button class="primary" id="resample" style="width:100%"></button>
+      </div>
     </div>
   </div>
 
@@ -205,7 +205,7 @@
 
   // ---------- KaTeX static labels ----------
   var MT={'h1':'\\text{1-D Bayes Classifier}','resample':'\\text{Resample points}',
-    'hd-x0':'\\text{Query point}','lbl-x0':'x_0','dt-x':'\\textcolor{#fff}{\\text{PSA }(x)}','dt-y':'\\textcolor{#fff}{\\text{Class }(y)}',
+    'hd-x0':'\\text{Testing point}','lbl-x0':'x_0','dt-x':'\\textcolor{#fff}{\\text{PSA }(x)}','dt-y':'\\textcolor{#fff}{\\text{Class }(y)}',
     'hd-pos':'\\textcolor{#B0503A}{\\text{Positive class}}','hd-neg':'\\textcolor{#3F6E99}{\\text{Negative class}}','hd-share':'\\text{Class balance \\& size}',
     'lbl-mu0':'\\mu_-','lbl-mu1':'\\mu_+','lbl-s0':'\\sigma_-','lbl-s1':'\\sigma_+','lbl-p1':'\\pi_+','lbl-n':'n','lbl-T':'\\textcolor{#111}{T}',
     'ch-pp':'\\hat y=1','ch-pn':'\\hat y=0','ch-ap':'\\text{actual }1','ch-an':'\\text{actual }0',
