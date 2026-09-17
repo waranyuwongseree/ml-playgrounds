@@ -511,21 +511,23 @@
     var n=C.TP+C.FN+C.FP+C.TN,p0=f.post(Q),xq=D===1?'x_0':'\\mathbf x_0';
     var qv=D===1?'x_0='+fx(Q[0],dec):'\\mathbf x_0=('+fx(Q[0],dec)+',\\ '+fx(Q[1],dec)+')';
     function zAt(){var z=f.B,s='';for(d=0;d<D;d++){z+=f.W[d]*Q[d];s+=(d?sgn(f.W[d]):fx(f.W[d]))+'\\cdot'+fx(Q[d],dec);}return {z:z,s:s+sgn(f.B)};}
-    var yh=p0>0.5?POS():NEG();
+    var yh=p0>0.5?POS():NEG(),PA=Q.map(function(v){return fx(v,dec);}).join(',\\ ');   // PA = ค่า testing point ที่แทนลงใน p̂(·)
     // ลำดับบรรทัด: แบบจำลอง → กฎ if–then → query point · ไม่ใช้สัญลักษณ์ σ(z) เขียน 1/(1+e^{-z}) ตรง ๆ
     var RL=cline(ruleLines(f,sym,dec));
     if(modeM==='logistic'||modeM==='nb'){   // logistic และ naive Bayes แสดงแบบเดียวกัน: p̂ = 1/(1+e^{-z}), z = … → กฎ if–then (ทั้งคู่ log-odds เชิงเส้น ต่างกันที่วิธีหา w, b)
-      h+=cline(['\\hat p=\\dfrac{1}{1+e^{-z}},','z='+linExpr(f,sym)]);h+=RL;}
+      // บรรทัด 1 แบบจำลอง + "or" → บรรทัด 2 กฎ if–then (แบบจำลองเดียวกันเขียนเป็นกฎ) → บรรทัด 3 แทนค่า testing point ลงไปตรง ๆ (ไม่ใช้สัญลักษณ์ x_0)
+      h+=cline(['\\hat p=\\dfrac{1}{1+e^{-z}},','z='+linExpr(f,sym),'\\quad\\text{or}']);h+=RL;
+      var q=zAt();h+=cline(['\\hat p('+PA+')=\\dfrac{1}{1+e^{-('+q.s+')}}','='+fx(p0)+'\\Rightarrow '+yh]);}
     else if(modeM==='knn'){
       h+=cline(['\\hat p(\\mathbf x)=\\dfrac{1}{k}\\sum_{i\\in N_k(\\mathbf x)}y_i,','k='+f.k]);h+=RL;
-      h+=cline([qv+':\\ \\hat p('+xq+')=\\dfrac{'+Math.round(p0*f.k)+'}{'+f.k+'}='+fx(p0)+'\\Rightarrow '+yh]);}
+      h+=cline(['\\hat p('+PA+')=\\dfrac{'+Math.round(p0*f.k)+'}{'+f.k+'}='+fx(p0)+'\\Rightarrow '+yh]);}
     else{   // tree: กฎ if–then แบบลำดับชั้น (เยื้องตามความลึก) — ใบที่อยู่ใต้เงื่อนไขเดียวกันเยื้องเท่ากัน
       var ind=function(tex,dp){return '<span class="ln tr" style="padding-left:'+(dp*26)+'px"><span>'+kx(tex)+'</span></span>';};
       (function walk(nd,dp){if(nd.leaf){h+=ind('\\text{always }'+(nd.p>0.5?POS():NEG()),dp);return;}   // รากเป็นใบ (ไม่มีการแบ่ง)
         var c=sym[nd.f]+'<'+fx(nd.t,dec),lf=function(k){return k.leaf?'\\ '+(k.p>0.5?POS():NEG()):'';};
         h+=ind('\\textbf{if }'+c+'\\textbf{ then}'+lf(nd.left),dp);if(!nd.left.leaf)walk(nd.left,dp+1);
         h+=ind('\\textbf{else}'+lf(nd.right),dp);if(!nd.right.leaf)walk(nd.right,dp+1);})(f.root,0);
-      h+=cline([qv+':\\ \\hat p('+xq+')='+fx(p0)+'\\Rightarrow '+yh]);}
+      h+=cline(['\\hat p('+PA+')='+fx(p0)+'\\Rightarrow '+yh]);}
     el.innerHTML=h;}   // ไม่แสดง accuracy (เรื่อง metric อยู่ใน Classification Metrics)
   // ---------- ตารางข้อมูลซ้าย: x | y | ŷ (2-D: x_1 | x_2 | y | ŷ) เรียงตาม x มากไปน้อย · สีแถว = ผล TP/FN/FP/TN ----------
   function fillModTab(S,f){var hd=document.getElementById('mthead'),tb=document.getElementById('mtbody');if(!hd||!tb)return;
