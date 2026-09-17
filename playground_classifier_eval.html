@@ -68,15 +68,16 @@
   .pg .mtab th,.pg .mtab td{padding:3px 10px;font-size:15px;vertical-align:middle;line-height:1.4}
   .pg .mtab th{white-space:normal}
   .pg .mtab th.r{text-align:right;white-space:nowrap}
-  /* แถบ metric 2 คอลัมน์ (แบบ 1-D Bayes) — การ์ดขาว */
-  .mbarsbox .mrow2{display:flex;gap:10px;align-items:flex-start}
-  .mbarsbox .mcap{font-size:14px;color:var(--muted);margin:0 0 7px;white-space:nowrap;overflow:hidden}
-  .mbarsbox{border:1px solid var(--line);border-radius:12px;padding:9px 6px;background:#fff;box-shadow:0 1px 3px rgba(0,0,0,.04)}
-  .distcls .mbarsbox .mbar .nm{font-size:12px;gap:4px}.mbarsbox .katex{font-size:1em}
-  .distcls .mbarsbox .mbar .nm .lab{white-space:nowrap}
-  .distcls .mbarsbox .mcol:last-child{flex:1.02}   /* คอลัมน์ซ้ายสูตรยาวกว่า */
-  .mbarsbox .trow{display:flex;align-items:center;gap:6px}.mbarsbox .trow .track{flex:1}
-  .mbarsbox .trow .tr{flex:none;white-space:nowrap;text-align:right;font-size:11.5px;color:#6b7280;line-height:1}
+  /* แถบ metric: แถวละ 1 metric = ชื่อ + สูตร | แถบ | ค่า — ตัวอักษร 14px ตามมาตรฐาน (เดิม 2 คอลัมน์ ต้องย่อเหลือ 12px จึงเลิก) — การ์ดขาว */
+  .mbarsbox .mcap{font-size:14px;color:var(--muted);margin:0 0 6px;white-space:nowrap;overflow:hidden}
+  .mbarsbox{border:1px solid var(--line);border-radius:12px;padding:8px 12px;background:#fff;box-shadow:0 1px 3px rgba(0,0,0,.04)}
+  .mbarsbox .katex{font-size:1em}
+  .mbarsbox .mrow{display:flex;align-items:center;gap:10px;font-size:14px;line-height:1.25;margin:3px 0}
+  .mbarsbox .mrow .lab{flex:0 0 172px;white-space:nowrap;color:var(--ink)}
+  .mbarsbox .mrow .track{flex:1;position:relative;height:11px;background:#eef1f5;border-radius:6px;box-shadow:inset 0 1px 2px rgba(0,0,0,.06)}
+  .mbarsbox .mrow .track>span{position:absolute;left:0;top:0;height:100%;border-radius:6px;transition:width .25s}
+  .mbarsbox .mrow .track>.trainbar{opacity:.32}
+  .mbarsbox .mrow .v{flex:0 0 76px;text-align:right;white-space:nowrap;font-weight:700;font-variant-numeric:tabular-nums}
   /* หัวตาราง metric: พื้นกรมท่า ตัวขาว เหมือนหัวตารางข้อมูลด้านซ้าย → แยกจากแถวเนื้อหาชัดเจน */
   .pg .mtab thead th{background:var(--navy);color:#fff;font-weight:400;border-bottom:none;padding-top:5px;padding-bottom:5px}
   .pg .mtab thead th:first-child{border-top-left-radius:6px}.pg .mtab thead th:last-child{border-top-right-radius:6px}
@@ -89,7 +90,7 @@
   .pg .mtab th.r .katex,.pg .mtab td:last-child .katex{display:block;text-align:right}
   .pg .mtab th.r .katex-html,.pg .mtab td:last-child .katex-html{display:inline-block}
   .canvasbox,.rocbox{position:relative}
-  .cvlab{position:absolute;left:0;top:0;width:100%;height:100%;pointer-events:none;overflow:hidden;font-size:13px;line-height:1}
+  .cvlab{position:absolute;left:0;top:0;width:100%;height:100%;pointer-events:none;overflow:hidden;font-size:14px;line-height:1}   /* มาตรฐาน: ตัวอักษรบนกราฟ ≥ 14px */
   .cvlab>span{position:absolute;white-space:nowrap;color:rgba(90,90,90,0.9)}
   .cvlab .katex{font-size:1em}
   .seg2{display:flex;flex-wrap:wrap;border:1px solid var(--line);border-radius:8px;overflow:hidden;margin-bottom:6px;background:#fff}
@@ -254,11 +255,11 @@
     g.fillStyle='#FAEFD6';g.fillRect(L,yT,pw/2,TOP+ph-yT);g.fillStyle='#E9F0F8';g.fillRect(xm,yT,pw/2,TOP+ph-yT);
     g.strokeStyle='rgba(128,128,128,0.6)';g.lineWidth=1;g.strokeRect(L,TOP,pw,ph);g.beginPath();g.moveTo(xm,TOP);g.lineTo(xm,TOP+ph);g.stroke();
     // แกนคะแนน (ซ้าย) — ข้าม tick ที่ชนป้าย threshold
-    g.fillStyle='rgba(128,128,128,0.9)';g.font='13px KaTeX_Main,serif';g.textAlign='right';g.textBaseline='middle';
+    g.fillStyle='rgba(128,128,128,0.9)';g.font='14px KaTeX_Main,serif';g.textAlign='right';g.textBaseline='middle';
     for(var a=lo;a<=hi+1e-9;a+=tick){var yy=py(a);if(Math.abs(yy-yT)>14)g.fillText(a.toFixed(tdec),L-7,yy);}
     // threshold
     g.strokeStyle='#111';g.setLineDash([5,4]);g.lineWidth=1.8;g.beginPath();g.moveTo(L-4,yT);g.lineTo(L+pw+4,yT);g.stroke();g.setLineDash([]);
-    g.fillStyle='#111';g.font='13px KaTeX_Main,serif';g.textAlign='right';g.fillText(t.toFixed(dec),L-7,yT);g.textBaseline='alphabetic';
+    g.fillStyle='#111';g.font='14px KaTeX_Main,serif';g.textAlign='right';g.fillText(t.toFixed(dec),L-7,yT);g.textBaseline='alphabetic';
     // จุด: beeswarm ต่อคอลัมน์ (ชนกันในแนวตั้ง → ขยับซ้าย/ขวาสลับกัน) สีตามผล TP coral · FN ทอง · FP เขียวน้ำทะเล · TN ฟ้า
     var r=D.all.length<=20?6:5,gap=2*r+1.5;
     // dot histogram แนวตั้ง: ช่องคะแนนคงที่บนแกน (ไม่ขึ้นกับ threshold → เลื่อน threshold แล้วจุดไม่กระโดด) เรียงเป็นแถวออกจากกลางคอลัมน์
@@ -273,8 +274,8 @@
     g.save();g.beginPath();g.rect(L,TOP,pw,ph);g.clip();swarm(D.pos,xL,true);swarm(D.neg,xR,false);g.restore();   // จุดไม่ล้นกรอบ
     // นับในมุมของแต่ละช่อง (ตัวเลขใหญ่ + ชื่อช่อง)
     // ตัวเลข + ชื่อช่องบรรทัดเดียว ที่มุมกรอบคงที่ (ไม่ล้นกรอบแม้ threshold สุดขอบ)
-    function cnt(v,lab,x,y,al,col,big){var fs=(big?21:15)+'px KaTeX_Main,serif';g.fillStyle=col;g.font=fs;var wv=g.measureText(String(v)).width;g.font='13px KaTeX_Main,serif';var wl=g.measureText(lab).width;
-      var x0=al==='left'?x:x-(wv+6+wl);g.textAlign='left';g.font=fs;g.fillText(String(v),x0,y);g.font='13px KaTeX_Main,serif';g.fillText(lab,x0+wv+6,y);}
+    function cnt(v,lab,x,y,al,col,big){var fs=(big?21:15)+'px KaTeX_Main,serif';g.fillStyle=col;g.font=fs;var wv=g.measureText(String(v)).width;g.font='14px KaTeX_Main,serif';var wl=g.measureText(lab).width;
+      var x0=al==='left'?x:x-(wv+6+wl);g.textAlign='left';g.font=fs;g.fillText(String(v),x0,y);g.font='14px KaTeX_Main,serif';g.fillText(lab,x0+wv+6,y);}
     // แถวบางกว่า 34px (threshold ใกล้สุดขอบ) → ย้ายป้ายนับออกนอกกรอบ (เหนือ/ใต้) ตัวเล็กลง ไม่ทับเส้น/จุด
     var thinA=(yT-TOP)<34,thinB=(TOP+ph-yT)<34,yA=thinA?TOP-9:TOP+24,yB=thinB?TOP+ph+15:TOP+ph-10;
     cnt(C.TP,'TP',L+8,yA,'left','#8A3B2C',!thinA);cnt(C.FP,'FP',L+pw-8,yA,'right','#2E7D70',!thinA);
@@ -288,7 +289,7 @@
     function px(f){return L+f*pw;} function py(v){return TOP+ph-v*ph;}
     g.strokeStyle='rgba(128,128,128,0.25)';g.lineWidth=1;[0.25,0.5,0.75].forEach(function(v){g.beginPath();g.moveTo(px(v),py(0));g.lineTo(px(v),py(1));g.moveTo(px(0),py(v));g.lineTo(px(1),py(v));g.stroke();});
     g.strokeStyle='rgba(128,128,128,0.6)';g.strokeRect(px(0),py(1),pw,ph);
-    g.fillStyle='rgba(128,128,128,0.9)';g.font='13px KaTeX_Main,serif';g.textAlign='center';g.textBaseline='alphabetic';
+    g.fillStyle='rgba(128,128,128,0.9)';g.font='14px KaTeX_Main,serif';g.textAlign='center';g.textBaseline='alphabetic';
     [0,0.5,1].forEach(function(v){g.fillText(v.toFixed(1),px(v),py(0)+15);});g.textAlign='right';g.textBaseline='middle';[0,0.5,1].forEach(function(v){g.fillText(v.toFixed(1),px(0)-5,py(v));});g.textBaseline='alphabetic';
     g.strokeStyle='rgba(17,17,17,0.45)';g.setLineDash([5,4]);g.beginPath();g.moveTo(px(0),py(0));g.lineTo(px(1),py(1));g.stroke();g.setLineDash([]);
     var P=R.pts;g.fillStyle='rgba(30,58,138,0.10)';g.beginPath();g.moveTo(px(0),py(0));for(i=0;i<P.length;i++)g.lineTo(px(P[i].f),py(P[i].t));g.lineTo(px(1),py(0));g.closePath();g.fill();
@@ -296,7 +297,7 @@
     var C=confusion(t),tpr=D.pos.length?C.TP/D.pos.length:0,fpr=D.neg.length?C.FP/D.neg.length:0;
     g.fillStyle=MC;g.beginPath();g.arc(px(fpr),py(tpr),5.5,0,7);g.fill();g.strokeStyle='#fff';g.lineWidth=2;g.stroke();
     // ป้าย threshold ข้างจุด: อยู่ในกรอบเสมอ ไม่ทับป้าย AUC (มุมขวาล่าง)
-    g.fillStyle='#111';g.font='13px KaTeX_Main,serif';g.textAlign='left';var tl='threshold '+t.toFixed(2),wl=g.measureText(tl).width,lx=px(fpr)+10;
+    g.fillStyle='#111';g.font='14px KaTeX_Main,serif';g.textAlign='left';var tl='threshold '+t.toFixed(2),wl=g.measureText(tl).width,lx=px(fpr)+10;
     if(lx+wl>L+pw)lx=px(fpr)-10-wl;if(lx<L)lx=L;var ly=(tpr>0.85)?py(tpr)+16:py(tpr)-8;
     if(ly>py(0.18)&&lx+wl>px(0.5))ly=py(tpr)-8;if(ly-12<TOP)ly=py(tpr)+16;
     g.fillText(tl,lx,ly);
@@ -339,13 +340,14 @@
       // โหมด x: แถบกรมท่าล้วน (แบบ 1-D Bayes) ไม่เปรียบเทียบ · โหมด p̂: เทียบกับ p̂ ≥ 0.50 แบบ Data Drift — สีแถบ+ตัวเลข เขียว = ไม่ต่ำกว่าค่าอ้างอิง · แดง = ต่ำกว่า · แถบจาง + "at 0.50 …%" = ค่าอ้างอิง
       var cmp=!!T().cmp,Gc='#3F8F6B',refTxt=isEX()?'x\\ge '+tR.toFixed(1):'0.50';
       var bar=function(i){var a=A[i],b=B[i],ok=a[1]>0,v=ok?a[0]/a[1]:0,rk=b[1]>0,r=rk?b[0]/b[1]:0,col=!cmp?MC:(v<r-0.005)?Rd:Gc;
-        return '<div class="mbar"><div class="nm"><span class="lab">'+kx((i===4?'F_1':'\\text{'+NM[i]+'}')+'\\,'+FMs[i])+'</span><span class="v" style="color:'+col+'">'
-          +kx((cmp?'\\textcolor{#6b7280}{'+(rk?Math.round(r*100):'\\text{--}')+'\\to}\\,':'')+(ok?Math.round(v*100)+'\\%':'\\text{--}'))+'</span></div>'   // compare: ค่าอ้างอิง → ค่าปัจจุบัน เช่น 99 → 100%
-          +'<div class="track">'+(cmp?'<span class="trainbar" style="width:'+(r*100)+'%;background:'+col+'"></span>':'')+'<span class="fill" style="width:'+(v*100)+'%;background:'+col+'"></span></div></div>';};
+        // แถวเดียว: ชื่อ + สูตร | แถบ (จาง = ค่าอ้างอิง) | ค่า — compare เขียน "อ้างอิง → ปัจจุบัน" เช่น 99 → 100%
+        return '<div class="mrow"><span class="lab">'+kx((i===4?'F_1':'\\text{'+NM[i]+'}')+'\\;'+FMs[i])+'</span>'
+          +'<div class="track">'+(cmp?'<span class="trainbar" style="width:'+(r*100)+'%;background:'+col+'"></span>':'')+'<span class="fill" style="width:'+(v*100)+'%;background:'+col+'"></span></div>'
+          +'<span class="v" style="color:'+col+'">'+kx((cmp?'\\textcolor{#6b7280}{'+(rk?Math.round(r*100):'\\text{--}')+'\\to}\\,':'')+(ok?Math.round(v*100)+'\\%':'\\text{--}'))+'</span></div>';};
       // หัวการ์ด: บอกว่าเป็น metric ของ threshold เดียว หรือการเปรียบเทียบระหว่าง 2 threshold (อ้างอิง → ปัจจุบัน)
       var tNow=isEX()?'x\\ge '+TMEM.ex.toFixed(1):'\\hat p\\ge '+TMEM.p.toFixed(2),tRef=isEX()?'x\\ge '+tR.toFixed(1):'\\hat p\\ge 0.50';
       var cap=cmp?'\\text{Metrics between two thresholds: }'+tRef+'\\;\\to\\;'+tNow:'\\text{Metrics at one threshold: }'+tNow;
-      document.getElementById('mbars').innerHTML='<div class="mcap">'+kx(cap)+'</div><div class="mrow2"><div class="mcol">'+bar(0)+bar(3)+bar(1)+'</div><div class="mcol">'+bar(2)+bar(4)+'</div></div>';}
+      document.getElementById('mbars').innerHTML='<div class="mcap">'+kx(cap)+'</div>'+bar(0)+bar(3)+bar(1)+bar(2)+bar(4);}   // ลำดับ: Accuracy → Precision → Recall → Specificity → F₁
     else if(k==='roc'){
       rows=[['\\text{TPR}',fr(cs('TP'),cs('TP')+'+'+cs('FN')),vv(tp,tp+'+'+fn,TP,TP+FN)],
             ['\\text{FPR}',fr(cs('FP'),cs('FP')+'+'+cs('TN')),vv(fp,fp+'+'+tn,FP,FP+TN)],

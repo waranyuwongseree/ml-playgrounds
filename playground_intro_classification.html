@@ -10,7 +10,7 @@
 <style>
   /* intro-classification — โครง/ฟอนต์ = .distcls กลาง (เหมือน 1-D Bayes); ตาราง = .mtab กลาง 15px */
   .layout{align-items:start}
-  .pg.distcls .canvasbox{height:280px}   /* คงที่ทุกโมเดล/ทุกแท็บ (กล่องคำนวณสูงไม่เท่ากัน กราฟต้องไม่เปลี่ยน) */
+  .pg.distcls .canvasbox{height:260px}   /* ขั้นต่ำของมาตรฐาน (260) — ตารางกว้างขึ้นและสมการคงขนาด 14px จึงใช้พื้นที่แนวตั้งมากขึ้น */   /* คงที่ทุกโมเดล/ทุกแท็บ (กล่องคำนวณสูงไม่เท่ากัน กราฟต้องไม่เปลี่ยน) */
   .distcls .stage{gap:6px}
   /* bivariate = แบบ 2-D Bayes: plot จตุรัส ซ้าย · confusion matrix ใหญ่ ขวา */
   .toprow{display:flex;gap:26px;align-items:center}
@@ -32,11 +32,11 @@
   .excv canvas{width:100%;height:100%;display:block;border:1px solid var(--line);border-radius:10px;background:#fff}
   /* ป้าย KaTeX ทับ canvas (ตัวแปร/ตัวห้อย/ชื่อแกน) — ขนาดเท่าฟอนต์ canvas 13px */
   .canvasbox,.excv{position:relative}
-  .cvlab{position:absolute;left:0;top:0;width:100%;height:100%;pointer-events:none;overflow:hidden;font-size:13px;line-height:1}
+  .cvlab{position:absolute;left:0;top:0;width:100%;height:100%;pointer-events:none;overflow:hidden;font-size:14px;line-height:1}   /* มาตรฐาน: ตัวอักษรบนกราฟ ≥ 14px */
   .cvlab>span{position:absolute;white-space:nowrap;color:rgba(90,90,90,0.9)}   /* เฉพาะลูกตรง — ห้ามโดน span ภายในของ KaTeX */
   .cvlab .katex{font-size:1em}
   /* กล่องคำนวณ: แต่ละบรรทัด = ชิ้น KaTeX หลายชิ้น ตัดบรรทัดระหว่างชิ้นได้ (ไม่ตัดกลางสมการ) → ไม่ถูกตัดทิ้ง */
-  .excalc{background:#fff;border:1px solid var(--line);border-radius:12px;padding:8px 14px;font-size:14px;line-height:1.5;overflow:hidden}
+  .excalc{background:#fff;border:1px solid var(--line);border-radius:12px;padding:8px 6px;font-size:14px;line-height:1.5;overflow:hidden}
   .excalc .ln{display:block;white-space:normal;margin:2px 0}
   .excalc .ln>span{display:inline-block;margin-right:.3em;vertical-align:middle}
   .excalc .katex{font-size:1em}
@@ -46,9 +46,11 @@
   .excalc .ln.lbd>.bd{flex:1;min-width:0;margin:0}
   .excalc .ln.lbd>.bd>span{display:inline-block;margin-right:.3em;vertical-align:middle;white-space:nowrap}   /* nowrap: KaTeX ยอมตัดบรรทัดที่เครื่องหมาย = ภายในชิ้นเดียวกัน → ผลลัพธ์หลุดไปบรรทัดใหม่ */
   .excalc .ln.lbd>.bd>span.nl{display:block;margin-top:2px}
-  .excalc.d2{padding:8px 10px}.excalc.d2 .ln.lbd{gap:6px}.excalc.d2 .ln.lbd>.lb{flex-basis:104px;font-size:12px}.excalc.d2 .ln.lbd>.bd{font-size:11.5px}
+  /* bivariate: สมการยาว → ป้ายกำกับขึ้นบรรทัดของตัวเอง (เนื้อสมการได้ความกว้างเต็มกล่อง) · ห้ามย่อฟอนต์ (มาตรฐาน: สมการ ≥ 14px ยาวก็ตัดบรรทัด) */
+  .excalc .ln.lbd{flex-direction:column;align-items:flex-start;gap:0}.excalc .ln.lbd>.lb{flex:none}.excalc .ln.lbd>.bd{width:100%}
+  .excalc .ln.lbd.tr>.lb:empty{display:none}
   .excalc .ln.lbd:not(.tr)+.ln.lbd,.excalc .ln.tr+.ln.lbd:not(.tr){border-top:1px solid var(--line);padding-top:2px;margin-top:2px}
-  .excalc .ln.tr{margin:0;line-height:1.22;font-size:13.5px}   /* กฎของ tree (ลึก 3 = ได้ถึง ~14 บรรทัด) → บรรทัดชิดกัน */
+  .excalc .ln.tr{margin:0;line-height:1.22;font-size:14px}   /* กฎของ tree (ลึก 3 = ได้ถึง ~14 บรรทัด) → บรรทัดชิดกัน */
   .dtab{width:100%;border-collapse:collapse;font-size:15px}
   .dtab th{background:var(--navy);color:#fff;font-weight:400;padding:5px 5px;text-align:center}
   .dtab td{padding:1px 6px;text-align:center;color:var(--ink);line-height:1.35;background:#fff}   /* ความสูงแถวเท่ากับ Classification Metrics (20 แถว + หัว ≈ 480px) → จอเตี้ยก็ยังเห็นครบ 20 แถวโดยไม่ต้องเลื่อน */
@@ -86,10 +88,9 @@
   /* model tabs: ตารางข้อมูลซ้าย + คอลัมน์ขวา (แบบ Classifier Evaluation) — ตารางยาวเกินคอลัมน์ขวาให้เลื่อนในตาราง หัวตรึง */
   .stage.mod{flex-direction:row;gap:18px;align-items:flex-start}
   .dleft{display:none;flex:0 0 auto;min-width:0;overflow-y:auto;border-radius:8px;position:relative}   /* relative: ชิ้นส่วน absolute ของ KaTeX ในแถวที่ถูกซ่อนต้องถูก clip ด้วย ไม่งั้นหน้า scroll ยาว */
-  .stage.mod .dleft{display:block;flex:0 0 300px}   /* กว้างคงที่ 300px ทั้ง Univariate และ Bivariate (5 คอลัมน์ของ bivariate ต้องการ ~295px) → ตารางและกราฟเท่ากันทุกแท็บ */
+  .stage.mod .dleft{display:block;flex:0 0 340px}   /* กว้างคงที่ทั้ง Univariate และ Bivariate = ความกว้างที่ตาราง 5 คอลัมน์ของ bivariate ต้องการที่ฟอนต์มาตรฐาน 15px (ตารางแคบ → ขยายตาราง ไม่ลดฟอนต์) */
   .main{display:flex;flex-direction:column;gap:6px;flex:1 1 auto;min-width:0}
   .dtab th{position:sticky;top:0}
-  .dtab.c5{font-size:13.5px}.dtab.c5 th{padding:5px 4px}.dtab.c5 td{padding:2px 4px}
   .dtab tr.tp td{background:#FBE9E4}.dtab tr.fn td{background:#FAEFD6}.dtab tr.fp td{background:#E3F1EE}.dtab tr.tn td{background:#E9F0F8}   /* สีแถว = สีช่อง confusion matrix */
   .below .excalc{width:100%;box-sizing:border-box}
   .pg .panel .dgrid{row-gap:5px}   /* Bivariate มี control 11 แถว (+ query point) → บีบช่องว่างให้พอดี 1 หน้า */
@@ -387,7 +388,7 @@
       g.fillStyle=fill;g.fill();g.strokeStyle=stroke;g.lineWidth=1.8;g.beginPath();for(i=0;i<=N;i++){var x2=xmin+i*dx;i===0?g.moveTo(px(x2),py(f(x2))):g.lineTo(px(x2),py(f(x2)));}g.stroke();}
     curve(EX.fn,'rgba(91,143,185,0.25)','#5B8FB9');curve(EX.fp,'rgba(224,122,95,0.25)','#E07A5F');
     g.strokeStyle='rgba(128,128,128,0.6)';g.lineWidth=1;g.beginPath();g.moveTo(L,base);g.lineTo(L+pw,base);g.stroke();
-    g.fillStyle='rgba(128,128,128,0.9)';g.font='13px KaTeX_Main,serif';g.textAlign='center';g.textBaseline='alphabetic';
+    g.fillStyle='rgba(128,128,128,0.9)';g.font='14px KaTeX_Main,serif';g.textAlign='center';g.textBaseline='alphabetic';
     for(var a=Math.ceil(xmin);a<=xmax;a+=1)g.fillText(a,px(a),base+15);
     var lb=labs(c.c);lb(EX.ax,L+pw,base+29,{align:'right'});
     lb('f(x\\mid c)',L+4,TOP-9);   // สัญลักษณ์เดียวกับสมการในกล่องคำนวณ
@@ -433,7 +434,7 @@
   function draw1(P){
     var L=30,Rm=12,pw=W-L-Rm,TOP=22,BOT=50,ph=H-TOP-BOT,xmin=P.xmin,/* L: ขอบซ้ายพอดีตัวเลข 0 / 0.5 / 1 */xmax=P.xmax,i,x,m=P.m;
     function px(x){return L+(x-xmin)/(xmax-xmin)*pw;} function py(p){return TOP+(1-p)*ph;}
-    ctx.font='13px KaTeX_Main,serif';ctx.textBaseline='middle';
+    ctx.font='14px KaTeX_Main,serif';ctx.textBaseline='middle';
     [0,0.5,1].forEach(function(p){ctx.strokeStyle=p===0.5?'rgba(17,17,17,0.55)':'rgba(128,128,128,0.35)';ctx.lineWidth=1;
       if(p===0.5)ctx.setLineDash([5,4]);ctx.beginPath();ctx.moveTo(L,py(p));ctx.lineTo(L+pw,py(p));ctx.stroke();ctx.setLineDash([]);
       ctx.fillStyle='rgba(90,90,90,0.9)';ctx.textAlign='right';ctx.fillText(p===0.5?'0.5':String(p),L-7,py(p));});
@@ -455,7 +456,7 @@
     var N=320,dx=(xmax-xmin)/N;
     ctx.strokeStyle=MC;ctx.lineWidth=2.4;ctx.beginPath();
     for(i=0;i<=N;i++){x=xmin+i*dx;var Y=py(Math.max(0,Math.min(1,m.post([x]))));i===0?ctx.moveTo(px(x),Y):ctx.lineTo(px(x),Y);}ctx.stroke();
-    ctx.font='13px KaTeX_Main,serif';
+    ctx.font='14px KaTeX_Main,serif';
     var xT=px(P.Tmain),yTop=TOP-8,yBot=py(0)+31;
     // เส้น threshold ลากยาวจากแถวป้าย FN | TP (บน) ถึงแถว TN | FP (ล่าง) → เส้นเดียวแบ่งป้ายทั้ง 4
     // k-NN / tree มีได้หลายเส้น: เส้นหลัก (ใกล้กึ่งกลาง — ป้ายนับเกาะอยู่) ลากยาว เส้นอื่นอยู่ในกรอบ · ป้าย "Threshold …" เฉพาะแบบจำลองเชิงเส้น (เส้นเดียว)
@@ -480,14 +481,14 @@
     for(i=x0;i<x1;i+=st)for(j=y0;j<y1;j+=st){var gx=xmin+(i+st/2-x0)/pw*(xmax-xmin),gy=ymin+(y1-(j+st/2))/ph*(ymax-ymin);
       ctx.fillStyle=m.post([gx,gy])>0.5?'rgba(224,122,95,0.16)':'rgba(91,143,185,0.16)';ctx.fillRect(i,j,Math.min(st,x1-i),Math.min(st,y1-j));}
     ctx.strokeStyle='rgba(128,128,128,0.45)';ctx.lineWidth=1;ctx.strokeRect(x0,y0,pw,ph);
-    ctx.fillStyle='rgba(128,128,128,0.9)';ctx.font='13px KaTeX_Main,serif';ctx.textAlign='center';ctx.textBaseline='alphabetic';
+    ctx.fillStyle='rgba(128,128,128,0.9)';ctx.font='14px KaTeX_Main,serif';ctx.textAlign='center';ctx.textBaseline='alphabetic';
     var nx=niceStep(xmin,xmax),ny=niceStep(ymin,ymax);
     for(var a=Math.ceil(xmin/nx.step)*nx.step;a<=xmax+1e-9;a+=nx.step)ctx.fillText(a.toFixed(nx.dec),px(a),y1+15);
     ctx.textAlign='right';ctx.textBaseline='middle';for(var b=Math.ceil(ymin/ny.step)*ny.step;b<=ymax+1e-9;b+=ny.step)ctx.fillText(b.toFixed(ny.dec),x0-6,py(b));
     ctx.textBaseline='alphabetic';var lb=labs(cv);lb(P.ax[1],x0+4,y0-8);lb(P.ax[0],x1,y1+30,{align:'right'});
     // ป้ายนับ TP / FN / FP / TN (แทน confusion matrix) — มุมขวาบนเหนือกรอบ สีเดียวกับช่อง
     // สัญลักษณ์ = จุดแบบเดียวกับในกราฟ: สี = actual class · ✗ = ทำนายผิด → TP ●coral · FN ⊗coral · FP ⊗ฟ้า · TN ●ฟ้า (ตัวอักษรสีเดียว อ่านง่ายกว่าแยกด้วยสีตัวหนังสือ)
-    ctx.font='13px KaTeX_Main,serif';ctx.textAlign='right';ctx.textBaseline='middle';var cxr=x1,cyr=y0-29;
+    ctx.font='14px KaTeX_Main,serif';ctx.textAlign='right';ctx.textBaseline='middle';var cxr=x1,cyr=y0-29;
     [['TN',P.TN,0,0],['FP',P.FP,0,1],['FN',P.FN,1,0],['TP',P.TP,1,1]].forEach(function(c){var s=c[0]+' '+c[1];ctx.fillStyle='#444';ctx.textAlign='right';ctx.fillText(s,cxr,cyr);
       cxr-=ctx.measureText(s).width+9;dotAt(ctx,cxr,cyr,c[2],c[3],5);cxr-=5+14;});ctx.textBaseline='alphabetic';
     var k;for(k=0;k<P.X.length;k++){var v=P.X[k],yv=P.ys[k],xp=px(v[0]),yp=py(v[1]);if(xp<x0-4||xp>x1+4||yp<y0-4||yp>y1+4)continue;
@@ -557,17 +558,13 @@
         h+=ind('\\textbf{else}'+lf(nd.right),dp);if(!nd.right.leaf)walk(nd.right,dp+1);})(f.root,0);
       // tree: ไม่แสดงความน่าจะเป็น — แทนค่า testing point แล้วได้คลาสเลย
       h+=lline('Testing point',[(D===1?'x_{\\text{test}}='+PA:'\\mathbf x_{\\text{test}}=('+PA+')')+'\\ \\textbf{then}\\ '+yh]);}
-    el.className='excalc'+(D===2?' d2':'');el.innerHTML=h;
-    // ชิ้นสมการห้ามตัดบรรทัด (nowrap) → ชิ้นที่ยาวกว่ากล่อง (ตัวเลข PDM หลายหลัก) ย่อฟอนต์ลงให้พอดี ไม่ต่ำกว่า 10px
-    Array.prototype.forEach.call(el.querySelectorAll('.bd>span:not(.nl)'),function(sp){var av=sp.parentElement.clientWidth-parseFloat(getComputedStyle(sp.parentElement).paddingLeft||0)-4,wd=sp.getBoundingClientRect().width;
-      if(wd>av&&av>0){var fs=parseFloat(getComputedStyle(sp).fontSize);sp.style.fontSize=Math.max(10,Math.floor(fs*av/wd*10)/10)+'px';}});}   // d2 = bivariate: สมการยาว → ป้ายแคบลง ตัวเล็กลงเล็กน้อย · ไม่แสดง accuracy (เรื่อง metric อยู่ใน Classification Metrics)
+    el.innerHTML=h;}   // มาตรฐานฟอนต์: สมการ ≥ 14px เสมอ — ยาวเกินกล่องให้ตัดบรรทัดระหว่างชิ้น ห้ามย่อฟอนต์ · ไม่แสดง accuracy (เรื่อง metric อยู่ใน Classification Metrics)
   // ---------- ตารางข้อมูลซ้าย: x | y | ŷ (2-D: x_1 | x_2 | y | ŷ) เรียงตาม x มากไปน้อย · สีแถว = ผล TP/FN/FP/TN ----------
   function fillModTab(S,f){var hd=document.getElementById('mthead'),tb=document.getElementById('mtbody');if(!hd||!tb)return;
     var W=function(t){return '\\textcolor{#fff}{'+t+'}';},nm=S.nm||(isPDM()?T().pdm[dsIdx].nm:null);
     var hasP=(modeM!=='tree');   // tree ให้คลาสโดยตรง ไม่แสดงคอลัมน์ p̂
     var cols=S.sym.map(function(s,i){return nm?'\\text{'+nm[i].charAt(0).toUpperCase()+nm[i].slice(1)+' }('+s+')':s;}).concat(hasP?['\\hat p']:[]).concat(['\\text{Actual}','\\text{Predicted}']);   // p̂ = ความน่าจะเป็นจากแบบจำลองที่เลือก (logistic/NB = σ(z) · k-NN = สัดส่วนเพื่อนบ้าน · tree = สัดส่วนในใบ)   // PDM: ชื่อจริง (สัญลักษณ์) · คำเดียวกับ confusion matrix
     hd.innerHTML=cols.map(function(t){return '<th>'+kx(W(t))+'</th>';}).join('');
-    document.getElementById('mtab').className='dtab'+(S.sym.length===2?' c5':'');   // 5 คอลัมน์ (bivariate + p̂) → ช่องแคบลง ไม่เบียดคอลัมน์กราฟ
     var idx=[],i;for(i=0;i<S.X.length;i++)idx.push(i);idx.sort(function(a,b){return S.X[b][0]-S.X[a][0];});
     function cls(y){return y?'\\textcolor{#B0503A}{+}':'\\textcolor{#3F6E99}{-}';}
     var h='';idx.forEach(function(i){var y=S.ys[i],ph=f.post(S.X[i]),yh=ph>0.5?1:0,k=y?(yh?'tp':'fn'):(yh?'fp':'tn');
