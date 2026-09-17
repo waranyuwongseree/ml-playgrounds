@@ -15,28 +15,29 @@
   html{scrollbar-gutter:stable}
   .distcls .stage{gap:6px}
   .stage.mod{flex-direction:row;gap:18px;align-items:flex-start}
-  .dleft{flex:0 0 356px;min-width:0;overflow-y:auto;border-radius:8px;position:relative}   /* กว้างคงที่ทั้งสองแท็บ (แท็บ 2 มีคอลัมน์ feature เพิ่ม) · relative: clip ชิ้นส่วน absolute ของ KaTeX */
+  .dleft{flex:0 0 384px;min-width:0;overflow-y:auto;overflow-x:hidden;   /* 384 = ตาราง 7 คอลัมน์ที่ฟอนต์ 15px (~360) + scrollbar แนวตั้ง → ไม่มี scroll แนวนอน */border-radius:8px;position:relative}   /* กว้างคงที่ทั้งสองแท็บ (แท็บ 2 มีคอลัมน์ feature เพิ่ม) · relative: clip ชิ้นส่วน absolute ของ KaTeX */
   .main{display:flex;flex-direction:column;gap:6px;flex:1 1 auto;min-width:0}
   .pg.distcls .canvasbox{height:clamp(230px,calc(100vh - 432px),300px);position:relative;margin:0}   /* จอสูง 650 → 252px: เหลือที่ให้กฎของ tree ลึก 3 (ยาวสุด) โดยหน้าไม่ scroll */
-  .cvlab{position:absolute;left:0;top:0;width:100%;height:100%;pointer-events:none;overflow:hidden;font-size:13px;line-height:1}
+  .cvlab{position:absolute;left:0;top:0;width:100%;height:100%;pointer-events:none;overflow:hidden;font-size:14px;line-height:1}   /* มาตรฐาน: ตัวอักษรบนกราฟ ≥ 14px */
   .cvlab>span{position:absolute;white-space:nowrap;color:rgba(90,90,90,0.9)}
   .cvlab .katex{font-size:1em}
-  .dtab{width:100%;border-collapse:collapse;font-size:13px}
-  .dtab th{background:var(--navy);color:#fff;font-weight:400;padding:5px 2px;text-align:center;position:sticky;top:0}
+  .dtab{width:100%;border-collapse:collapse;font-size:15px}   /* มาตรฐาน 15px — ตารางแคบไปให้ขยายตาราง ห้ามลดฟอนต์ */
+  .dtab th{background:var(--navy);color:#fff;font-weight:400;padding:5px 2px;text-align:center;position:sticky;top:0;z-index:3}
   .dtab td{padding:1px 2px;text-align:center;color:var(--ink);line-height:1.5;background:#fff}
   .dtab td.fe{color:#2C6B52}   /* คอลัมน์ที่สร้างเพิ่ม (engineered) */
   .dtab tr.tp td{background:#FBE9E4}.dtab tr.fn td{background:#FAEFD6}.dtab tr.fp td{background:#E3F1EE}.dtab tr.tn td{background:#E9F0F8}   /* สีแถว = ผลทำนาย */
   .dtab .katex{font-size:1em}
-  /* กล่องคำนวณ: ป้าย (เทา กว้างคงที่) | เนื้อหา — แบบเดียวกับ Intro */
-  .excalc{background:#fff;border:1px solid var(--line);border-radius:12px;padding:8px 12px;font-size:14px;line-height:1.5;overflow:hidden}
-  .excalc .ln{display:flex;align-items:center;gap:8px;margin:2px 0}
-  .excalc .ln>.lb{flex:0 0 112px;color:var(--muted);font-size:13px}
-  .excalc .ln>.bd{flex:1;min-width:0}
+  /* กล่องคำนวณ — แบบเดียวกับ Intro: ป้าย = แถบสีกรมท่าอ่อนตัวหนานำหน้า แล้วชิ้นสมการไหลต่อ · ยาวเกิน → ชิ้นถัดไปขึ้นบรรทัดใหม่ (ฟอนต์ 14px เสมอ ห้ามย่อ) */
+  .excalc{background:#fff;border:1px solid var(--line);border-radius:12px;padding:5px 6px;font-size:14px;line-height:1.38;overflow:hidden}
+  .excalc .ln{display:block;padding:1px 0}
+  .excalc .ln>.lb{display:inline-block;margin:0 10px 2px 0;padding:1px 9px;border-radius:6px;background:#E6ECF8;color:var(--navy);font-size:13px;vertical-align:middle}
+  .excalc .ln>.lb:empty{display:none}
+  .excalc .ln>.bd{display:inline}
+  .excalc .ln.tr>.bd{display:block}
   .excalc .ln>.bd>span{display:inline-block;margin-right:.35em;vertical-align:middle;white-space:nowrap}
   .excalc .ln:not(.tr)+.ln,.excalc .ln.tr+.ln:not(.tr){border-top:1px solid var(--line);padding-top:2px;margin-top:2px}
-  .excalc .ln.tr{margin:0;line-height:1.12;font-size:13px}   /* บรรทัดต่อเนื่อง (กฎของ tree ลึก 3 = ได้ถึง ~14 บรรทัด · z(x) ของ logistic) → ชิดกัน */
+  .excalc .ln.tr{margin:0;line-height:1.12;font-size:14px}   /* บรรทัดต่อเนื่อง (กฎของ tree ลึก 3 = ได้ถึง ~14 บรรทัด · z(x) ของ logistic) → ชิดกัน */
   .excalc .katex{font-size:1em}
-  .excalc.sm .ln.tr{font-size:11.5px;line-height:1.0}
   .seg2{display:flex;flex-wrap:wrap;border:1px solid var(--line);border-radius:8px;overflow:hidden;margin-bottom:6px;background:#fff}
   .seg2 button{flex:1 1 auto;font:inherit;font-size:14px;padding:6px 8px;border:0;background:#fff;color:#555;cursor:pointer;white-space:nowrap}
   .seg2 button.on{background:var(--navy);color:#fff}
@@ -209,12 +210,12 @@
     for(i=x0;i<x1;i+=st)for(j=y0;j<y1;j+=st){var gx=ax+(i+st/2-x0)/pw*(bx-ax),gy=ay+(y1-(j+st/2))/ph*(by-ay);
       g.fillStyle=M.post(phi([gx,gy],fk))>0.5?'rgba(224,122,95,0.16)':'rgba(91,143,185,0.16)';g.fillRect(i,j,Math.min(st,x1-i),Math.min(st,y1-j));}
     g.strokeStyle='rgba(128,128,128,0.45)';g.lineWidth=1;g.strokeRect(x0,y0,pw,ph);
-    g.fillStyle='rgba(128,128,128,0.9)';g.font='13px KaTeX_Main,serif';g.textAlign='center';g.textBaseline='alphabetic';for(var a=ax;a<=bx+1e-9;a+=d.tick[0])g.fillText(String(a),px(a),y1+15);
+    g.fillStyle='rgba(128,128,128,0.9)';g.font='14px KaTeX_Main,serif';g.textAlign='center';g.textBaseline='alphabetic';for(var a=ax;a<=bx+1e-9;a+=d.tick[0])g.fillText(String(a),px(a),y1+15);
     g.textAlign='right';g.textBaseline='middle';for(var b=ay;b<=by+1e-9;b+=d.tick[1])g.fillText(String(b),x0-6,py(b));g.textBaseline='alphabetic';
     var lb=labs(cv);lb('x_2',x0+4,y0-8);lb('x_1',x1,y1+29,{align:'right'});
     var r=dotR(TR.X.length);for(i=0;i<TR.X.length;i++){var v=TR.X[i];dotAt(g,px(v[0]),py(v[1]),TR.y[i],SHOW_PRED?(M.post(phi(v,fk))>0.5?1:0):TR.y[i],r);}
     if(!SHOW_PRED)return;
-    g.font='13px KaTeX_Main,serif';g.textBaseline='middle';var cxr=x1,cyr=y0-29;   // ป้ายนับ (สัญลักษณ์ = จุดแบบเดียวกับในกราฟ)
+    g.font='14px KaTeX_Main,serif';g.textBaseline='middle';var cxr=x1,cyr=y0-29;   // ป้ายนับ (สัญลักษณ์ = จุดแบบเดียวกับในกราฟ)
     [['TN',cnt.TN,0,0],['FP',cnt.FP,0,1],['FN',cnt.FN,1,0],['TP',cnt.TP,1,1]].forEach(function(c){var s=c[0]+' '+c[1];g.fillStyle='#444';g.textAlign='right';g.fillText(s,cxr,cyr);cxr-=g.measureText(s).width+9;dotAt(g,cxr,cyr,c[2],c[3],5);cxr-=5+14;});g.textBaseline='alphabetic';}
 
   // ---------- legend / table / calc ----------
@@ -228,25 +229,22 @@
     idx.forEach(function(i){var f=phi(TR.X[i],fk),p=M.post(f),yh=p>0.5?1:0,y=TR.y[i],k=SHOW_PRED?(y?(yh?'tp':'fn'):(yh?'fp':'tn')):(y?'tp':'tn');   /* ไม่แสดง predicted → สีแถวตามคลาสจริง */
       h+='<tr class="'+k+'">'+f.map(function(v,j){return '<td'+(j>=2?' class="fe"':'')+'>'+kx(v.toFixed(j<2?dm.dec[j]:2))+'</td>';}).join('')+(hasP?'<td>'+kx(p.toFixed(2))+'</td>':'')+'<td>'+kx(cls(y))+'</td>'+(SHOW_PRED?'<td>'+kx(cls(yh))+'</td>':'')+'</tr>';});
     document.getElementById('mtbody').innerHTML=h;}
-  function lline(t,parts,cls){return '<span class="ln'+(cls||'')+'"><span class="lb">'+(t?kx('\\text{'+t+'}'):'')+'</span><span class="bd">'+parts.map(function(p){return '<span>'+kx(p)+'</span>';}).join('')+'</span></span>';}
+  function lline(t,parts,cls){return '<span class="ln'+(cls||'')+'"><span class="lb">'+(t?kx('\\textbf{'+t+'}'):'')+'</span><span class="bd">'+parts.map(function(p){return '<span>'+kx(p)+'</span>';}).join('')+'</span></span>';}
   function fillCalc(M,fk,accs){var F=FT(fk),h='',fe=TABS[curTab].fe;
     if(fe)h+=lline('Features',['\\boldsymbol\\phi(\\mathbf x)=('+F.names.join(',\\ ')+')'].concat(fk==='raw'?[]:['z_j=(x_j-\\bar x_j)/s_j']),' lnwr');
     if(model==='logistic'){var zl=['z(\\mathbf x)='+(M.C[0]<0?'-':'')+num(M.C[0])];F.names.forEach(function(nm,j){zl.push(sgn(M.C[j+1])+'\\,'+nm);});   // พจน์ละชิ้น → ตัดบรรทัดระหว่างพจน์ได้
       // z(x) แยกไว้อีกบรรทัดเสมอ (รูปแบบเดียวกับ naive Bayes): สัมประสิทธิ์ของ speed ต้องเขียนแบบ ×10ⁿ จึงยาวเกินบรรทัดเดียว · ตัดบรรทัดหลังพจน์ของ x ได้
-      h+=lline('Probabilistic model',['\\hat p(\\mathbf x)=\\dfrac{1}{1+\\exp(-z(\\mathbf x))}','\\quad\\text{or}'])+lline('',zl,' tr lnwr')+lline('Decision rule',['\\text{if }\\hat p(\\mathbf x)>0.5\\text{ then }'+POS()+'\\text{, else }'+NEG()]);}
+      h+=lline('Probabilistic model',['\\hat p(\\mathbf x)=\\dfrac{1}{1+\\exp(-z(\\mathbf x))}','\\quad\\text{or}'])+lline('',zl,' tr lnwr')+lline('Decision rule',['\\text{if }\\hat p(\\mathbf x)>0.5\\text{ then }'+POS()+'\\text{,}','\\text{else }'+NEG()]);}
     else if(model==='nb'){   // naive Bayes (normal ต่อคลาสต่อ feature) เขียนเป็น logistic ของพหุนามกำลังสองได้พอดี: z = c + Σ (a_j φ_j² + b_j φ_j) — ไม่มีพจน์ไขว้
       var zp=['z(\\mathbf x)='+(M.Q.c<0?'-':'')+num(M.Q.c)];F.names.forEach(function(nm,j){var sq=(nm.indexOf('^')>=0||nm.indexOf('z_1z')>=0)?'('+nm+')^2':nm+'^2';zp.push(sgn(M.Q.a[j])+'\\,'+sq+sgn(M.Q.b[j])+'\\,'+nm);});
-      h+=lline('Probabilistic model',['\\hat p(\\mathbf x)=\\dfrac{1}{1+\\exp(-z(\\mathbf x))}','\\quad\\text{or}'])+lline('',zp,' tr lnwr')+lline('Decision rule',['\\text{if }\\hat p(\\mathbf x)>0.5\\text{ then }'+POS()+'\\text{, else }'+NEG()]);}
+      h+=lline('Probabilistic model',['\\hat p(\\mathbf x)=\\dfrac{1}{1+\\exp(-z(\\mathbf x))}','\\quad\\text{or}'])+lline('',zp,' tr lnwr')+lline('Decision rule',['\\text{if }\\hat p(\\mathbf x)>0.5\\text{ then }'+POS()+'\\text{,}','\\text{else }'+NEG()]);}
     else if(model==='knn')h+=lline('Probabilistic model',['\\hat p(\\mathbf x)=\\dfrac{1}{k}\\sum_{i\\in N_k(\\mathbf x)}y_i,','k='+M.k,'\\quad\\text{or}'])+lline('Decision rule',[M.k===1?'y=\\text{class of the nearest point}':'y=\\text{majority of the }'+M.k+'\\text{ nearest points}']);
-    else{var first=true,ind=function(tex,dp){var t=first?'Decision rule':'';first=false;return '<span class="ln tr"><span class="lb">'+(t?kx('\\text{'+t+'}'):'')+'</span><span class="bd" style="padding-left:'+(dp*24)+'px"><span>'+kx(tex)+'</span></span></span>';};
+    else{var first=true,ind=function(tex,dp){var t=first?'Decision rule':'';first=false;return '<span class="ln tr"><span class="lb">'+(t?kx('\\textbf{'+t+'}'):'')+'</span><span class="bd" style="padding-left:'+(dp*24)+'px"><span>'+kx(tex)+'</span></span></span>';};
       (function walk(nd,dp){if(nd.leaf){h+=ind('\\text{always }'+(nd.p>0.5?POS():NEG()),dp);return;}var lf=function(k){return k.leaf?'\\ '+(k.p>0.5?POS():NEG()):'';};
         h+=ind('\\textbf{if }'+F.names[nd.f]+'<'+nd.t.toFixed(nd.f<2?Math.max(1,DM().dec[nd.f]):2)+'\\textbf{ then}'+lf(nd.left),dp);if(!nd.left.leaf)walk(nd.left,dp+1);h+=ind('\\textbf{else}'+lf(nd.right),dp);if(!nd.right.leaf)walk(nd.right,dp+1);})(M.root,0);}
     // เทียบ: แท็บ 1 = 4 แบบจำลองบน feature ดิบ · แท็บ 2 = 3 ชุด feature ของแบบจำลองที่เลือก (ตัวที่กำลังแสดง = ตัวหนาสีกรมท่า)
     if(SHOW_ACC)h+=lline('Test accuracy',accs.map(function(a){return (a.on?'\\textcolor{'+MC+'}{\\boldsymbol{':'{{')+a.n+'\\ '+a.v.toFixed(2)+'}}'+(a.last?'':'\\ \\cdot');}),' lnwr');   /* ชื่อคลาสห้ามใช้ "wrap" — ชนกับ .wrap (กรอบหน้า) ใน pg_style.css */   // ยาวเกิน → ตัดบรรทัดระหว่างรายการ (ไม่ย่อฟอนต์)
-    var el=document.getElementById('mcalc');el.innerHTML=h;
-    el.className='excalc'+(el.querySelectorAll('.ln.tr').length>9?' sm':'');   // กฎของ tree ยาว (ลึก 3 เต็มต้น ≈ 14 บรรทัด) → ตัวเล็กลง บรรทัดชิดขึ้น หน้าไม่ scroll
-    Array.prototype.forEach.call(el.querySelectorAll('.ln:not(.lnwr)>.bd'),function(bd){var av=bd.clientWidth-parseFloat(bd.style.paddingLeft||0)-4,w=0;Array.prototype.forEach.call(bd.children,function(s){w+=s.getBoundingClientRect().width+5;});
-      if(w>av&&av>0){var fs=parseFloat(getComputedStyle(bd).fontSize);bd.style.fontSize=Math.max(10,Math.floor(fs*av/w*10)/10)+'px';}});}
+    document.getElementById('mcalc').innerHTML=h;}   // ห้ามย่อฟอนต์ให้พอดีกล่อง (มาตรฐาน: สมการ ≥ 14px) — ยาวเกินให้ตัดบรรทัดระหว่างชิ้น
 
   // ---------- static labels ----------
   var MT={'h1':'\\text{Model \\& Feature Comparison}','hd-pat':'\\text{Data}','hd-model':'\\text{Model}','hd-hp':'\\text{Model setting}','hd-feat':'\\text{Features}',
