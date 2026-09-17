@@ -41,7 +41,7 @@
   .main #grp-met .mtab,.main #grp-met .mtab th,.main #grp-met .mtab td{font-size:15px}
   .pg.distcls .canvasbox{flex:1 1 auto;width:100%;height:var(--sq)}
   /* แท็บที่มีตาราง metric 7 แถวใต้กราฟ: สูงของรูป = ที่เหลือจากหัว + legend + ตาราง (≈410px) → ยังพอดี 1 หน้า */
-  .pg.distcls .main:not(.roc) .canvasbox{height:clamp(200px,calc(100vh - 306px),400px)}
+  .pg.distcls .main:not(.roc) .canvasbox{height:clamp(200px,calc(100vh - 332px),400px)}
   .toprow{display:flex;gap:16px;align-items:center}
   .toprow .canvasbox{margin:0}
   .rocbox{display:none;width:100%;height:var(--sq);box-sizing:border-box;background:#fff;border:1px solid var(--line);border-radius:12px;position:relative}
@@ -69,10 +69,12 @@
   .pg .mtab th{white-space:normal}
   .pg .mtab th.r{text-align:right;white-space:nowrap}
   /* แถบ metric 2 คอลัมน์ (แบบ 1-D Bayes) — การ์ดขาว */
-  .mbarsbox{display:flex;gap:16px;align-items:flex-start;border:1px solid var(--line);border-radius:12px;padding:9px 10px;background:#fff;box-shadow:0 1px 3px rgba(0,0,0,.04)}
-  .distcls .mbarsbox .mbar .nm{font-size:13px}.mbarsbox .katex{font-size:1em}
+  .mbarsbox .mrow2{display:flex;gap:10px;align-items:flex-start}
+  .mbarsbox .mcap{font-size:14px;color:var(--muted);margin:0 0 7px;white-space:nowrap;overflow:hidden}
+  .mbarsbox{border:1px solid var(--line);border-radius:12px;padding:9px 6px;background:#fff;box-shadow:0 1px 3px rgba(0,0,0,.04)}
+  .distcls .mbarsbox .mbar .nm{font-size:12.5px;gap:6px}.mbarsbox .katex{font-size:1em}
   .distcls .mbarsbox .mbar .nm .lab{white-space:nowrap}
-  .distcls .mbarsbox .mcol:first-child{flex:1.1}   /* คอลัมน์ซ้ายสูตรยาวกว่า */
+  .distcls .mbarsbox .mcol:first-child{flex:1.13}   /* คอลัมน์ซ้ายสูตรยาวกว่า */
   .mbarsbox .trow{display:flex;align-items:center;gap:6px}.mbarsbox .trow .track{flex:1}
   .mbarsbox .trow .tr{flex:none;white-space:nowrap;text-align:right;font-size:11.5px;color:#6b7280;line-height:1}
   /* หัวตาราง metric: พื้นกรมท่า ตัวขาว เหมือนหัวตารางข้อมูลด้านซ้าย → แยกจากแถวเนื้อหาชัดเจน */
@@ -337,10 +339,13 @@
       // โหมด x: แถบกรมท่าล้วน (แบบ 1-D Bayes) ไม่เปรียบเทียบ · โหมด p̂: เทียบกับ p̂ ≥ 0.50 แบบ Data Drift — สีแถบ+ตัวเลข เขียว = ไม่ต่ำกว่าค่าอ้างอิง · แดง = ต่ำกว่า · แถบจาง + "at 0.50 …%" = ค่าอ้างอิง
       var cmp=!!T().cmp,Gc='#3F8F6B',refTxt=isEX()?'x\\ge '+tR.toFixed(1):'0.50';
       var bar=function(i){var a=A[i],b=B[i],ok=a[1]>0,v=ok?a[0]/a[1]:0,rk=b[1]>0,r=rk?b[0]/b[1]:0,col=!cmp?MC:(v<r-0.005)?Rd:Gc;
-        return '<div class="mbar"><div class="nm"><span class="lab">'+kx((i===4?'F_1':'\\text{'+NM[i]+'}')+'\\;'+FMs[i])+'</span><span class="v" style="color:'+col+'">'+kx(ok?Math.round(v*100)+'\\%':'\\text{--}')+'</span></div>'
-          +'<div class="trow"><div class="track">'+(cmp?'<span class="trainbar" style="width:'+(r*100)+'%;background:'+col+'"></span>':'')+'<span class="fill" style="width:'+(v*100)+'%;background:'+col+'"></span></div>'
-          +(cmp?'<span class="tr">'+kx('\\text{at }'+refTxt+'\\;\\,'+(rk?Math.round(r*100)+'\\%':'\\text{--}'))+'</span>':'')+'</div></div>';};
-      document.getElementById('mbars').innerHTML='<div class="mcol">'+bar(1)+bar(2)+bar(3)+'</div><div class="mcol">'+bar(0)+bar(4)+'</div>';}
+        return '<div class="mbar"><div class="nm"><span class="lab">'+kx((i===4?'F_1':'\\text{'+NM[i]+'}')+'\\;'+FMs[i])+'</span><span class="v" style="color:'+col+'">'
+          +kx((cmp?'\\textcolor{#6b7280}{'+(rk?Math.round(r*100):'\\text{--}')+'\\to}\\,':'')+(ok?Math.round(v*100)+'\\%':'\\text{--}'))+'</span></div>'   // compare: ค่าอ้างอิง → ค่าปัจจุบัน เช่น 99 → 100%
+          +'<div class="track">'+(cmp?'<span class="trainbar" style="width:'+(r*100)+'%;background:'+col+'"></span>':'')+'<span class="fill" style="width:'+(v*100)+'%;background:'+col+'"></span></div></div>';};
+      // หัวการ์ด: บอกว่าเป็น metric ของ threshold เดียว หรือการเปรียบเทียบระหว่าง 2 threshold (อ้างอิง → ปัจจุบัน)
+      var tNow=isEX()?'x\\ge '+TMEM.ex.toFixed(1):'\\hat p\\ge '+TMEM.p.toFixed(2),tRef=isEX()?'x\\ge '+tR.toFixed(1):'\\hat p\\ge 0.50';
+      var cap=cmp?'\\text{Metrics between two thresholds: }'+tRef+'\\;\\to\\;'+tNow:'\\text{Metrics at one threshold: }'+tNow;
+      document.getElementById('mbars').innerHTML='<div class="mcap">'+kx(cap)+'</div><div class="mrow2"><div class="mcol">'+bar(1)+bar(2)+bar(3)+'</div><div class="mcol">'+bar(0)+bar(4)+'</div></div>';}
     else if(k==='roc'){
       rows=[['\\text{TPR}',fr(cs('TP'),cs('TP')+'+'+cs('FN')),vv(tp,tp+'+'+fn,TP,TP+FN)],
             ['\\text{FPR}',fr(cs('FP'),cs('FP')+'+'+cs('TN')),vv(fp,fp+'+'+tn,FP,FP+TN)],
