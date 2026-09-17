@@ -1,0 +1,264 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Model & Feature Comparison</title>
+<link rel="stylesheet" href="pg_style.css?v=24">
+<link rel="stylesheet" href="vendor/katex/katex.min.css">
+<script src="vendor/katex/katex.min.js"></script>
+<style>
+  /* Model & Feature Comparison — โครง/ฟอนต์ = .distcls กลาง (เหมือน Introduction to Classification)
+     ซ้าย = ตารางเปรียบเทียบ (แบบจำลอง × ชุด feature) · กลาง = กราฟเส้นแบ่ง + คำอธิบาย · ขวา = control */
+  .layout{align-items:start}
+  html{scrollbar-gutter:stable}
+  .distcls .stage{gap:6px}
+  .stage.mod{flex-direction:row;gap:18px;align-items:flex-start}
+  .cleft{flex:0 0 300px;min-width:0}
+  .main{display:flex;flex-direction:column;gap:6px;flex:1 1 auto;min-width:0}
+  .pg.distcls .canvasbox{height:clamp(260px,calc(100vh - 282px),420px);position:relative;margin:0}   /* กราฟสูงตามจอ: กราฟ + legend + กล่องคำอธิบาย พอดี 1 หน้า */
+  .cvlab{position:absolute;left:0;top:0;width:100%;height:100%;pointer-events:none;overflow:hidden;font-size:13px;line-height:1}
+  .cvlab>span{position:absolute;white-space:nowrap;color:rgba(90,90,90,0.9)}   /* เฉพาะลูกตรง — ห้ามโดน span ภายในของ KaTeX */
+  .cvlab .katex{font-size:1em}
+  /* ตารางเปรียบเทียบ: หัวกรมท่า · ช่อง = test accuracy · คลิกช่องเพื่อเลือก (แบบจำลอง, feature) */
+  .ctab{width:100%;border-collapse:separate;border-spacing:0;font-size:15px;background:#fff;border-radius:8px;overflow:hidden}
+  .ctab th{background:var(--navy);color:#fff;font-weight:400;padding:6px 6px;text-align:center}
+  .ctab th:first-child,.ctab td:first-child{text-align:left;padding-left:10px;white-space:nowrap}
+  .ctab td{padding:9px 6px;text-align:center;color:var(--ink);border-top:1px solid var(--line);font-variant-numeric:tabular-nums}
+  .ctab td.c{cursor:pointer}
+  .ctab td.c:hover{background:#f1f4f9}
+  .ctab td.best{background:#E6F2EC;color:#2C6B52}                    /* ค่าสูงสุดของตาราง (sage อ่อน) */
+  .ctab td.sel{box-shadow:inset 0 0 0 2px var(--navy);font-weight:700}   /* ช่องที่กำลังแสดงในกราฟ */
+  .ctab tr.selrow td:first-child{color:var(--navy);font-weight:700}
+  .ctab .katex{font-size:1em}
+  .ccap{font-size:13px;color:var(--muted);margin-top:6px;line-height:1.4}
+  .ccap .katex{font-size:1em}
+  /* กล่องคำอธิบาย: ป้าย (เทา กว้างคงที่) | เนื้อหา — แบบเดียวกับกล่องคำนวณของ Intro */
+  .excalc{background:#fff;border:1px solid var(--line);border-radius:12px;padding:8px 14px;font-size:14px;line-height:1.5;overflow:hidden}
+  .excalc .ln{display:flex;align-items:center;gap:10px;margin:2px 0}
+  .excalc .ln>.lb{flex:0 0 96px;color:var(--muted);font-size:13px}
+  .excalc .ln>.bd{flex:1;min-width:0}
+  .excalc .ln>.bd>span{display:inline-block;margin-right:.35em;vertical-align:middle;white-space:nowrap}
+  .excalc .ln+.ln{border-top:1px solid var(--line);padding-top:2px;margin-top:2px}
+  .excalc .katex{font-size:1em}
+  .seg2{display:flex;flex-wrap:wrap;border:1px solid var(--line);border-radius:8px;overflow:hidden;margin-bottom:6px;background:#fff}
+  .seg2 button{flex:1 1 auto;font:inherit;font-size:14px;padding:6px 8px;border:0;background:#fff;color:#555;cursor:pointer;white-space:nowrap}
+  .seg2 button.on{background:var(--navy);color:#fff}
+  .seg2 .katex{font-size:1em}
+  .seg2.two button{flex:1 1 50%}   /* 4 รูปแบบข้อมูล → 2 × 2 */
+  .tgls{display:flex;flex-direction:column;gap:9px;margin-top:10px}
+  .pg .panel .dgrid{row-gap:5px}
+  @media(max-width:820px){.stage.mod{flex-direction:column}.cleft{flex:none;width:100%}.pg .layout>.panel{position:static}}
+</style>
+</head>
+<body class="pg distcls">
+<div class="wrap">
+  <div class="hdr"><h1 id="h1">Model &amp; Feature Comparison</h1></div>
+
+  <div class="layout" id="mainPanel">
+    <div class="stage mod">
+      <!-- ซ้าย: test accuracy ของทุกคู่ (แบบจำลอง × ชุด feature) บนข้อมูลชุดเดียวกัน -->
+      <div class="cleft">
+        <table class="ctab" id="ctab"><thead><tr id="chead"></tr></thead><tbody id="cbody"></tbody></table>
+        <div class="ccap" id="ccap"></div>
+      </div>
+      <!-- กลาง: เส้นแบ่งของคู่ที่เลือก + คำอธิบาย -->
+      <div class="main" id="main">
+        <div class="canvasbox"><canvas id="cv"></canvas></div>
+        <div class="classleg" id="classleg"></div>
+        <div class="excalc" id="info"></div>
+      </div>
+    </div>
+
+    <!-- CONTROL -->
+    <div class="panel">
+      <div id="grp-pat"><div class="dhd" id="hd-pat"></div>
+      <div class="seg2 two" id="patSeg"><button data-v="line" id="pt-line" class="on"></button><button data-v="box" id="pt-box"></button><button data-v="circle" id="pt-circle"></button><button data-v="disagree" id="pt-disagree"></button></div></div>
+      <div id="grp-model"><div class="dhd" id="hd-model"></div>
+      <div class="seg2" id="modelSeg"><button data-v="knn" id="sb-knn" class="on"></button><button data-v="tree" id="sb-tree"></button><button data-v="nb" id="sb-nb"></button><button data-v="logistic" id="sb-logistic"></button></div></div>
+      <div id="grp-feat"><div class="dhd" id="hd-feat"></div>
+      <div class="seg2" id="featSeg"><button data-v="raw" id="ft-raw" class="on"></button><button data-v="sq" id="ft-sq"></button><button data-v="int" id="ft-int"></button></div></div>
+      <div id="grp-data"><div class="dhd" id="hd-data"></div>
+      <div class="dgrid">
+        <div class="drow" id="row-n"><span class="dlab" id="lbl-n"></span><input type="range" id="Rn" min="40" max="400" step="20" value="200"><input class="num" type="number" id="Nn" min="40" max="400" step="20" value="200"></div>
+        <div class="drow" id="row-noise"><span class="dlab" id="lbl-noise"></span><input type="range" id="Rnoise" min="0" max="0.2" step="0.01" value="0.06"><input class="num" type="number" id="Nnoise" min="0" max="0.2" step="0.01" value="0.06"></div>
+      </div></div>
+      <div id="grp-rs" class="tgls"><button class="primary" id="resample" style="width:100%"></button></div>
+    </div>
+  </div>
+</div>
+
+<script>
+(function(){
+  "use strict";
+  /* ==========================================================================================
+     MODEL & FEATURE COMPARISON — รวม "Model comparison" กับ "Feature engineering" เป็นหน้าเดียว
+     คำถามเดียว: รูปร่างของเส้นแบ่งที่ต้องการ (คุณสมบัติของข้อมูล) ได้มาจากไหน —
+       จากแบบจำลองที่ยืดหยุ่น (k-NN, tree) หรือจาก feature ที่เพิ่มให้แบบจำลองเชิงเส้น (x², x₁x₂)
+     ข้อมูล 4 รูปแบบ ตั้งให้ผู้ชนะไม่ซ้ำกัน → อ่านตารางเป็น "อันดับแบบจำลอง" ไม่ได้:
+       Line      เส้นตรง           → logistic / naive Bayes ด้วย feature ดิบก็พอ
+       Box       กล่องขนานแกน      → tree
+       Circle    วงกลม             → logistic + squares
+       Disagree  สองมุมตรงข้าม     → logistic + interaction (x₁x₂ → hyperbola)
+     วิธีวัด: แบ่ง train/test 70/30 แบบ stratified ซ้ำ SPL ครั้ง · ตาราง = ค่าเฉลี่ย test accuracy
+     กราฟ = การแบ่งครั้งแรก (จุด test มีขอบเข้ม)
+     ========================================================================================== */
+  var LO=0,HI=10,SPL=10,HOLD=0.7,KNN_K=5,TREE_DEPTH=4,MINLEAF=5;
+  var MODELS=[{k:'knn',n:'k\\text{-NN}'},{k:'tree',n:'\\text{Tree}'},{k:'nb',n:'\\text{Naive Bayes}'},{k:'logistic',n:'\\text{Logistic}'}];
+  var FEATS=[{k:'raw',n:'\\text{Raw}',tex:'x_1,\\ x_2'},{k:'sq',n:'+\\,x^2',tex:'x_1,\\ x_2,\\ x_1^2,\\ x_2^2'},{k:'int',n:'+\\,x_1x_2',tex:'x_1,\\ x_2,\\ x_1x_2'}];
+  var PATS={line:'\\text{Line}',box:'\\text{Box}',circle:'\\text{Circle}',disagree:'\\text{Disagree}'};
+  var MC='#1e3a8a',Rd='#B0503A',Bl='#3F6E99';
+  var pat='line',model='knn',feat='raw',seed=20260917;
+
+  // ---------- rng + cached draws (คงที่ขณะเลื่อน slider · Resample สุ่มใหม่) ----------
+  function mulberry32(a){return function(){a|=0;a=a+0x6D2B79F5|0;var t=Math.imul(a^a>>>15,1|a);t=t+Math.imul(t^t>>>7,61|t)^t;return((t^t>>>14)>>>0)/4294967296;};}
+  var MAXN=400,U1=[],U2=[],UF=[],PERMS=[];
+  function regen(s){var r=mulberry32(s),i,j;U1=[];U2=[];UF=[];PERMS=[];
+    for(i=0;i<MAXN;i++){U1.push(r());U2.push(r());UF.push(r());}
+    for(j=0;j<SPL;j++){var p=[];for(i=0;i<MAXN;i++)p.push(r());PERMS.push(p);}}
+  regen(seed);
+  function gv(b){return parseFloat(document.getElementById('R'+b).value);}
+
+  // ---------- data ----------
+  function isPos(p,a,b){   // positive = fault
+    if(p==='line')return a+b>11;
+    if(p==='box')return !(a>=2.5&&a<=7.5&&b>=2.5&&b<=7.5);
+    if(p==='circle')return Math.sqrt((a-5)*(a-5)+(b-5)*(b-5))>3.4;
+    return Math.abs(a-b)>4;}
+  var DATA=null;
+  function build(){var n=Math.round(gv('n')),noise=gv('noise'),X=[],y=[],i,c;
+    for(i=0;i<n;i++){var a=LO+(HI-LO)*U1[i],b=LO+(HI-LO)*U2[i],l=isPos(pat,a,b)?1:0;if(UF[i]<noise)l=1-l;X.push([a,b]);y.push(l);}
+    var mu=[0,0],sd=[1,1];for(c=0;c<2;c++){var m=0,q=0;for(i=0;i<n;i++)m+=X[i][c];m/=n;for(i=0;i<n;i++)q+=(X[i][c]-m)*(X[i][c]-m);mu[c]=m;sd[c]=Math.sqrt(q/Math.max(1,n-1))||1;}
+    // split: stratified 70/30 จากลำดับสุ่มที่เก็บไว้ (คลาสละชุด)
+    var splits=[];for(var s=0;s<SPL;s++){var tr=[],te=[];[0,1].forEach(function(cl){var idx=[];for(i=0;i<n;i++)if(y[i]===cl)idx.push(i);
+        idx.sort(function(u,v){return PERMS[s][u]-PERMS[s][v];});var cut=Math.round(idx.length*HOLD);idx.forEach(function(id,j){(j<cut?tr:te).push(id);});});splits.push({tr:tr,te:te});}
+    DATA={X:X,y:y,n:n,mu:mu,sd:sd,splits:splits};}
+  function phi(x,fk){var a=(x[0]-DATA.mu[0])/DATA.sd[0],b=(x[1]-DATA.mu[1])/DATA.sd[1];   // feature สร้างจากค่าที่ standardise แล้ว
+    return fk==='raw'?[a,b]:fk==='sq'?[a,b,a*a,b*b]:[a,b,a*b];}
+
+  // ---------- models: fit(F, y) → predict(f) ให้ความน่าจะเป็นของคลาสบวก ----------
+  function fitKNN(F,y){var n=F.length,k=Math.min(KNN_K,n);   // เก็บ k ระยะที่สั้นที่สุดแบบ insertion (ไม่ sort ทั้งชุด — เร็วกว่ามากตอนวาดพื้น)
+    return function(f){var bd=[],bl=[],i,d,j;for(i=0;i<n;i++){var s=0;for(d=0;d<f.length;d++){var t=F[i][d]-f[d];s+=t*t;}
+        if(bd.length<k||s<bd[bd.length-1]){j=bd.length;if(j===k)j=k-1;else{bd.push(0);bl.push(0);}while(j>0&&bd[j-1]>s){bd[j]=bd[j-1];bl[j]=bl[j-1];j--;}bd[j]=s;bl[j]=y[i];}}
+      var c=0;for(i=0;i<bl.length;i++)c+=bl[i];return c/bl.length;};}
+  function gini(p){return 2*p*(1-p);}
+  function fitTree(F,y){var D=F[0].length,all=[],i;for(i=0;i<F.length;i++)all.push(i);
+    function bld(idx,dep){var m=idx.length,pos=0,j;for(j=0;j<m;j++)pos+=y[idx[j]];var p=pos/m;
+      if(dep>=TREE_DEPTH||m<2*MINLEAF||pos===0||pos===m)return {leaf:true,p:p};
+      var best=null;for(var f=0;f<D;f++){var srt=idx.slice().sort(function(u,v){return F[u][f]-F[v][f];}),lp=0;
+        for(j=1;j<m;j++){lp+=y[srt[j-1]];if(j<MINLEAF||m-j<MINLEAF||F[srt[j]][f]===F[srt[j-1]][f])continue;
+          var g=(j*gini(lp/j)+(m-j)*gini((pos-lp)/(m-j)))/m;if(best===null||g<best.g)best={g:g,f:f,t:(F[srt[j-1]][f]+F[srt[j]][f])/2};}}
+      if(!best||best.g>=gini(p)-1e-9)return {leaf:true,p:p};
+      var L=[],R=[];for(j=0;j<m;j++)(F[idx[j]][best.f]<best.t?L:R).push(idx[j]);
+      return {leaf:false,f:best.f,t:best.t,l:bld(L,dep+1),r:bld(R,dep+1)};}
+    var root=bld(all,0);return function(f){var nd=root;while(!nd.leaf)nd=f[nd.f]<nd.t?nd.l:nd.r;return nd.p;};}
+  function fitNB(F,y){var D=F[0].length,st=[[],[]],cnt=[0,0],c,d,i;
+    for(c=0;c<2;c++)for(d=0;d<D;d++){var m=0,q=0,k=0;for(i=0;i<F.length;i++)if(y[i]===c){m+=F[i][d];k++;}m/=Math.max(1,k);
+      for(i=0;i<F.length;i++)if(y[i]===c)q+=(F[i][d]-m)*(F[i][d]-m);st[c].push([m,Math.max(1e-4,q/Math.max(1,k))]);cnt[c]=k;}
+    var lp=[Math.log(Math.max(1e-9,cnt[0]/F.length)),Math.log(Math.max(1e-9,cnt[1]/F.length))];
+    return function(f){var s=[lp[0],lp[1]];for(c=0;c<2;c++)for(d=0;d<D;d++){var v=st[c][d][1],t=f[d]-st[c][d][0];s[c]+=-0.5*Math.log(v)-t*t/(2*v);}
+      return 1/(1+Math.exp(s[0]-s[1]));};}
+  function solve(A,b){var n=b.length,i,j,k;for(i=0;i<n;i++){var p=i;for(k=i+1;k<n;k++)if(Math.abs(A[k][i])>Math.abs(A[p][i]))p=k;var t=A[i];A[i]=A[p];A[p]=t;var tb=b[i];b[i]=b[p];b[p]=tb;
+      if(Math.abs(A[i][i])<1e-12)continue;for(k=i+1;k<n;k++){var f=A[k][i]/A[i][i];for(j=i;j<n;j++)A[k][j]-=f*A[i][j];b[k]-=f*b[i];}}
+    var x=new Array(n);for(i=n-1;i>=0;i--){var s=b[i];for(j=i+1;j<n;j++)s-=A[i][j]*x[j];x[i]=Math.abs(A[i][i])<1e-12?0:s/A[i][i];}return x;}
+  function fitLogistic(F,y){var D=F[0].length+1,w=[],i,d,e,it;for(d=0;d<D;d++)w.push(0);   // IRLS + ridge เล็กน้อย (ข้อมูลแยกขาดก็ไม่ลู่ออก)
+    for(it=0;it<20;it++){var H=[],g=[];for(d=0;d<D;d++){g.push(0);H.push(new Array(D).fill(0));}
+      for(i=0;i<F.length;i++){var x=[1].concat(F[i]),z=0;for(d=0;d<D;d++)z+=w[d]*x[d];var p=1/(1+Math.exp(-z)),r=Math.max(1e-6,p*(1-p));
+        for(d=0;d<D;d++){g[d]+=(y[i]-p)*x[d];for(e=0;e<D;e++)H[d][e]+=r*x[d]*x[e];}}
+      for(d=0;d<D;d++){H[d][d]+=1e-2;g[d]-=1e-2*w[d];}
+      var st=solve(H,g),mx=0;for(d=0;d<D;d++){w[d]+=st[d];mx=Math.max(mx,Math.abs(st[d]));}if(mx<1e-6)break;}
+    return function(f){var z=w[0];for(var d2=0;d2<f.length;d2++)z+=w[d2+1]*f[d2];return 1/(1+Math.exp(-z));};}
+  var FIT={knn:fitKNN,tree:fitTree,nb:fitNB,logistic:fitLogistic};
+  function run(mk,fk,sp){var F=[],y=[],i;sp.tr.forEach(function(id){F.push(phi(DATA.X[id],fk));y.push(DATA.y[id]);});
+    var pr=FIT[mk](F,y),acc=function(ids){var ok=0;ids.forEach(function(id){if(((pr(phi(DATA.X[id],fk))>0.5)?1:0)===DATA.y[id])ok++;});return ids.length?ok/ids.length:0;};
+    return {pr:pr,train:acc(sp.tr),test:acc(sp.te)};}
+
+  // ---------- ตารางเปรียบเทียบ: ค่าเฉลี่ยจาก SPL การแบ่ง ----------
+  var GRID={};
+  function computeGrid(){GRID={};MODELS.forEach(function(m){FEATS.forEach(function(f){var tr=0,te=0;DATA.splits.forEach(function(sp){var r=run(m.k,f.k,sp);tr+=r.train;te+=r.test;});
+      GRID[m.k+'|'+f.k]={train:tr/SPL,test:te/SPL};});});}
+  function kx(t){try{return katex.renderToString(t,{throwOnError:false});}catch(e){return t;}}
+  function K(t,el){if(!el)return;try{katex.render(t,el,{throwOnError:false});}catch(e){el.textContent=t;}}
+  function W(t){return '\\textcolor{#fff}{'+t+'}';}
+  function fillGrid(){var best=-1,k;for(k in GRID)best=Math.max(best,GRID[k].test);
+    document.getElementById('chead').innerHTML='<th>'+kx(W('\\text{Test accuracy}'))+'</th>'+FEATS.map(function(f){return '<th>'+kx(W(f.n))+'</th>';}).join('');
+    document.getElementById('cbody').innerHTML=MODELS.map(function(m){return '<tr class="'+(m.k===model?'selrow':'')+'"><td>'+kx(m.n)+'</td>'+FEATS.map(function(f){var g=GRID[m.k+'|'+f.k];
+        return '<td class="c'+(Math.abs(g.test-best)<0.0049?' best':'')+((m.k===model&&f.k===feat)?' sel':'')+'" data-m="'+m.k+'" data-f="'+f.k+'">'+kx(g.test.toFixed(2))+'</td>';}).join('')+'</tr>';}).join('');}
+
+  // ---------- canvas ----------
+  var cv=document.getElementById('cv'),ctx=cv.getContext('2d'),W_=600,H_=300,SC=1;
+  function sizeCanvas(){var w=Math.round(cv.clientWidth)||600,h=Math.round(cv.clientHeight)||300,dpr=window.devicePixelRatio||1;W_=w;H_=h;SC=dpr;cv.width=Math.round(w*dpr);cv.height=Math.round(h*dpr);}
+  function labs(c){var p=c.parentElement,Ly=p.querySelector('.cvlab');if(!Ly){Ly=document.createElement('div');Ly.className='cvlab';p.appendChild(Ly);}Ly.innerHTML='';
+    return function(tex,x,y,o){o=o||{};var s=document.createElement('span');K(tex,s);if(o.color)s.style.color=o.color;
+      var pr=document.createElement('span');pr.style.cssText='display:inline-block;width:0;height:0;vertical-align:baseline';s.appendChild(pr);
+      s.style.left=x+'px';s.style.top='0px';s.style.transform='translateX('+(o.align==='right'?'-100%':o.align==='center'?'-50%':'0')+')';Ly.appendChild(s);
+      var sr=s.getBoundingClientRect(),base=pr.getBoundingClientRect().top-sr.top;s.style.top=(y-base)+'px';};}
+  // จุด: สี = actual class · ✗ ขาว = ทำนายผิด · ขอบเข้ม = จุด test (ไม่ได้ใช้ฟิตแบบจำลอง)
+  function dotAt(g,x,y,yv,pr,r,test){g.fillStyle=yv?'rgba(224,122,95,0.92)':'rgba(91,143,185,0.88)';g.beginPath();g.arc(x,y,r,0,7);g.fill();
+    if(test){g.strokeStyle='#222';g.lineWidth=1.4;g.beginPath();g.arc(x,y,r+0.5,0,7);g.stroke();}
+    if(pr!==yv){var q=r*0.6;g.strokeStyle='#fff';g.lineWidth=1.7;g.beginPath();g.moveTo(x-q,y-q);g.lineTo(x+q,y+q);g.moveTo(x+q,y-q);g.lineTo(x-q,y+q);g.stroke();}}
+  function draw(R0){var g=ctx;g.setTransform(SC,0,0,SC,0,0);g.clearRect(0,0,W_,H_);
+    var L=34,Rm=12,TOP=40,BOT=32,pw=W_-L-Rm,ph=H_-TOP-BOT,x0=L,x1=L+pw,y0=TOP,y1=TOP+ph,i,j,st=5;
+    function px(v){return x0+(v-LO)/(HI-LO)*pw;} function py(v){return y1-(v-LO)/(HI-LO)*ph;}
+    for(i=x0;i<x1;i+=st)for(j=y0;j<y1;j+=st){var gx=LO+(i+st/2-x0)/pw*(HI-LO),gy=LO+(y1-(j+st/2))/ph*(HI-LO);
+      g.fillStyle=R0.pr(phi([gx,gy],feat))>0.5?'rgba(224,122,95,0.17)':'rgba(91,143,185,0.17)';g.fillRect(i,j,Math.min(st,x1-i),Math.min(st,y1-j));}
+    g.strokeStyle='rgba(128,128,128,0.45)';g.lineWidth=1;g.strokeRect(x0,y0,pw,ph);
+    g.fillStyle='rgba(128,128,128,0.9)';g.font='13px KaTeX_Main,serif';g.textAlign='center';g.textBaseline='alphabetic';
+    for(var a=0;a<=10;a+=2){g.fillText(String(a),px(a),y1+15);}
+    g.textAlign='right';g.textBaseline='middle';for(var b=0;b<=10;b+=2)g.fillText(String(b),x0-6,py(b));g.textBaseline='alphabetic';
+    var lb=labs(cv);lb('x_2',x0+4,y0-8);lb('x_1',x1,y1+29,{align:'right'});
+    var sp=DATA.splits[0],isTe={},r=DATA.n<=60?5:DATA.n<=200?4:3.2,TP=0,FN=0,FP=0,TN=0;sp.te.forEach(function(id){isTe[id]=1;});
+    for(i=0;i<DATA.n;i++){var v=DATA.X[i],yv=DATA.y[i],p=R0.pr(phi(v,feat))>0.5?1:0;dotAt(g,px(v[0]),py(v[1]),yv,p,r,!!isTe[i]);
+      if(isTe[i]){if(yv){if(p)TP++;else FN++;}else{if(p)FP++;else TN++;}}}
+    // ป้ายนับของชุด test (สัญลักษณ์ = จุดแบบเดียวกับในกราฟ)
+    g.font='13px KaTeX_Main,serif';g.textBaseline='middle';var cxr=x1,cyr=y0-29;
+    [['TN',TN,0,0],['FP',FP,0,1],['FN',FN,1,0],['TP',TP,1,1]].forEach(function(c){var s=c[0]+' '+c[1];g.fillStyle='#444';g.textAlign='right';g.fillText(s,cxr,cyr);cxr-=g.measureText(s).width+9;dotAt(g,cxr,cyr,c[2],c[3],5,true);cxr-=5+14;});
+    g.fillStyle='#666';g.textAlign='right';g.fillText('Test set:',cxr+4,cyr);g.textBaseline='alphabetic';}
+
+  // ---------- legend + info ----------
+  function clLine(name,lc,tc,shape){return '<span class="cli"><i class="'+(shape||'ln')+'" style="background:'+lc+'"></i><span>'+kx('\\textcolor{'+tc+'}{\\text{'+name+'}}')+'</span></span>';}
+  function fillLegend(){document.getElementById('classleg').innerHTML=clLine('Positive class','#E07A5F',Rd,'ar')+clLine('Negative class','#5B8FB9',Bl,'ar')+clLine('Misclassified (✗)','#888','#666')+clLine('Test point (dark ring)','#222','#444')+clLine('Predicted region',MC,MC,'ar');}
+  // รูปร่างเส้นแบ่งที่แต่ละคู่ (แบบจำลอง, feature) วาดได้
+  function shape(){if(model==='knn')return '\\text{local: follows the }'+KNN_K+'\\text{ nearest training points}';
+    if(model==='tree')return feat==='raw'?'\\text{boxes: axis-parallel splits }x_j<t':'\\text{boxes in the enlarged feature space (curved in }x_1,x_2)';
+    if(model==='nb')return feat==='raw'?'\\text{one normal curve per class per feature}\\Rightarrow\\text{axis-aligned conic}':'\\text{normal curve per feature; extra features treated as independent}';
+    return feat==='raw'?'\\text{straight line: }w_0+w_1x_1+w_2x_2=0':feat==='sq'?'\\text{axis-aligned conic (ellipse / parabola): adds }w_3x_1^2+w_4x_2^2':'\\text{hyperbola: adds }w_3x_1x_2';}
+  function ln(t,parts){return '<span class="ln"><span class="lb">'+kx('\\text{'+t+'}')+'</span><span class="bd">'+parts.map(function(p){return '<span>'+kx(p)+'</span>';}).join('')+'</span></span>';}
+  function fillInfo(){var g=GRID[model+'|'+feat],F=FEATS.filter(function(f){return f.k===feat;})[0];
+    var el=document.getElementById('info');el.innerHTML=ln('Features',['\\boldsymbol\\phi(\\mathbf x)=('+F.tex+')','\\quad\\text{(standardised)}'])+ln('Boundary',[shape()])
+      +ln('Accuracy',['\\text{train }'+g.train.toFixed(2)+',','\\text{test }'+g.test.toFixed(2),'\\quad\\text{(mean of }'+SPL+'\\text{ splits, 70/30)}']);
+    // ชิ้นที่ยาวกว่ากล่อง → ย่อฟอนต์ให้พอดี (ไม่ต่ำกว่า 10px)
+    Array.prototype.forEach.call(el.querySelectorAll('.bd'),function(bd){var av=bd.clientWidth-4,w=0;Array.prototype.forEach.call(bd.children,function(s){w+=s.getBoundingClientRect().width+5;});
+      if(w>av&&av>0){var fs=parseFloat(getComputedStyle(bd).fontSize);bd.style.fontSize=Math.max(10,Math.floor(fs*av/w*10)/10)+'px';}});}
+
+  // ---------- static labels ----------
+  var MT={'h1':'\\text{Model \\& Feature Comparison}','hd-pat':'\\text{Data pattern}','hd-model':'\\text{Model}','hd-feat':'\\text{Features}','hd-data':'\\text{Size \\& label noise}',
+    'lbl-n':'n','lbl-noise':'\\text{Noise}','resample':'\\text{Resample points}','ft-raw':'\\text{Raw}','ft-sq':'+\\,x^2','ft-int':'+\\,x_1x_2'};
+  function renderTexts(){for(var id in MT)K(MT[id],document.getElementById(id));var k;for(k in PATS)K(PATS[k],document.getElementById('pt-'+k));
+    MODELS.forEach(function(m){K(m.n,document.getElementById('sb-'+m.k));});
+    document.getElementById('ccap').innerHTML=kx('\\text{Mean of }'+SPL+'\\text{ stratified 70/30 splits}')+' · '+kx('\\text{green = best}')+' · '+kx('\\text{click a cell to plot it}');}
+  function setSeg(id,v){var bs=document.querySelectorAll('#'+id+' button');for(var i=0;i<bs.length;i++)bs[i].className=(bs[i].getAttribute('data-v')===v)?'on':'';}
+
+  // ---------- update ----------
+  function view(){setSeg('patSeg',pat);setSeg('modelSeg',model);setSeg('featSeg',feat);fillGrid();fillInfo();fillLegend();
+    sizeCanvas();draw(run(model,feat,DATA.splits[0]));
+    if(Math.round(cv.clientWidth)!==W_||Math.round(cv.clientHeight)!==H_){sizeCanvas();draw(run(model,feat,DATA.splits[0]));}}
+  function recompute(){build();computeGrid();view();}
+
+  // ---------- controls ----------
+  [['patSeg',function(v){pat=v;recompute();}],['modelSeg',function(v){model=v;view();}],['featSeg',function(v){feat=v;view();}]].forEach(function(q){
+    document.querySelectorAll('#'+q[0]+' button').forEach(function(b){b.addEventListener('click',function(){q[1](b.getAttribute('data-v'));});});});
+  document.getElementById('cbody').addEventListener('click',function(e){var td=e.target.closest?e.target.closest('td.c'):null;if(!td)return;model=td.getAttribute('data-m');feat=td.getAttribute('data-f');view();});
+  ['n','noise'].forEach(function(b){var Re=document.getElementById('R'+b),Ne=document.getElementById('N'+b);
+    Re.addEventListener('input',function(){Ne.value=Re.value;recompute();});Ne.addEventListener('input',function(){Re.value=Ne.value;recompute();});});
+  document.getElementById('resample').addEventListener('click',function(){seed=(seed*1664525+1013904223)>>>0;regen(seed);recompute();});
+  window.addEventListener('resize',function(){view();});
+
+  renderTexts();recompute();
+  requestAnimationFrame(function(){renderTexts();view();});
+  setTimeout(function(){renderTexts();view();},300);
+  if(document.fonts&&document.fonts.ready)document.fonts.ready.then(function(){view();});
+})();
+</script>
+</body>
+</html>
