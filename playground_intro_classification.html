@@ -609,7 +609,11 @@
     var R=RANGE[kd];if(R.mu){setRange('mu1',R.mu);setRange('mu0',R.mu);setRange('s1',R.s);setRange('s0',R.s);}setRange('n',R.n);if(R.x0){setRange('x0',R.x0);setRange('xy0',R.x0);}
     var M=MEM[kd];for(var b in M){if(b.indexOf('@')<0)sv(b,M[b]);}}   // ข้าม key ของ query point PDM (x0@ชุด)
   // PDM: ช่วง x0/xy0 = ช่วงข้อมูลของชุดที่เลือก (ค่าเริ่ม = กึ่งกลาง) · จำค่าต่อชุด/แกน
-  function syncQueryPDM(S){if(!isPDM())return;var M=MEM.pdm,ds=T().n+dsIdx;
+  function syncQueryPDM(S){
+    if(!isPDM()){   // ข้อมูลจำลอง: ช่วง testing point = ช่วงแกนของกราฟ (ตามข้อมูล) → จุดไม่หลุดนอกกราฟ · ค่าที่จำไว้ถูกหนีบเข้าช่วง
+      [['x0',S.xmin,S.xmax],['xy0',S.ymin,S.ymax]].forEach(function(q){if(q[0]==='xy0'&&dim()!==2)return;setRange(q[0],[q[1],q[2],0.1]);
+        var v=Math.min(q[2],Math.max(q[1],gv(q[0])));sv(q[0],v);MEM.sim[q[0]]=v;});return;}
+    var M=MEM.pdm,ds=T().n+dsIdx;
     [['x0',S.xmin,S.xmax],['xy0',S.ymin,S.ymax]].forEach(function(q){if(q[0]==='xy0'&&dim()!==2)return;var lo=q[1],hi=q[2],st=Math.pow(10,Math.floor(Math.log10((hi-lo)/100)));
       var r=function(v){return +(v.toFixed(4));};   // ตัดเศษ floating (64.32000000000001)
       setRange(q[0],[r(Math.floor(lo/st)*st),r(Math.ceil(hi/st)*st),st]);var key=q[0]+'@'+ds;if(M[key]===undefined)M[key]=r(Math.round((lo+hi)/2/st)*st);sv(q[0],M[key]);});}

@@ -478,7 +478,8 @@
   // ---------- main update ----------
   function upd(){
     if(TABS[curTab].summary)return;
-    if(isEX()){var xq0=gv('x0');exBuild();fillDtab();drawExPdf(xq0);drawExPost(xq0);fillCalc(xq0);return;}
+    if(isEX()){exBuild();setRange('x0',[EX.xmin+0.3,EX.xmax-0.3,0.1]);   // testing point อยู่ในช่วงแกนของกราฟเสมอ
+      var xq0=Math.min(EX.xmax-0.3,Math.max(EX.xmin+0.3,gv('x0')));sv('x0',xq0);fillDtab();drawExPdf(xq0);drawExPost(xq0);fillCalc(xq0);return;}
     var m0=gv('mu0'),m1=gv('mu1'),p1=eqPrior?0.5:gv('p1'),n=Math.round(gv('n'));
     var s0=gv('s0'),s1=eqSigma?s0:gv('s1');
     if(eqSigma){sv('s1',s0);} if(eqPrior){sv('p1',0.5);}
