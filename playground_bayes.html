@@ -205,7 +205,7 @@
 
   // ---------- KaTeX static labels ----------
   var MT={'h1':'\\text{1-D Bayes Classifier}','resample':'\\text{Resample points}',
-    'hd-x0':'\\text{Testing point}','lbl-x0':'x_0','dt-x':'\\textcolor{#fff}{\\text{PSA }(x)}','dt-y':'\\textcolor{#fff}{\\text{Class }(y)}',
+    'hd-x0':'\\text{Testing point}','lbl-x0':'x_{\\text{test}}','dt-x':'\\textcolor{#fff}{\\text{PSA }(x)}','dt-y':'\\textcolor{#fff}{\\text{Class }(y)}',
     'hd-pos':'\\textcolor{#B0503A}{\\text{Positive class}}','hd-neg':'\\textcolor{#3F6E99}{\\text{Negative class}}','hd-share':'\\text{Class balance \\& size}',
     'lbl-mu0':'\\mu_-','lbl-mu1':'\\mu_+','lbl-s0':'\\sigma_-','lbl-s1':'\\sigma_+','lbl-p1':'\\pi_+','lbl-n':'n','lbl-T':'\\textcolor{#111}{T}',
     'ch-pp':'\\hat y=1','ch-pn':'\\hat y=0','ch-ap':'\\text{actual }1','ch-an':'\\text{actual }0',
@@ -443,7 +443,7 @@
     var xq=px(x0);g.strokeStyle='#444';g.setLineDash([5,4]);g.lineWidth=1.4;g.beginPath();g.moveTo(xq,TOP-2);g.lineTo(xq,base);g.stroke();g.setLineDash([]);
     g.fillStyle='#444';g.beginPath();g.arc(xq,base-5,5.5,0,7);g.fill();g.strokeStyle='#fff';g.lineWidth=1.5;g.stroke();
     [[EX.fp,'#B0503A'],[EX.fn,'#3F6E99']].forEach(function(q){g.fillStyle=q[1];g.beginPath();g.arc(xq,py(q[0](x0)),4,0,7);g.fill();});
-    lb('x_0='+x0.toFixed(1),xq,base+29,{align:'center',color:'#444'});}
+    lb('x_{\\text{test}}='+x0.toFixed(1),xq,base+29,{align:'center',color:'#444'});}
   function drawExPost(x0){var c=prep(document.getElementById('cvpost')),g=c.g,W=c.W,H=c.H;
     var L=40,Rm=14,pw=W-L-Rm,TOP=22,BOT=34,ph=H-TOP-BOT,xmin=EX.xmin,xmax=EX.xmax,i;
     function px(x){return L+(x-xmin)/(xmax-xmin)*pw;} function py(p){return TOP+(1-p)*ph;}
@@ -459,8 +459,8 @@
     xs.forEach(function(r){g.setLineDash([5,4]);g.beginPath();g.moveTo(px(r),py(1));g.lineTo(px(r),py(0));g.stroke();g.setLineDash([]);lb('\\text{threshold}='+r.toFixed(2),px(r),TOP-8,{align:'center',color:'#111'});});
     var xq=px(x0),p0=EX.post(x0);g.strokeStyle='#444';g.setLineDash([5,4]);g.lineWidth=1.4;g.beginPath();g.moveTo(xq,TOP);g.lineTo(xq,py(0));g.stroke();g.setLineDash([]);
     g.fillStyle=Navy;g.beginPath();g.arc(xq,py(p0),4.5,0,7);g.fill();
-    lb('P(\\text{cancer}\\mid x_0)='+p0.toFixed(2),xq+(xq>W/2?-8:8),py(p0)-8,{align:xq>W/2?'right':'left',color:Navy});
-    lb('x_0='+x0.toFixed(1),xq,py(0)+28,{align:'center',color:'#444'});}
+    lb('P(\\text{cancer}\\mid x_{\\text{test}})='+p0.toFixed(2),xq+(xq>W/2?-8:8),py(p0)-8,{align:xq>W/2?'right':'left',color:Navy});
+    lb('x_{\\text{test}}='+x0.toFixed(1),xq,py(0)+28,{align:'center',color:'#444'});}
   function fillDtab(){var tb=document.getElementById('dtbody');if(!tb)return;var h='';
     function rows(arr,cls,color){arr.forEach(function(x,i){h+='<tr class="'+((i%2)?'alt':'')+'"><td>'+kx(x.toFixed(1))+'</td><td>'+kx('\\textcolor{'+color+'}{\\text{'+cls+'}}')+'</td></tr>';});}
     rows(EX.pos,'Cancer',Rd);rows(EX.neg,'Healthy',Bl);
@@ -471,9 +471,9 @@
   function fillCalc(x0){var el=document.getElementById('excalc');if(!el)return;var fp=EX.fp(x0),fn=EX.fn(x0),pip=EX.pip,post=EX.post(x0),x=x0.toFixed(1);
     function line(parts){return '<span class="ln">'+parts.map(function(p){return '<span>'+kx(p)+'</span>';}).join('')+'</span>';}   // ชิ้นละสมการย่อย ตัดบรรทัดระหว่างชิ้นได้
     el.innerHTML=line(['f(x\\mid c)=\\dfrac{1}{s_c\\sqrt{2\\pi}}\\,e^{-\\frac{(x-\\bar x_c)^2}{2s_c^2}}'])
-      +line(['f(x_0{=}'+x+'\\mid\\text{cancer})','=\\dfrac{1}{'+EX.sp[1].toFixed(2)+'\\sqrt{2\\pi}}\\,e^{-\\frac{('+x+'-'+EX.sp[0].toFixed(1)+')^2}{2\\cdot '+EX.sp[1].toFixed(2)+'^2}}','='+fp.toFixed(2)])
-      +line(['f(x_0{=}'+x+'\\mid\\text{healthy})','=\\dfrac{1}{'+EX.sn[1].toFixed(2)+'\\sqrt{2\\pi}}\\,e^{-\\frac{('+x+'-'+EX.sn[0].toFixed(1)+')^2}{2\\cdot '+EX.sn[1].toFixed(2)+'^2}}','='+fn.toFixed(2)])
-      +line(['P(\\text{cancer}\\mid x_0)=\\dfrac{\\pi_+ f_+}{\\pi_+ f_+ + \\pi_- f_-}','=\\dfrac{'+pip.toFixed(2)+'\\cdot '+fp.toFixed(2)+'}{'+pip.toFixed(2)+'\\cdot '+fp.toFixed(2)+'+'+(1-pip).toFixed(2)+'\\cdot '+fn.toFixed(2)+'}','='+post.toFixed(2)]);}
+      +line(['f(x_{\\text{test}}{=}'+x+'\\mid\\text{cancer})','=\\dfrac{1}{'+EX.sp[1].toFixed(2)+'\\sqrt{2\\pi}}\\,e^{-\\frac{('+x+'-'+EX.sp[0].toFixed(1)+')^2}{2\\cdot '+EX.sp[1].toFixed(2)+'^2}}','='+fp.toFixed(2)])
+      +line(['f(x_{\\text{test}}{=}'+x+'\\mid\\text{healthy})','=\\dfrac{1}{'+EX.sn[1].toFixed(2)+'\\sqrt{2\\pi}}\\,e^{-\\frac{('+x+'-'+EX.sn[0].toFixed(1)+')^2}{2\\cdot '+EX.sn[1].toFixed(2)+'^2}}','='+fn.toFixed(2)])
+      +line(['P(\\text{cancer}\\mid x_{\\text{test}})=\\dfrac{\\pi_+ f_+}{\\pi_+ f_+ + \\pi_- f_-}','=\\dfrac{'+pip.toFixed(2)+'\\cdot '+fp.toFixed(2)+'}{'+pip.toFixed(2)+'\\cdot '+fp.toFixed(2)+'+'+(1-pip).toFixed(2)+'\\cdot '+fn.toFixed(2)+'}','='+post.toFixed(2)]);}
 
   // ---------- main update ----------
   function upd(){
