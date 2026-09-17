@@ -115,7 +115,7 @@
     {k:'pump',n:'\\text{Pump power}',nm:['\\text{Flow }(x_1)','\\text{Head }(x_2)'],lo:[0,0],hi:[220,60],tick:[50,20],dec:[1,1],g:[[20,220],[8,60]]},
     {k:'modes',n:'\\text{Two modes}',nm:['\\text{LF }(x_1)','\\text{HF }(x_2)'],lo:[0,0],hi:[10,10],tick:[2,2],dec:[1,1],g:[[0,10],[0,10]]}];
   var MC='#1e3a8a',Rd='#B0503A',Bl='#3F6E99';
-  var curTab=0,pat='bearing',model='knn',feat='raw',seed=20260917;
+  var curTab=0,pat='bearing',selModel='knn',model='knn',feat='raw',seed=20260917;   // selModel = ที่เลือกในแท็บ Raw Features · model = ที่ใช้จริง (แท็บ Feature Engineering = logistic เสมอ — ดู upd)
   function DM(){return DSETS.filter(function(d){return d.k===pat;})[0];}
   function FK(){return TABS[curTab].fe?feat:'raw';}   // แท็บ Raw Features ใช้ feature ดิบเสมอ
   function FT(k){return FEATS.filter(function(f){return f.k===k;})[0];}
@@ -261,10 +261,12 @@
   function upd(){var n=Math.round(gv('n')),noise=gv('noise'),kMax=Math.max(1,n%2?n:n-1);
     ['Rk','Nk'].forEach(function(id){document.getElementById(id).max=kMax;});if(gv('k')>kMax)sv('k',kMax);   // k: เลขคี่ ไม่เกิน n
     var fe=TABS[curTab].fe,fk=FK();
+    model=fe?'logistic':selModel;   // Feature Engineering ทำเฉพาะ logistic regression (แบบจำลองเชิงเส้นคือตัวที่ได้ประโยชน์จาก feature ใหม่) → ซ่อนตัวเลือก Model ในแท็บนี้
+    document.getElementById('grp-model').style.display=fe?'none':'';
     document.getElementById('grp-feat').style.display=fe?'':'none';
     document.getElementById('row-k').style.display=model==='knn'?'':'none';document.getElementById('row-depth').style.display=model==='tree'?'':'none';
     document.getElementById('hd-hp').style.display=(model==='knn'||model==='tree')?'':'none';
-    setSeg('patSeg',pat);setSeg('modelSeg',model);setSeg('featSeg',feat);
+    setSeg('patSeg',pat);setSeg('modelSeg',selModel);setSeg('featSeg',feat);
     var TR=gen(U,n,noise),TE=gen(TU,NTEST,noise);setZS(TR);var M=fit(model,fk,TR),cnt={TP:0,FN:0,FP:0,TN:0},i;
     for(i=0;i<n;i++){var p=M.post(phi(TR.X[i],fk))>0.5;if(TR.y[i]){if(p)cnt.TP++;else cnt.FN++;}else{if(p)cnt.FP++;else cnt.TN++;}}
     var accs=!SHOW_ACC?[]:fe?FEATS.map(function(f,j){return {n:f.s||f.n,v:acc(f.k===fk?M:fit(model,f.k,TR),f.k,TE),on:f.k===fk,last:j===FEATS.length-1};})
@@ -279,7 +281,7 @@
   // ---------- controls ----------
   var tb=document.getElementById('tabs');
   TABS.forEach(function(t,i){var el=document.createElement('button');el.className='tabbtn'+(i===0?' on':'');K(t.n,el);el.addEventListener('click',function(){curTab=i;var bs=document.querySelectorAll('.tabbtn');for(var j=0;j<bs.length;j++)bs[j].className='tabbtn'+(j===i?' on':'');buildPats();upd();});tb.appendChild(el);});
-  [['modelSeg',function(v){model=v;}],['featSeg',function(v){feat=v;}]].forEach(function(q){
+  [['modelSeg',function(v){selModel=v;}],['featSeg',function(v){feat=v;}]].forEach(function(q){
     document.querySelectorAll('#'+q[0]+' button').forEach(function(b){b.addEventListener('click',function(){q[1](b.getAttribute('data-v'));upd();});});});
   ['n','noise','k','depth'].forEach(function(b){var Re=document.getElementById('R'+b),Ne=document.getElementById('N'+b);
     Re.addEventListener('input',function(){Ne.value=Re.value;upd();});Ne.addEventListener('input',function(){Re.value=Ne.value;upd();});});
