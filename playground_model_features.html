@@ -41,7 +41,7 @@
   .seg2 button{flex:1 1 auto;font:inherit;font-size:14px;padding:6px 8px;border:0;background:#fff;color:#555;cursor:pointer;white-space:nowrap}
   .seg2 button.on{background:var(--navy);color:#fff}
   .seg2 .katex{font-size:1em}
-  .seg2.two button{flex:1 1 50%}
+  .seg2.col button{flex:1 1 100%;text-align:left;padding-left:12px}.seg2.col button+button{border-top:1px solid var(--line)}   /* รายการรูปแบบข้อมูล: บรรทัดละ 1 (ชื่อยาว) */
   .tgls{display:flex;flex-direction:column;gap:9px;margin-top:10px}
   .pg .panel .dgrid{row-gap:5px}
   @media(max-width:820px){.stage.mod{flex-direction:column}.dleft{flex:none;width:100%}.pg .layout>.panel{position:static}}
@@ -64,10 +64,11 @@
     <!-- CONTROL: ข้อมูล → แบบจำลอง → (แท็บ 2) feature -->
     <div class="panel">
       <div id="grp-pat"><div class="dhd" id="hd-pat"></div>
-      <div class="seg2 two" id="patSeg"><button data-v="line" id="pt-line" class="on"></button><button data-v="box" id="pt-box"></button><button data-v="circle" id="pt-circle"></button><button data-v="disagree" id="pt-disagree"></button></div>
+      <div class="seg2 col" id="patSeg"></div>   <!-- ปุ่มสร้างตามแท็บ (3 รูปแบบของ workflow Day 5) -->
+
       <div class="dgrid">
-        <div class="drow" id="row-n"><span class="dlab" id="lbl-n"></span><input type="range" id="Rn" min="20" max="200" step="20" value="40"><input class="num" type="number" id="Nn" min="20" max="200" step="20" value="40"></div>
-        <div class="drow" id="row-noise"><span class="dlab" id="lbl-noise"></span><input type="range" id="Rnoise" min="0" max="0.2" step="0.01" value="0.05"><input class="num" type="number" id="Nnoise" min="0" max="0.2" step="0.01" value="0.05"></div>
+        <div class="drow" id="row-n"><span class="dlab" id="lbl-n"></span><input type="range" id="Rn" min="20" max="200" step="20" value="60"><input class="num" type="number" id="Nn" min="20" max="200" step="20" value="60"></div>
+        <div class="drow" id="row-noise"><span class="dlab" id="lbl-noise"></span><input type="range" id="Rnoise" min="0" max="0.2" step="0.01" value="0.06"><input class="num" type="number" id="Nnoise" min="0" max="0.2" step="0.01" value="0.06"></div>
       </div></div>
       <div id="grp-model"><div class="dhd" id="hd-model"></div>
       <div class="seg2" id="modelSeg"><button data-v="knn" id="sb-knn" class="on"></button><button data-v="tree" id="sb-tree"></button><button data-v="nb" id="sb-nb"></button><button data-v="logistic" id="sb-logistic"></button></div>
@@ -90,16 +91,30 @@
      MODEL & FEATURE COMPARISON — รวม "Model comparison" กับ "Feature engineering" (แม่แบบ = Intro)
        แท็บ Raw Features        : feature = x₁, x₂ เท่านั้น · เปลี่ยนแบบจำลอง → บรรทัด Test accuracy เทียบ 4 แบบจำลอง
        แท็บ Feature Engineering : เพิ่มคอลัมน์ x₁², x₂² หรือ x₁x₂ (เห็นเป็นคอลัมน์ในตาราง) → เทียบ 3 ชุด feature ของแบบจำลองที่เลือก
-     ข้อมูล 4 รูปแบบ ตั้งให้ผู้ชนะไม่ซ้ำกัน: Line เส้นตรง · Box กล่อง (tree) · Circle วงกลม (ต้องการ x²) · Disagree สองมุมตรงข้าม (ต้องการ x₁x₂)
+     ข้อมูล = รูปแบบของ workflow Day 5 (ดู DOM ด้านล่าง): แท็บละ 3 รูปแบบ ตั้งให้ผู้ชนะไม่ซ้ำกัน
      Test accuracy วัดบนจุดใหม่ NTEST จุดจากเครื่องกำเนิดเดียวกัน (ไม่แสดงในกราฟ) — กราฟ/ตาราง/ป้ายนับ = ข้อมูลฝึก n จุด
      ========================================================================================== */
-  var LO=0,HI=10,NTEST=800;
+  var NTEST=800;
   var TABS=[{n:'\\text{Raw Features}',fe:false},{n:'\\text{Feature Engineering}',fe:true}];
   var MODELS=[{k:'knn',n:'k\\text{-NN}'},{k:'tree',n:'\\text{Tree}'},{k:'nb',n:'\\text{Naive Bayes}',s:'\\text{NB}'},{k:'logistic',n:'\\text{Logistic}'}];
   var FEATS=[{k:'raw',n:'\\text{Raw}',names:['x_1','x_2']},{k:'sq',n:'+\\,x_1^2,\\ x_2^2',s:'+\\,x^2',names:['x_1','x_2','x_1^2','x_2^2']},{k:'int',n:'+\\,x_1x_2',names:['x_1','x_2','x_1x_2']}];
-  var PATS={line:'\\text{Line}',box:'\\text{Box}',circle:'\\text{Circle}',disagree:'\\text{Disagree}'};
+  /* รูปแบบข้อมูล = ของ workflow Day 5 (KNIME PdM) — positive = NG
+       แท็บ 1 (S2 Model Comparison · รูปทรงของ motor_soa.csv): x₁ = speed (rpm) 0–4200 · x₂ = torque (Nm) 0–160
+         Safe area        OK = ใต้โค้ง: torque ≥ 12, speed ≤ 3600, torque ≤ 105·sin(π·speed/3600)   → เส้นโค้ง
+         Torque limit     OK = torque ≤ 120 − 0.022·speed                                         → เส้นตรง
+         Speed and torque OK = 900 ≤ speed ≤ 3100 และ 25 ≤ torque ≤ 110                           → กล่อง
+       แท็บ 2 (S3 Feature Engineering · รูปทรงของ two_modes.csv): x₁ = vib LF · x₂ = vib HF (0–10)
+         Bands disagree   NG = |LF − HF| > 4.8        → สองมุมตรงข้าม (ต้องการ x₁x₂)
+         One band high    NG = HF > 7                 → เส้นตรง (feature ดิบพอ)
+         Both bands loud  NG = ห่างจาก (5,5) เกิน 4   → วงกลม (ต้องการ x²)
+     workflow ใช้ความน่าจะเป็นแบบ sigmoid รอบขอบเหล่านี้ — ที่นี่ใช้ขอบคม + สลับป้ายด้วย Noise (ปรับได้) */
+  var DOM=[{lo:[0,0],hi:[4200,160],tick:[1000,40],dec:[0,1],nm:['\\text{Speed }(x_1)','\\text{Torque }(x_2)'],
+            pats:[{k:'area',n:'\\text{Safe area}'},{k:'limit',n:'\\text{Torque limit}'},{k:'bands',n:'\\text{Speed and torque}'}]},
+           {lo:[0,0],hi:[10,10],tick:[2,2],dec:[1,1],nm:['\\text{LF }(x_1)','\\text{HF }(x_2)'],
+            pats:[{k:'disagree',n:'\\text{Bands disagree}'},{k:'oneband',n:'\\text{One band high}'},{k:'bothloud',n:'\\text{Both bands loud}'}]}];
   var MC='#1e3a8a',Rd='#B0503A',Bl='#3F6E99';
-  var curTab=0,pat='line',model='knn',feat='raw',seed=20260917;
+  var curTab=0,PAT=['area','disagree'],model='knn',feat='raw',seed=20260917;   // PAT = รูปแบบที่เลือกของแต่ละแท็บ
+  function DM(){return DOM[curTab];}
   function FK(){return TABS[curTab].fe?feat:'raw';}   // แท็บ Raw Features ใช้ feature ดิบเสมอ
   function FT(k){return FEATS.filter(function(f){return f.k===k;})[0];}
 
@@ -112,9 +127,15 @@
   function sv(b,v){document.getElementById('R'+b).value=v;document.getElementById('N'+b).value=v;}
 
   // ---------- data ----------
-  function isPos(p,a,b){if(p==='line')return a+b>11;if(p==='box')return !(a>=2.5&&a<=7.5&&b>=2.5&&b<=7.5);
-    if(p==='circle')return Math.sqrt((a-5)*(a-5)+(b-5)*(b-5))>3.4;return Math.abs(a-b)>4;}
-  function gen(src,n,noise){var X=[],y=[],i;for(i=0;i<n;i++){var a=Math.round((LO+(HI-LO)*src[i][0])*10)/10,b=Math.round((LO+(HI-LO)*src[i][1])*10)/10,l=isPos(pat,a,b)?1:0;if(src[i][2]<noise)l=1-l;X.push([a,b]);y.push(l);}return {X:X,y:y};}
+  function isPos(p,a,b){   // positive = NG
+    if(p==='area')return !(b>=12&&a<=3600&&b<=105*Math.sin(Math.PI*a/3600));
+    if(p==='limit')return !(b<=120-0.022*a);
+    if(p==='bands')return !(a>=900&&a<=3100&&b>=25&&b<=110);
+    if(p==='disagree')return Math.abs(a-b)>4.8;
+    if(p==='oneband')return b>7;
+    return Math.sqrt((a-5)*(a-5)+(b-5)*(b-5))>4;}
+  function gen(src,n,noise){var X=[],y=[],i,d=DM(),p=PAT[curTab],r=function(v,j){var q=Math.pow(10,d.dec[j]);return Math.round((d.lo[j]+(d.hi[j]-d.lo[j])*v)*q)/q;};
+    for(i=0;i<n;i++){var a=r(src[i][0],0),b=r(src[i][1],1),l=isPos(p,a,b)?1:0;if(src[i][2]<noise)l=1-l;X.push([a,b]);y.push(l);}return {X:X,y:y};}
   function phi(x,fk){return fk==='raw'?[x[0],x[1]]:fk==='sq'?[x[0],x[1],x[0]*x[0],x[1]*x[1]]:[x[0],x[1],x[0]*x[1]];}   // คอลัมน์ใหม่คำนวณจากค่าดิบ (ตรงกับที่เห็นในตาราง)
 
   // ---------- models: fit(F, y) → {post(f)} · F = แถวของ feature ----------
@@ -156,7 +177,7 @@
   function kx(t){if(KXC[t]!==undefined)return KXC[t];var r;try{r=katex.renderToString(t,{throwOnError:false});}catch(e){r=t;}if(t.length<24)KXC[t]=r;return r;}
   function K(t,el){if(!el)return;try{katex.render(t,el,{throwOnError:false});}catch(e){el.textContent=t;}}
   function POS(){return 'y=\\textcolor{'+Rd+'}{\\text{positive}}';} function NEG(){return 'y=\\textcolor{'+Bl+'}{\\text{negative}}';}
-  function num(v){var a=Math.abs(v);return (a<1e-9?0:a).toFixed(a>=0.095||a<1e-9?2:3);}
+  function num(v){var a=Math.abs(v);return (a<1e-9?0:a).toFixed(a>=0.095||a<1e-9?2:a>=0.0095?3:4);}   // สัมประสิทธิ์ของ speed (rpm) เล็กมาก → เพิ่มตำแหน่งทศนิยม
   function sgn(v){return (v>=0?'+':'-')+num(v);}
 
   // ---------- canvas ----------
@@ -170,12 +191,13 @@
     if(pr!==yv){var q=r*0.6;g.strokeStyle='#fff';g.lineWidth=1.8;g.beginPath();g.moveTo(x-q,y-q);g.lineTo(x+q,y+q);g.moveTo(x+q,y-q);g.lineTo(x-q,y+q);g.stroke();}}
   function draw(M,fk,TR,cnt){var g=ctx;g.setTransform(SC,0,0,SC,0,0);g.clearRect(0,0,W_,H_);
     var L=34,Rm=12,TOP=40,BOT=32,pw=W_-L-Rm,ph=H_-TOP-BOT,x0=L,x1=L+pw,y0=TOP,y1=TOP+ph,i,j,st=5;
-    function px(v){return x0+(v-LO)/(HI-LO)*pw;} function py(v){return y1-(v-LO)/(HI-LO)*ph;}
-    for(i=x0;i<x1;i+=st)for(j=y0;j<y1;j+=st){var gx=LO+(i+st/2-x0)/pw*(HI-LO),gy=LO+(y1-(j+st/2))/ph*(HI-LO);
+    var d=DM(),ax=d.lo[0],bx=d.hi[0],ay=d.lo[1],by=d.hi[1];
+    function px(v){return x0+(v-ax)/(bx-ax)*pw;} function py(v){return y1-(v-ay)/(by-ay)*ph;}
+    for(i=x0;i<x1;i+=st)for(j=y0;j<y1;j+=st){var gx=ax+(i+st/2-x0)/pw*(bx-ax),gy=ay+(y1-(j+st/2))/ph*(by-ay);
       g.fillStyle=M.post(phi([gx,gy],fk))>0.5?'rgba(224,122,95,0.16)':'rgba(91,143,185,0.16)';g.fillRect(i,j,Math.min(st,x1-i),Math.min(st,y1-j));}
     g.strokeStyle='rgba(128,128,128,0.45)';g.lineWidth=1;g.strokeRect(x0,y0,pw,ph);
-    g.fillStyle='rgba(128,128,128,0.9)';g.font='13px KaTeX_Main,serif';g.textAlign='center';g.textBaseline='alphabetic';for(var a=0;a<=10;a+=2)g.fillText(String(a),px(a),y1+15);
-    g.textAlign='right';g.textBaseline='middle';for(var b=0;b<=10;b+=2)g.fillText(String(b),x0-6,py(b));g.textBaseline='alphabetic';
+    g.fillStyle='rgba(128,128,128,0.9)';g.font='13px KaTeX_Main,serif';g.textAlign='center';g.textBaseline='alphabetic';for(var a=ax;a<=bx+1e-9;a+=d.tick[0])g.fillText(String(a),px(a),y1+15);
+    g.textAlign='right';g.textBaseline='middle';for(var b=ay;b<=by+1e-9;b+=d.tick[1])g.fillText(String(b),x0-6,py(b));g.textBaseline='alphabetic';
     var lb=labs(cv);lb('x_2',x0+4,y0-8);lb('x_1',x1,y1+29,{align:'right'});
     var r=dotR(TR.X.length);for(i=0;i<TR.X.length;i++){var v=TR.X[i];dotAt(g,px(v[0]),py(v[1]),TR.y[i],M.post(phi(v,fk))>0.5?1:0,r);}
     g.font='13px KaTeX_Main,serif';g.textBaseline='middle';var cxr=x1,cyr=y0-29;   // ป้ายนับ (สัญลักษณ์ = จุดแบบเดียวกับในกราฟ)
@@ -185,11 +207,12 @@
   function clLine(name,lc,tc,shape){return '<span class="cli"><i class="'+(shape||'ln')+'" style="background:'+lc+'"></i><span>'+kx('\\textcolor{'+tc+'}{\\text{'+name+'}}')+'</span></span>';}
   function fillLegend(){document.getElementById('classleg').innerHTML=clLine('Positive class','#E07A5F',Rd,'ar')+clLine('Negative class','#5B8FB9',Bl,'ar')+clLine('Misclassified (✗)','#888','#666')+clLine('Predicted region',MC,MC,'ar');}
   function fillTab(M,fk,TR){var F=FT(fk),hasP=(model!=='tree'),Wt=function(t){return '\\textcolor{#fff}{'+t+'}';};
-    document.getElementById('mthead').innerHTML=F.names.concat(hasP?['\\hat p']:[]).concat(['\\text{Actual}','\\text{Predicted}']).map(function(t){return '<th>'+kx(Wt(t))+'</th>';}).join('');
+    var dm=DM();   // หัวตาราง = ชื่อตัวแปรของ workflow (สัญลักษณ์) · คอลัมน์ที่สร้างเพิ่มใช้สัญลักษณ์อย่างเดียว
+    document.getElementById('mthead').innerHTML=dm.nm.concat(F.names.slice(2)).concat(hasP?['\\hat p']:[]).concat(['\\text{Actual}','\\text{Predicted}']).map(function(t){return '<th>'+kx(Wt(t))+'</th>';}).join('');
     var idx=TR.X.map(function(_,i){return i;}).sort(function(a,b){return TR.X[b][0]-TR.X[a][0];}),h='';
     function cls(y){return y?'\\textcolor{'+Rd+'}{+}':'\\textcolor{'+Bl+'}{-}';}
     idx.forEach(function(i){var f=phi(TR.X[i],fk),p=M.post(f),yh=p>0.5?1:0,y=TR.y[i],k=y?(yh?'tp':'fn'):(yh?'fp':'tn');
-      h+='<tr class="'+k+'">'+f.map(function(v,j){return '<td'+(j>=2?' class="fe"':'')+'>'+kx(v.toFixed(1))+'</td>';}).join('')+(hasP?'<td>'+kx(p.toFixed(2))+'</td>':'')+'<td>'+kx(cls(y))+'</td><td>'+kx(cls(yh))+'</td></tr>';});
+      h+='<tr class="'+k+'">'+f.map(function(v,j){return '<td'+(j>=2?' class="fe"':'')+'>'+kx(v.toFixed(j<2?dm.dec[j]:1))+'</td>';}).join('')+(hasP?'<td>'+kx(p.toFixed(2))+'</td>':'')+'<td>'+kx(cls(y))+'</td><td>'+kx(cls(yh))+'</td></tr>';});
     document.getElementById('mtbody').innerHTML=h;}
   function lline(t,parts,cls){return '<span class="ln'+(cls||'')+'"><span class="lb">'+(t?kx('\\text{'+t+'}'):'')+'</span><span class="bd">'+parts.map(function(p){return '<span>'+kx(p)+'</span>';}).join('')+'</span></span>';}
   function fillCalc(M,fk,accs){var F=FT(fk),h='',fe=TABS[curTab].fe;
@@ -202,7 +225,7 @@
     else if(model==='knn')h+=lline('Probabilistic model',['\\hat p(\\mathbf x)=\\dfrac{1}{k}\\sum_{i\\in N_k(\\mathbf x)}y_i,','k='+M.k,'\\quad\\text{or}'])+lline('Decision rule',[M.k===1?'y=\\text{class of the nearest point}':'y=\\text{majority of the }'+M.k+'\\text{ nearest points}']);
     else{var first=true,ind=function(tex,dp){var t=first?'Decision rule':'';first=false;return '<span class="ln tr"><span class="lb">'+(t?kx('\\text{'+t+'}'):'')+'</span><span class="bd" style="padding-left:'+(dp*24)+'px"><span>'+kx(tex)+'</span></span></span>';};
       (function walk(nd,dp){if(nd.leaf){h+=ind('\\text{always }'+(nd.p>0.5?POS():NEG()),dp);return;}var lf=function(k){return k.leaf?'\\ '+(k.p>0.5?POS():NEG()):'';};
-        h+=ind('\\textbf{if }'+F.names[nd.f]+'<'+nd.t.toFixed(2)+'\\textbf{ then}'+lf(nd.left),dp);if(!nd.left.leaf)walk(nd.left,dp+1);h+=ind('\\textbf{else}'+lf(nd.right),dp);if(!nd.right.leaf)walk(nd.right,dp+1);})(M.root,0);}
+        h+=ind('\\textbf{if }'+F.names[nd.f]+'<'+nd.t.toFixed(nd.f<2?Math.max(1,DM().dec[nd.f]):1)+'\\textbf{ then}'+lf(nd.left),dp);if(!nd.left.leaf)walk(nd.left,dp+1);h+=ind('\\textbf{else}'+lf(nd.right),dp);if(!nd.right.leaf)walk(nd.right,dp+1);})(M.root,0);}
     // เทียบ: แท็บ 1 = 4 แบบจำลองบน feature ดิบ · แท็บ 2 = 3 ชุด feature ของแบบจำลองที่เลือก (ตัวที่กำลังแสดง = ตัวหนาสีกรมท่า)
     h+=lline('Test accuracy',accs.map(function(a){return (a.on?'\\textcolor{'+MC+'}{\\boldsymbol{':'{{')+a.n+'\\ '+a.v.toFixed(2)+'}}'+(a.last?'':'\\ \\cdot');}),' lnwr');   /* ชื่อคลาสห้ามใช้ "wrap" — ชนกับ .wrap (กรอบหน้า) ใน pg_style.css */   // ยาวเกิน → ตัดบรรทัดระหว่างรายการ (ไม่ย่อฟอนต์)
     var el=document.getElementById('mcalc');el.innerHTML=h;
@@ -213,7 +236,9 @@
   // ---------- static labels ----------
   var MT={'h1':'\\text{Model \\& Feature Comparison}','hd-pat':'\\text{Data}','hd-model':'\\text{Model}','hd-hp':'\\text{Model setting}','hd-feat':'\\text{Features}',
     'lbl-n':'n','lbl-noise':'\\text{Noise}','lbl-k':'k','lbl-depth':'\\text{Depth}','resample':'\\text{Resample points}'};
-  function renderTexts(){for(var id in MT)K(MT[id],document.getElementById(id));var k;for(k in PATS)K(PATS[k],document.getElementById('pt-'+k));
+  function buildPats(){var el=document.getElementById('patSeg');el.innerHTML='';DM().pats.forEach(function(p){var b=document.createElement('button');b.setAttribute('data-v',p.k);K(p.n,b);
+      b.addEventListener('click',function(){PAT[curTab]=p.k;upd();});el.appendChild(b);});}
+  function renderTexts(){for(var id in MT)K(MT[id],document.getElementById(id));buildPats();setSeg('patSeg',PAT[curTab]);
     MODELS.forEach(function(m){K(m.n,document.getElementById('sb-'+m.k));});FEATS.forEach(function(f){K(f.n,document.getElementById('ft-'+f.k));});}
   function setSeg(id,v){var bs=document.querySelectorAll('#'+id+' button');for(var i=0;i<bs.length;i++)bs[i].className=(bs[i].getAttribute('data-v')===v)?'on':'';}
 
@@ -224,7 +249,7 @@
     document.getElementById('grp-feat').style.display=fe?'':'none';
     document.getElementById('row-k').style.display=model==='knn'?'':'none';document.getElementById('row-depth').style.display=model==='tree'?'':'none';
     document.getElementById('hd-hp').style.display=(model==='knn'||model==='tree')?'':'none';
-    setSeg('patSeg',pat);setSeg('modelSeg',model);setSeg('featSeg',feat);
+    setSeg('patSeg',PAT[curTab]);setSeg('modelSeg',model);setSeg('featSeg',feat);
     var TR=gen(U,n,noise),TE=gen(TU,NTEST,noise),M=fit(model,fk,TR),cnt={TP:0,FN:0,FP:0,TN:0},i;
     for(i=0;i<n;i++){var p=M.post(phi(TR.X[i],fk))>0.5;if(TR.y[i]){if(p)cnt.TP++;else cnt.FN++;}else{if(p)cnt.FP++;else cnt.TN++;}}
     var accs=fe?FEATS.map(function(f,j){return {n:f.s||f.n,v:acc(f.k===fk?M:fit(model,f.k,TR),f.k,TE),on:f.k===fk,last:j===FEATS.length-1};})
@@ -238,8 +263,8 @@
 
   // ---------- controls ----------
   var tb=document.getElementById('tabs');
-  TABS.forEach(function(t,i){var el=document.createElement('button');el.className='tabbtn'+(i===0?' on':'');K(t.n,el);el.addEventListener('click',function(){curTab=i;var bs=document.querySelectorAll('.tabbtn');for(var j=0;j<bs.length;j++)bs[j].className='tabbtn'+(j===i?' on':'');upd();});tb.appendChild(el);});
-  [['patSeg',function(v){pat=v;}],['modelSeg',function(v){model=v;}],['featSeg',function(v){feat=v;}]].forEach(function(q){
+  TABS.forEach(function(t,i){var el=document.createElement('button');el.className='tabbtn'+(i===0?' on':'');K(t.n,el);el.addEventListener('click',function(){curTab=i;var bs=document.querySelectorAll('.tabbtn');for(var j=0;j<bs.length;j++)bs[j].className='tabbtn'+(j===i?' on':'');buildPats();upd();});tb.appendChild(el);});
+  [['modelSeg',function(v){model=v;}],['featSeg',function(v){feat=v;}]].forEach(function(q){
     document.querySelectorAll('#'+q[0]+' button').forEach(function(b){b.addEventListener('click',function(){q[1](b.getAttribute('data-v'));upd();});});});
   ['n','noise','k','depth'].forEach(function(b){var Re=document.getElementById('R'+b),Ne=document.getElementById('N'+b);
     Re.addEventListener('input',function(){Ne.value=Re.value;upd();});Ne.addEventListener('input',function(){Re.value=Ne.value;upd();});});
