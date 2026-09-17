@@ -40,7 +40,7 @@
   .main #grp-met .mtab,.main #grp-met .mtab th,.main #grp-met .mtab td{font-size:15px}
   .pg.distcls .canvasbox{flex:1 1 auto;width:100%;height:var(--sq)}
   /* แท็บที่มีตาราง metric 7 แถวใต้กราฟ: สูงของรูป = ที่เหลือจากหัว + legend + ตาราง (≈410px) → ยังพอดี 1 หน้า */
-  .pg.distcls .main:not(.roc) .canvasbox{height:clamp(200px,calc(100vh - 372px),380px)}
+  .pg.distcls .main:not(.roc) .canvasbox{height:clamp(200px,calc(100vh - 348px),380px)}
   .toprow{display:flex;gap:16px;align-items:center}
   .toprow .canvasbox{margin:0}
   .rocbox{display:none;width:100%;height:var(--sq);box-sizing:border-box;background:#fff;border:1px solid var(--line);border-radius:12px;position:relative}
@@ -118,7 +118,7 @@
         <div class="drow" id="row-t"><span class="dlab" id="lbl-t"></span><input type="range" id="Rt" min="0.5" max="4.5" step="0.1" value="2.2"><input class="num" type="number" id="Nt" min="0.5" max="4.5" step="0.1" value="2.2"></div>
       </div></div>
       <div id="grp-rs" class="tgls"><button class="primary" id="resample" style="width:100%"></button></div>
-      <div id="grp-met"><div class="dhd" id="hd-met"></div>
+      <div id="grp-met">
       <div class="tblbox"><table class="mtab" id="mtab">
         <thead><tr><th id="th-a"></th><th id="th-b"></th><th class="r" id="th-c"></th></tr></thead>
         <tbody id="mbody"></tbody>
@@ -164,7 +164,7 @@
 
   // ---------- KaTeX static labels ----------
   var MT={'h1':'\\text{Classifier Evaluation}','resample':'\\text{Resample points}',
-    'hd-ds':'\\text{Data (pump bearing temperature)}','hd-met':'\\text{Metrics}','lbl-n':'n','lbl-t':'t',
+    'hd-ds':'\\text{Data (pump bearing temperature)}','lbl-n':'n','lbl-t':'t',
     'sc-x':'\\text{raw value }x','sc-p':'\\text{model probability }\\hat p',
     'ds-0':'\\text{Separated}','ds-1':'\\text{Unseparated}','ds-2':'\\text{Imbalanced}',
     'ch-pp':'\\hat y=+','ch-pn':'\\hat y=-','ch-ap':'\\text{actual }+','ch-an':'\\text{actual }-','cs-tp':'\\mathrm{TP}','cs-fn':'\\mathrm{FN}','cs-fp':'\\mathrm{FP}','cs-tn':'\\mathrm{TN}'};
