@@ -77,7 +77,7 @@
   .pg .mtab .cw{min-height:2.9em}
   /* model tabs: ตารางข้อมูลซ้าย + คอลัมน์ขวา (แบบ Classifier Evaluation) — ตารางยาวเกินคอลัมน์ขวาให้เลื่อนในตาราง หัวตรึง */
   .stage.mod{flex-direction:row;gap:18px;align-items:flex-start}
-  .dleft{display:none;flex:0 0 auto;min-width:0;overflow-y:auto;border-radius:8px}
+  .dleft{display:none;flex:0 0 auto;min-width:0;overflow-y:auto;border-radius:8px;position:relative}   /* relative: ชิ้นส่วน absolute ของ KaTeX ในแถวที่ถูกซ่อนต้องถูก clip ด้วย ไม่งั้นหน้า scroll ยาว */
   .stage.mod .dleft{display:block}
   .main{display:flex;flex-direction:column;gap:6px;flex:1 1 auto;min-width:0}
   .dtab th{position:sticky;top:0}
@@ -511,7 +511,7 @@
     function zAt(){var z=f.B,s='';for(d=0;d<D;d++){z+=f.W[d]*Q[d];s+=(d?sgn(f.W[d]):fx(f.W[d]))+'\\cdot'+fx(Q[d],dec);}return {z:z,s:s+sgn(f.B)};}
     var yh=p0>0.5?POS():NEG();
     if(modeM==='logistic'){
-      h+=cline(['\\hat p=\\sigma(z)=\\dfrac{1}{1+e^{-z}},','z='+linExpr(f,sym)]);
+      h+=cline(['\\hat p=\\sigma(z),','z='+linExpr(f,sym)]);
       var q=zAt();h+=cline([qv+':\\ z='+q.s+'='+fx(q.z)+',','\\hat p(x_0)=\\sigma('+fx(q.z)+')='+fx(p0)+'\\Rightarrow '+yh]);}
     else if(modeM==='nb'){
       var st=[];for(d=0;d<D;d++){var j=D===1?'':'_'+(d+1),jj=D===1?'':(d+1);st.push('\\bar x'+(D===1?'_+':'_{'+jj+'+}')+'='+fx(f.mp[d])+',\\ \\bar x'+(D===1?'_-':'_{'+jj+'-}')+'='+fx(f.mq[d])+',\\ s'+j+'^2='+fx(f.v[d]));}
@@ -525,17 +525,16 @@
       h+=cline(['\\hat p=\\text{fraction of }+\\text{ in the leaf (splits chosen by Gini)}']);
       h+=cline([qv+':\\ \\hat p(x_0)='+fx(p0)+'\\Rightarrow '+yh]);}
     h+=cline(ruleLines(f,sym,dec));
-    h+=cline(['\\text{accuracy}=\\dfrac{\\textcolor{#8A3B2C}{\\mathrm{TP}}+\\textcolor{#3F6E99}{\\mathrm{TN}}}{n}=\\dfrac{\\textcolor{#8A3B2C}{'+C.TP+'}+\\textcolor{#3F6E99}{'+C.TN+'}}{'+n+'}='+fx((C.TP+C.TN)/n)]);   // สีเดียวกับช่อง confusion matrix
-    el.innerHTML=h;}
+    el.innerHTML=h;}   // ไม่แสดง accuracy (เรื่อง metric อยู่ใน Classification Metrics)
   // ---------- ตารางข้อมูลซ้าย: x | y | ŷ (2-D: x_1 | x_2 | y | ŷ) เรียงตาม x มากไปน้อย · สีแถว = ผล TP/FN/FP/TN ----------
   function fillModTab(S,f){var hd=document.getElementById('mthead'),tb=document.getElementById('mtbody');if(!hd||!tb)return;
     var W=function(t){return '\\textcolor{#fff}{'+t+'}';},nm=isPDM()?T().pdm[dsIdx].nm:null;
-    var cols=S.sym.map(function(s,i){return nm?'\\text{'+nm[i]+' }('+s+')':s;}).concat(['\\text{actual}','\\text{predicted}']);   // PDM: ชื่อจริง (สัญลักษณ์) · คำเดียวกับ confusion matrix
+    var cols=S.sym.map(function(s,i){return nm?'\\text{'+nm[i]+' }('+s+')':s;}).concat(['\\hat p','\\text{actual}','\\text{predicted}']);   // p̂ = ความน่าจะเป็นจากแบบจำลองที่เลือก (logistic/NB = σ(z) · k-NN = สัดส่วนเพื่อนบ้าน · tree = สัดส่วนในใบ)   // PDM: ชื่อจริง (สัญลักษณ์) · คำเดียวกับ confusion matrix
     hd.innerHTML=cols.map(function(t){return '<th>'+kx(W(t))+'</th>';}).join('');
     var idx=[],i;for(i=0;i<S.X.length;i++)idx.push(i);idx.sort(function(a,b){return S.X[b][0]-S.X[a][0];});
     function cls(y){return y?'\\textcolor{#B0503A}{+}':'\\textcolor{#3F6E99}{-}';}
-    var h='';idx.forEach(function(i){var y=S.ys[i],yh=f.post(S.X[i])>0.5?1:0,k=y?(yh?'tp':'fn'):(yh?'fp':'tn');
-      h+='<tr class="'+k+'">'+S.X[i].map(function(v){return '<td>'+kx(fx(v,S.dec===2&&!isPDM()?1:2))+'</td>';}).join('')+'<td>'+kx(cls(y))+'</td><td>'+kx(cls(yh))+'</td></tr>';});
+    var h='';idx.forEach(function(i){var y=S.ys[i],ph=f.post(S.X[i]),yh=ph>0.5?1:0,k=y?(yh?'tp':'fn'):(yh?'fp':'tn');
+      h+='<tr class="'+k+'">'+S.X[i].map(function(v){return '<td>'+kx(fx(v,S.dec===2&&!isPDM()?1:2))+'</td>';}).join('')+'<td>'+kx(ph.toFixed(2))+'</td><td>'+kx(cls(y))+'</td><td>'+kx(cls(yh))+'</td></tr>';});
     tb.innerHTML=h;}
 
   // ---------- data for the current tab ----------
@@ -577,6 +576,8 @@
     if(fitPlot()){sizeCanvas();draw(DP);}
     var dl=document.getElementById('dleft'),mn=document.getElementById('main');   // ตารางข้อมูลสูงไม่เกินคอลัมน์ขวา → เลื่อนในตาราง
     if(dl&&mn&&innerWidth>820)dl.style.maxHeight=Math.round(mn.getBoundingClientRect().height)+'px';else if(dl)dl.style.maxHeight='300px';
+    // ตาราง/กล่องคำนวณเพิ่งถูกเติม → คอลัมน์กราฟอาจเปลี่ยนความกว้าง (เปิดแท็บครั้งแรก) บัฟเฟอร์ไม่ตรงขนาดจริง = จุดเป็นวงรี → ตั้งขนาดใหม่แล้ววาดซ้ำ
+    if(Math.round(cv.clientWidth)!==W||Math.round(cv.clientHeight)!==H){sizeCanvas();draw(DP);}
   }
   function fitPlot(){return false;   // ความสูงกราฟคงที่ 280px (CSS) — ไม่ปรับตามแผงควบคุมแล้ว
     var pn=document.querySelector('.panel'),st=document.querySelector('.stage'),cb=document.querySelector('.canvasbox');
