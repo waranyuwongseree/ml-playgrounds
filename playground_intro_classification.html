@@ -554,7 +554,7 @@
       h+=lline('Probabilistic model',['\\hat p('+XA+')=\\dfrac{1}{1+\\exp(-('+linExpr(f,sym)+'))}',OR]);h+=RL;
       var q=zAt();h+=tline('\\hat p('+PA+')','=\\dfrac{1}{1+\\exp(-('+q.s+'))}','='+fx(p0));}
     else if(modeM==='knn'){
-      h+=lline('Probabilistic model',['\\hat p('+XA+')=\\dfrac{1}{k}\\sum_{i\\in N_k(\\mathbf x)}y_i,','k='+f.k,OR]);h+=RL;
+      h+=lline('Probabilistic model',['\\hat p('+XA+')=\\dfrac{1}{k}\\sum_{i\\in N_k(\\mathbf x)}y_i',OR]);h+=RL;   // ไม่พิมพ์ "k = …" ซ้ำ (ค่า k อยู่ที่ตัวควบคุม Model setting แล้ว)
       h+=tline('\\hat p('+PA+')','=\\dfrac{'+Math.round(p0*f.k)+'}{'+f.k+'}','='+fx(p0));}
     else{   // tree: กฎ if–then แบบลำดับชั้น (เยื้องตามความลึก) — ใบที่อยู่ใต้เงื่อนไขเดียวกันเยื้องเท่ากัน
       var first=true,ind=function(tex,dp){var L=first?lab('Decision rule'):'<span class="lb"></span>';first=false;return '<span class="ln tr lbd">'+L+'<span class="bd" style="padding-left:'+(dp*26)+'px"><span>'+kx(tex)+'</span></span></span>';};
