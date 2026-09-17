@@ -47,7 +47,7 @@
   .excalc .ln.lbd>.bd{flex:1;min-width:0;margin:0}
   .excalc .ln.lbd>.bd>span{display:inline-block;margin-right:.3em;vertical-align:middle}
   .excalc .ln.lbd>.bd>span.nl{display:block;margin-top:2px}
-  .excalc.d2{padding:8px 10px}.excalc.d2 .ln.lbd{gap:6px}.excalc.d2 .ln.lbd>.lb{flex-basis:104px;font-size:12px}.excalc.d2 .ln.lbd>.bd{font-size:12px}
+  .excalc.d2{padding:8px 10px}.excalc.d2 .ln.lbd{gap:6px}.excalc.d2 .ln.lbd>.lb{flex-basis:104px;font-size:12px}.excalc.d2 .ln.lbd>.bd{font-size:11.5px}
   .excalc .ln.lbd:not(.tr)+.ln.lbd,.excalc .ln.tr+.ln.lbd:not(.tr){border-top:1px solid var(--line);padding-top:2px;margin-top:2px}
   .excalc .ln.tr{margin:0;line-height:1.22;font-size:13.5px}   /* กฎของ tree (ลึก 3 = ได้ถึง ~14 บรรทัด) → บรรทัดชิดกัน */
   .dtab{width:100%;border-collapse:collapse;font-size:15px}
@@ -320,7 +320,7 @@
     'hd-model':'\\text{Model}','hd-hp':'\\text{Model setting}','hd-ds':'\\text{Case study (pump, 1440 h)}','hd-ex':'\\text{Testing point}',
     'sb-logistic':'\\text{Logistic}','sb-nb':'\\text{Naive Bayes}','sb-knn':'k\\text{-NN}','sb-tree':'\\text{Tree}',
     'hd-pos':'\\textcolor{#B0503A}{\\text{Positive class}}','hd-neg':'\\textcolor{#3F6E99}{\\text{Negative class}}',
-    'lbl-sep':'d','lbl-sg':'\\sigma','lbl-x0':'x_0','lbl-muy1':'\\mu_{2+}','lbl-muy0':'\\mu_{2-}','lbl-s0':'\\sigma_-','lbl-s1':'\\sigma_+','lbl-p1':'\\pi_+','lbl-sev':'\\delta','lbl-n':'n','lbl-k':'k','lbl-depth':'\\text{depth}',
+    'lbl-sep':'d','lbl-sg':'\\sigma','lbl-x0':'x_0','lbl-muy1':'\\mu_{2+}','lbl-muy0':'\\mu_{2-}','lbl-s0':'\\sigma_-','lbl-s1':'\\sigma_+','lbl-p1':'\\pi_+','lbl-sev':'\\delta','lbl-n':'n','lbl-k':'k','lbl-depth':'\\text{Depth}',
     'th-m':'\\text{model}','th-f':'z','th-r':'\\text{rule}','th-e':'\\text{accuracy}',
     'dt-x':'\\textcolor{#fff}{\\text{PSA }(x)}','dt-y':'\\textcolor{#fff}{\\text{Class }(y)}',
     'ch-pp':'\\text{predicted }+','ch-pn':'\\text{predicted }-','ch-ap':'\\text{actual }+','ch-an':'\\text{actual }-','cs-tp':'\\mathrm{TP}','cs-fn':'\\mathrm{FN}','cs-fp':'\\mathrm{FP}','cs-tn':'\\mathrm{TN}',
@@ -355,8 +355,8 @@
   function posName(){return isEX()?'cancer':isPDM()?'fault':'positive';} function negName(){return isEX()?'healthy':isPDM()?'healthy':'negative';}
   function clLine(name,lc,tc,shape){return '<span class="cli"><i class="'+(shape||'ln')+'" style="background:'+lc+'"></i><span>'+kx('\\textcolor{'+tc+'}{\\text{'+name+'}}')+'</span></span>';}
   function fillLegend(){var el=document.getElementById('classleg');if(!el)return;
-    el.innerHTML=clLine(isPDM()?'Fault hours (positive)':'Positive class','#E07A5F',Rd,'ar')+clLine(isPDM()?'Healthy hours (negative)':'Negative class','#5B8FB9',Bl,'ar')+clLine('misclassified (✗)','#888','#666')
-      +clLine(dim()===2?'predicted region':'predicted class',MC,MC,dim()===2?'ar':'ln');}
+    el.innerHTML=clLine(isPDM()?'Fault hours (positive)':'Positive class','#E07A5F',Rd,'ar')+clLine(isPDM()?'Healthy hours (negative)':'Negative class','#5B8FB9',Bl,'ar')+clLine('Misclassified (✗)','#888','#666')
+      +clLine(dim()===2?'Predicted region':'Predicted class',MC,MC,dim()===2?'ar':'ln');}   // ป้าย/หัวข้อ = sentence case (ตัวใหญ่นำคำแรก)
 
   // ---------- canvas ----------
   var cv=document.getElementById('cv'),ctx=cv.getContext('2d');
@@ -429,7 +429,7 @@
       +line(['f(x_0{=}'+x+'\\mid\\text{healthy})','=\\dfrac{1}{'+EX.sn[1].toFixed(2)+'\\sqrt{2\\pi}}\\,e^{-\\frac{('+x+'-'+EX.sn[0].toFixed(1)+')^2}{2\\cdot '+EX.sn[1].toFixed(2)+'^2}}','='+fn.toFixed(2)])
       +line(['P(\\text{cancer}\\mid x_0)=\\dfrac{\\pi_+ f_+}{\\pi_+ f_+ + \\pi_- f_-}','=\\dfrac{'+pip.toFixed(2)+'\\cdot '+fp.toFixed(2)+'}{'+pip.toFixed(2)+'\\cdot '+fp.toFixed(2)+'+'+(1-pip).toFixed(2)+'\\cdot '+fn.toFixed(2)+'}','='+post.toFixed(2)]);}
   function draw1(P){
-    var L=44,Rm=16,pw=W-L-Rm,TOP=22,BOT=50,ph=H-TOP-BOT,xmin=P.xmin,xmax=P.xmax,i,x,m=P.m;
+    var L=30,Rm=12,pw=W-L-Rm,TOP=22,BOT=50,ph=H-TOP-BOT,xmin=P.xmin,/* L: ขอบซ้ายพอดีตัวเลข 0 / 0.5 / 1 */xmax=P.xmax,i,x,m=P.m;
     function px(x){return L+(x-xmin)/(xmax-xmin)*pw;} function py(p){return TOP+(1-p)*ph;}
     ctx.font='13px KaTeX_Main,serif';ctx.textBaseline='middle';
     [0,0.5,1].forEach(function(p){ctx.strokeStyle=p===0.5?'rgba(17,17,17,0.55)':'rgba(128,128,128,0.35)';ctx.lineWidth=1;
@@ -454,7 +454,7 @@
     ctx.font='13px KaTeX_Main,serif';
     if(m.linear){ctx.strokeStyle='#111';ctx.fillStyle='#111';ctx.lineWidth=1.8;ctx.textAlign='center';
       m.xstar.forEach(function(r){if(r<xmin||r>xmax)return;ctx.setLineDash([5,4]);ctx.beginPath();ctx.moveTo(px(r),py(1)-6);ctx.lineTo(px(r),py(0)+4);ctx.stroke();ctx.setLineDash([]);
-        ctx.fillText('threshold '+r.toFixed(ns.dec+1),px(r),H-4);});}
+        ctx.fillText('Threshold '+r.toFixed(ns.dec+1),px(r),H-4);});}
     var xT=px(P.Tmain),yTop=TOP-8,yBot=py(0)+31;
     ctx.textAlign='left'; ctx.fillStyle='#B0503A'; ctx.fillText('TP '+P.TP, xT+12, yTop);
     ctx.textAlign='right';ctx.fillStyle='#8A6510'; ctx.fillText('FN '+P.FN, xT-12, yTop);
@@ -467,7 +467,7 @@
       lb('x_{\\text{test}}',xq+(xq>L+pw/2?-9:9),py(0.5)+18,{align:xq>L+pw/2?'right':'left',color:'#444'});}}
   }
   function draw2(P){
-    var L=52,Rm=16,TOP=22,BOT=34,pw=W-L-Rm,ph=H-TOP-BOT,m=P.m,xmin=P.xmin,xmax=P.xmax,ymin=P.ymin,ymax=P.ymax;
+    var L=40,Rm=12,TOP=22,BOT=34,pw=W-L-Rm,ph=H-TOP-BOT,m=P.m,/* L: ขอบซ้ายพอดีตัวเลขแกน (เดิม 52 ดูเป็นช่องว่าง) */xmin=P.xmin,xmax=P.xmax,ymin=P.ymin,ymax=P.ymax;
     var x0=L,x1=L+pw,y0=TOP,y1=TOP+ph;
     function px(x){return x0+(x-xmin)/(xmax-xmin)*pw;} function py(y){return y1-(y-ymin)/(ymax-ymin)*ph;}
     var st=6,i,j;
@@ -479,6 +479,9 @@
     for(var a=Math.ceil(xmin/nx.step)*nx.step;a<=xmax+1e-9;a+=nx.step)ctx.fillText(a.toFixed(nx.dec),px(a),y1+15);
     ctx.textAlign='right';ctx.textBaseline='middle';for(var b=Math.ceil(ymin/ny.step)*ny.step;b<=ymax+1e-9;b+=ny.step)ctx.fillText(b.toFixed(ny.dec),x0-6,py(b));
     ctx.textBaseline='alphabetic';var lb=labs(cv);lb(P.ax[1],x0+4,y0-8);lb(P.ax[0],x1,y1+30,{align:'right'});
+    // ป้ายนับ TP / FN / FP / TN (แทน confusion matrix) — มุมขวาบนเหนือกรอบ สีเดียวกับช่อง
+    ctx.font='13px KaTeX_Main,serif';ctx.textAlign='right';var cxr=x1;
+    [['TN',P.TN,'#3F6E99'],['FP',P.FP,'#2E7D70'],['FN',P.FN,'#8A6510'],['TP',P.TP,'#B0503A']].forEach(function(c){var s=c[0]+' '+c[1];ctx.fillStyle=c[2];ctx.fillText(s,cxr,y0-8);cxr-=ctx.measureText(s).width+14;});
     var k;for(k=0;k<P.X.length;k++){var v=P.X[k],yv=P.ys[k],xp=px(v[0]),yp=py(v[1]);if(xp<x0-4||xp>x1+4||yp<y0-4||yp>y1+4)continue;
       var pr=m.post(v)>0.5?1:0;dotAt(ctx,xp,yp,yv,pr,4.5);}
     // query point x0: จุดดำขอบขาว + ป้าย x_0
@@ -488,8 +491,7 @@
   }
   function draw(P){try{ctx.setTransform(SC,0,0,SC,0,0);ctx.clearRect(0,0,W,H);(P.dim===2?draw2:draw1)(P);}
     catch(e){ctx.setTransform(SC,0,0,SC,0,0);ctx.fillStyle='#c0392b';ctx.font='15px KaTeX_Main,serif';ctx.textAlign='left';ctx.fillText('draw err: '+e.message,10,20);}}
-  function fillCM(P){var bi=(P.dim===2);document.getElementById('toprow').className='toprow'+(bi?' bi':'');if(!bi)return;
-    K(String(P.TP),document.getElementById('c-tp'));K(String(P.FN),document.getElementById('c-fn'));K(String(P.FP),document.getElementById('c-fp'));K(String(P.TN),document.getElementById('c-tn'));}
+  function fillCM(P){}   // เลิกแสดง confusion matrix ข้างกราฟ 2-D — ใช้ป้ายนับ TP/FN/FP/TN บนกราฟแทน (เหมือน 1-D) กราฟจึงกว้างเต็มคอลัมน์
 
   // ---------- ตารางโมเดล (เฉพาะโมเดลที่เลือก) ----------
   function fx(v,d){return (Math.abs(v)<1e-9?0:v).toFixed(d===undefined?2:d);}
@@ -529,34 +531,36 @@
     var LBW=138,lab=function(t){return '<span class="lb">'+kx('\\text{'+t+'}')+'</span>';};
     // parts: สตริง = ชิ้นสมการ (ตัดบรรทัดระหว่างชิ้นได้ถ้าที่ไม่พอ) · ['nl',tex] = ขึ้นบรรทัดใหม่เสมอ (ใช้กับ ⇒ y = …)
     var lline=function(t,parts){return '<span class="ln lbd">'+lab(t)+'<span class="bd">'+parts.map(function(p){return (p instanceof Array)?'<span class="nl">'+kx(p[1])+'</span>':'<span>'+kx(p)+'</span>';}).join('')+'</span></span>';};
-    var OR='\\quad\\text{or}',RL=lline('decision rule',ruleLines(f,sym,dec));
+    var OR='\\quad\\text{or}',RL=lline('Decision rule',ruleLines(f,sym,dec));
     // สมการคำนวณของ testing point เขียนต่อเนื่องบรรทัดเดียว (1-D) · 2-D ยาวเกินกล่อง จึงยอมให้ตัดที่เครื่องหมาย = · ⇒ y = … ขึ้นบรรทัดใหม่
-    var tline=function(a,b){return lline('testing point',(D===1?[a+b]:[a,b]).concat([['nl','\\Rightarrow '+yh]]));};
+    var tline=function(a,b){return lline('Testing point',(D===1?[a+b]:[a,b]).concat([['nl','\\text{or }'+yh]]));};
+    var XA=D===1?'x':'\\mathbf x';
     if(modeM==='logistic'||modeM==='nb'){   // logistic และ naive Bayes แสดงแบบเดียวกัน (ทั้งคู่ log-odds เชิงเส้น ต่างกันที่วิธีหา w, b) · เขียน exp(−(…)) แทนค่า z ลงไปเลย ไม่ตั้งตัวแปร z
-      h+=lline('probabilistic model',['\\hat p=\\dfrac{1}{1+\\exp(-('+linExpr(f,sym)+'))}',OR]);h+=RL;
+      h+=lline('Probabilistic model',['\\hat p('+XA+')=\\dfrac{1}{1+\\exp(-('+linExpr(f,sym)+'))}',OR]);h+=RL;
       var q=zAt();h+=tline('\\hat p('+PA+')','=\\dfrac{1}{1+\\exp(-('+q.s+'))}='+fx(p0));}
     else if(modeM==='knn'){
-      h+=lline('probabilistic model',['\\hat p(\\mathbf x)=\\dfrac{1}{k}\\sum_{i\\in N_k(\\mathbf x)}y_i,','k='+f.k,OR]);h+=RL;
+      h+=lline('Probabilistic model',['\\hat p('+XA+')=\\dfrac{1}{k}\\sum_{i\\in N_k(\\mathbf x)}y_i,','k='+f.k,OR]);h+=RL;
       h+=tline('\\hat p('+PA+')','=\\dfrac{'+Math.round(p0*f.k)+'}{'+f.k+'}='+fx(p0));}
     else{   // tree: กฎ if–then แบบลำดับชั้น (เยื้องตามความลึก) — ใบที่อยู่ใต้เงื่อนไขเดียวกันเยื้องเท่ากัน
-      var first=true,ind=function(tex,dp){var L=first?lab('decision rule'):'<span class="lb"></span>';first=false;return '<span class="ln tr lbd">'+L+'<span class="bd" style="padding-left:'+(dp*26)+'px"><span>'+kx(tex)+'</span></span></span>';};
+      var first=true,ind=function(tex,dp){var L=first?lab('Decision rule'):'<span class="lb"></span>';first=false;return '<span class="ln tr lbd">'+L+'<span class="bd" style="padding-left:'+(dp*26)+'px"><span>'+kx(tex)+'</span></span></span>';};
       (function walk(nd,dp){if(nd.leaf){h+=ind('\\text{always }'+(nd.p>0.5?POS():NEG()),dp);return;}   // รากเป็นใบ (ไม่มีการแบ่ง)
         var c=sym[nd.f]+'<'+fx(nd.t,dec),lf=function(k){return k.leaf?'\\ '+(k.p>0.5?POS():NEG()):'';};
         h+=ind('\\textbf{if }'+c+'\\textbf{ then}'+lf(nd.left),dp);if(!nd.left.leaf)walk(nd.left,dp+1);
         h+=ind('\\textbf{else}'+lf(nd.right),dp);if(!nd.right.leaf)walk(nd.right,dp+1);})(f.root,0);
       // tree: ไม่แสดงความน่าจะเป็น — แทนค่า testing point แล้วได้คลาสเลย
-      h+=lline('testing point',[Q.map(function(v,i){return sym[i]+'='+fx(v,dec);}).join(',\\ ')+'\\ \\textbf{then}\\ '+yh]);}
+      h+=lline('Testing point',[(D===1?'x_{\\text{test}}='+PA:'\\mathbf x_{\\text{test}}=('+PA+')')+'\\ \\textbf{then}\\ '+yh]);}
     el.className='excalc'+(D===2?' d2':'');el.innerHTML=h;}   // d2 = bivariate: สมการยาว → ป้ายแคบลง ตัวเล็กลงเล็กน้อย · ไม่แสดง accuracy (เรื่อง metric อยู่ใน Classification Metrics)
   // ---------- ตารางข้อมูลซ้าย: x | y | ŷ (2-D: x_1 | x_2 | y | ŷ) เรียงตาม x มากไปน้อย · สีแถว = ผล TP/FN/FP/TN ----------
   function fillModTab(S,f){var hd=document.getElementById('mthead'),tb=document.getElementById('mtbody');if(!hd||!tb)return;
     var W=function(t){return '\\textcolor{#fff}{'+t+'}';},nm=isPDM()?T().pdm[dsIdx].nm:null;
-    var cols=S.sym.map(function(s,i){return nm?'\\text{'+nm[i]+' }('+s+')':s;}).concat(['\\hat p','\\text{actual}','\\text{predicted}']);   // p̂ = ความน่าจะเป็นจากแบบจำลองที่เลือก (logistic/NB = σ(z) · k-NN = สัดส่วนเพื่อนบ้าน · tree = สัดส่วนในใบ)   // PDM: ชื่อจริง (สัญลักษณ์) · คำเดียวกับ confusion matrix
+    var hasP=(modeM!=='tree');   // tree ให้คลาสโดยตรง ไม่แสดงคอลัมน์ p̂
+    var cols=S.sym.map(function(s,i){return nm?'\\text{'+nm[i].charAt(0).toUpperCase()+nm[i].slice(1)+' }('+s+')':s;}).concat(hasP?['\\hat p']:[]).concat(['\\text{Actual}','\\text{Predicted}']);   // p̂ = ความน่าจะเป็นจากแบบจำลองที่เลือก (logistic/NB = σ(z) · k-NN = สัดส่วนเพื่อนบ้าน · tree = สัดส่วนในใบ)   // PDM: ชื่อจริง (สัญลักษณ์) · คำเดียวกับ confusion matrix
     hd.innerHTML=cols.map(function(t){return '<th>'+kx(W(t))+'</th>';}).join('');
     document.getElementById('mtab').className='dtab'+(cols.length>=5?' c5':'');   // 5 คอลัมน์ (bivariate + p̂) → ช่องแคบลง ไม่เบียดคอลัมน์กราฟ
     var idx=[],i;for(i=0;i<S.X.length;i++)idx.push(i);idx.sort(function(a,b){return S.X[b][0]-S.X[a][0];});
     function cls(y){return y?'\\textcolor{#B0503A}{+}':'\\textcolor{#3F6E99}{-}';}
     var h='';idx.forEach(function(i){var y=S.ys[i],ph=f.post(S.X[i]),yh=ph>0.5?1:0,k=y?(yh?'tp':'fn'):(yh?'fp':'tn');
-      h+='<tr class="'+k+'">'+S.X[i].map(function(v){return '<td>'+kx(fx(v,S.dec===2&&!isPDM()?1:2))+'</td>';}).join('')+'<td>'+kx(ph.toFixed(2))+'</td><td>'+kx(cls(y))+'</td><td>'+kx(cls(yh))+'</td></tr>';});
+      h+='<tr class="'+k+'">'+S.X[i].map(function(v){return '<td>'+kx(fx(v,S.dec===2&&!isPDM()?1:2))+'</td>';}).join('')+(hasP?'<td>'+kx(ph.toFixed(2))+'</td>':'')+'<td>'+kx(cls(y))+'</td><td>'+kx(cls(yh))+'</td></tr>';});
     tb.innerHTML=h;}
 
   // ---------- data for the current tab ----------
