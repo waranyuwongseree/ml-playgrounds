@@ -47,8 +47,8 @@
   .rocbox{display:none;width:100%;height:var(--sq);box-sizing:border-box;background:#fff;border:1px solid var(--line);border-radius:12px;position:relative}
   .panel .classleg{margin-top:8px;flex-wrap:wrap}
   /* AUC คิดมือ (แท็บ ROC): ชิ้นสมการตัดบรรทัดระหว่างชิ้นได้ */
-  #aucnote{font-size:14px;line-height:1.5;margin-top:6px}
-  #aucnote .ln{display:block;margin:4px 0}
+  #aucnote{font-size:14px;line-height:1.4;margin-top:2px}
+  #aucnote .ln{display:block;margin:1px 0}
   #aucnote .ln>span{display:inline-block;margin-right:.25em;vertical-align:middle}
   #aucnote .katex{font-size:1em}
   .main.roc .rocbox{display:block}
@@ -132,6 +132,9 @@
       <div class="dgrid">
         <div class="drow" id="row-t"><span class="dlab" id="lbl-t"></span><input type="range" id="Rt" min="0.5" max="4.5" step="0.1" value="2.2"><input class="num" type="number" id="Nt" min="0.5" max="4.5" step="0.1" value="2.2"></div>
       </div></div>
+      <!-- แท็บ ROC & PR: เลือกเส้นที่จะวาด — ข้อมูล แบบจำลอง และ threshold ชุดเดียวกัน -->
+      <div id="grp-cv" style="display:none;margin-top:8px">
+      <div class="seg2" id="cvSeg"><button data-cv="roc" id="cv-roc" class="on"></button><button data-cv="pr" id="cv-pr"></button></div></div>
       <div id="grp-rs" class="tgls"><button class="primary" id="resample" style="width:100%"></button></div>
       <div id="grp-met">
       <div class="mbarsbox" id="mbars"></div>
@@ -170,7 +173,8 @@
   // ชื่อแท็บ = ลำดับเนื้อหา: ตัดสินจากค่าดิบ x → ตัดสินจากคะแนนแบบจำลอง p̂ → กวาด threshold ทุกค่า (ROC)
   // แท็บ 1 รวม "ตัดที่ x" กับ "ตัดที่ p̂" ไว้ด้วยกัน — สลับด้วยปุ่ม Score (scMode) · แท็บ ROC ใช้ p̂ เสมอ
   // แท็บ 2 = แท็บ 1 + เปรียบเทียบ metric กับ threshold มาตรฐาน p̂ = 0.5 (cmp)
-  var TABS=[{n:'\\text{Threshold \\& Metrics}',key:'thr'},{n:'\\text{Compare with }\\hat p=0.5',key:'thr',cmp:true},{n:'\\text{ROC \\& AUC}',key:'roc'}];
+  var TABS=[{n:'\\text{Threshold \\& Metrics}',key:'thr'},{n:'\\text{Compare with }\\hat p=0.5',key:'thr',cmp:true},{n:'\\text{ROC \\& PR Curves}',key:'roc'}];
+  var curve='roc';   // แท็บสุดท้าย: 'roc' = (FPR, TPR) · 'pr' = (recall, precision)
   var curTab=0,dsIdx=0,scMode='x';
   var MC='#1e3a8a',Rd='#B0503A',Bl='#3F6E99';
   var TMEM={ex:null,p:0.5,src:'p'};   // เริ่มที่ p̂ = 0.5 (x เริ่มที่ค่าเทียบเท่า)   // src = แกนที่ผู้ใช้ตั้ง threshold ล่าสุด (อีกแกนคำนวณตาม — ดู matchT)   // threshold จำแยก: Threshold on x (หน่วย °C, เริ่มที่กึ่งกลางช่วงข้อมูล) · แท็บอื่น (หน่วย p̂)
@@ -182,6 +186,7 @@
   // ---------- KaTeX static labels ----------
   var MT={'h1':'\\text{Classification Metrics}','resample':'\\text{Resample points}',
     'hd-ds':'\\text{Data}','lbl-n':'n','lbl-t':'t',
+    'cv-roc':'\\text{ROC curve}','cv-pr':'\\text{PR curve}',
     'sc-x':'\\text{raw value }x','sc-p':'\\text{model probability }\\hat p',
     'ds-0':'\\text{Separated}','ds-1':'\\text{Unseparated}','ds-2':'\\text{Imbalanced}',
     'ch-pp':'\\hat y=+','ch-pn':'\\hat y=-','ch-ap':'\\text{actual }+','ch-an':'\\text{actual }-','cs-tp':'\\mathrm{TP}','cs-fn':'\\mathrm{FN}','cs-fp':'\\mathrm{FP}','cs-tn':'\\mathrm{TN}'};
@@ -192,7 +197,7 @@
     K('\\text{metric}',document.getElementById('th-a'));K('\\text{formula}',document.getElementById('th-b'));K('\\text{value}',document.getElementById('th-c'));
     // หัวตาราง: temp (x) = อุณหภูมิแบริ่ง °C · แท็บ ROC เพิ่ม TPR/FPR "ถ้าตั้ง threshold ที่แถวนี้" (แทนคอลัมน์ predicted)
     var W=function(t){return '\\textcolor{#fff}{'+t+'}';},k=T().key,X=W('\\text{temp }(x)');
-    var hd=isEX()?[X,W('\\text{actual}'),W('\\text{predicted}')]:k==='thr'?[X,W('\\hat p'),W('\\text{actual}'),W('\\text{predicted}')]:[X,W('\\hat p'),W('\\text{actual}'),W('\\text{TPR}'),W('\\text{FPR}')];
+    var hd=isEX()?[X,W('\\text{actual}'),W('\\text{predicted}')]:k==='thr'?[X,W('\\hat p'),W('\\text{actual}'),W('\\text{predicted}')]:[X,W('\\hat p'),W('\\text{actual}')].concat(curve==='pr'?[W('\\text{Rec.}'),W('\\text{Prec.}')]:[W('\\text{TPR}'),W('\\text{FPR}')]);
     document.getElementById('dthead').innerHTML=hd.map(function(t){return '<th>'+kx(t)+'</th>';}).join('');}
   function clLine(name,lc,tc,shape){return '<span class="cli"><i class="'+(shape||'ln')+'" style="background:'+lc+'"></i><span>'+kx('\\textcolor{'+tc+'}{\\text{'+name+'}}')+'</span></span>';}
   // legend: สีเดียวกับ confusion matrix / ตาราง — FN วงแหวนทอง · FP วงแหวนเขียวน้ำทะเล
@@ -228,8 +233,10 @@
     for(i=0;i<D.neg.length;i++){if(D.neg[i]>=t)FP++;else TN++;}return {TP:TP,FN:FN,FP:FP,TN:TN};}
   // ROC: กวาด threshold ทุกค่าที่เป็นไปได้ → (FPR,TPR) · AUC = พื้นที่ (trapezoid) = P(p̂+ > p̂−)
   function roc(){var pts=[{f:0,t:0}],P=D.pos.length,N=D.neg.length,arr=D.all.map(function(d){return {s:sc(d),y:d.y};}).sort(function(a,b){return b.s-a.s;}),tp=0,fp=0,i=0;
-    while(i<arr.length){var s=arr[i].s;while(i<arr.length&&arr[i].s===s){if(arr[i].y)tp++;else fp++;i++;}pts.push({f:N?fp/N:0,t:P?tp/P:0});}
-    var auc=0;for(i=1;i<pts.length;i++)auc+=(pts[i].f-pts[i-1].f)*(pts[i].t+pts[i-1].t)/2;return {pts:pts,auc:auc};}
+    while(i<arr.length){var s=arr[i].s;while(i<arr.length&&arr[i].s===s){if(arr[i].y)tp++;else fp++;i++;}pts.push({f:N?fp/N:0,t:P?tp/P:0,p:(tp+fp)?tp/(tp+fp):1});}   // p = precision ที่ threshold เดียวกัน (ใช้วาด PR curve · recall = t)
+    var auc=0;for(i=1;i<pts.length;i++)auc+=(pts[i].f-pts[i-1].f)*(pts[i].t+pts[i-1].t)/2;
+    // AP (average precision) = Σ (recall_i − recall_{i−1}) · precision_i — พื้นที่ใต้ PR curve แบบขั้นบันได · เส้นฐาน = สัดส่วนบวก n+/n
+    var ap=0;for(i=1;i<pts.length;i++)ap+=(pts[i].t-pts[i-1].t)*pts[i].p;return {pts:pts,auc:auc,ap:ap,prev:(P+N)?P/(P+N):0};}
 
   // ---------- canvas ----------
   var cv=document.getElementById('cv'),ctx=cv.getContext('2d'),cvr=document.getElementById('cvroc'),ctr=cvr.getContext('2d');
@@ -294,26 +301,31 @@
     g.strokeStyle='rgba(128,128,128,0.6)';g.strokeRect(px(0),py(1),pw,ph);
     g.fillStyle='rgba(128,128,128,0.9)';g.font='14px KaTeX_Main,serif';g.textAlign='center';g.textBaseline='alphabetic';
     [0,0.5,1].forEach(function(v){g.fillText(v.toFixed(1),px(v),py(0)+15);});g.textAlign='right';g.textBaseline='middle';[0,0.5,1].forEach(function(v){g.fillText(v.toFixed(1),px(0)-5,py(v));});g.textBaseline='alphabetic';
-    g.strokeStyle='rgba(17,17,17,0.45)';g.setLineDash([5,4]);g.beginPath();g.moveTo(px(0),py(0));g.lineTo(px(1),py(1));g.stroke();g.setLineDash([]);
-    var P=R.pts;g.fillStyle='rgba(30,58,138,0.10)';g.beginPath();g.moveTo(px(0),py(0));for(i=0;i<P.length;i++)g.lineTo(px(P[i].f),py(P[i].t));g.lineTo(px(1),py(0));g.closePath();g.fill();
-    g.strokeStyle=MC;g.lineWidth=2.2;g.beginPath();for(i=0;i<P.length;i++){i?g.lineTo(px(P[i].f),py(P[i].t)):g.moveTo(px(P[i].f),py(P[i].t));}g.stroke();
-    var C=confusion(t),tpr=D.pos.length?C.TP/D.pos.length:0,fpr=D.neg.length?C.FP/D.neg.length:0;
+    // curve = 'roc': (FPR, TPR) เส้นฐาน = เส้นทแยง (เดาสุ่ม) · curve = 'pr': (recall, precision) เส้นฐาน = สัดส่วนบวก n+/n (เดาสุ่ม) — ข้อมูลและ threshold ชุดเดียวกัน
+    var pr=(curve==='pr'),P=R.pts,XY=function(q){return pr?[q.t,q.p]:[q.f,q.t];},P0=pr?P.slice(1):P;   // PR: ไม่มีจุด (0,0) — เริ่มที่ threshold สูงสุด
+    g.strokeStyle='rgba(17,17,17,0.45)';g.setLineDash([5,4]);g.beginPath();if(pr){g.moveTo(px(0),py(R.prev));g.lineTo(px(1),py(R.prev));}else{g.moveTo(px(0),py(0));g.lineTo(px(1),py(1));}g.stroke();g.setLineDash([]);
+    var first=XY(P0[0]),x0c=pr?0:first[0];
+    g.fillStyle='rgba(30,58,138,0.10)';g.beginPath();g.moveTo(px(x0c),py(0));if(pr)g.lineTo(px(0),py(first[1]));for(i=0;i<P0.length;i++){var a=XY(P0[i]);g.lineTo(px(a[0]),py(a[1]));}g.lineTo(px(1),py(0));g.closePath();g.fill();
+    g.strokeStyle=MC;g.lineWidth=2.2;g.beginPath();if(pr)g.moveTo(px(0),py(first[1]));for(i=0;i<P0.length;i++){var b=XY(P0[i]);(i||pr)?g.lineTo(px(b[0]),py(b[1])):g.moveTo(px(b[0]),py(b[1]));}g.stroke();
+    var C=confusion(t),tpr=D.pos.length?C.TP/D.pos.length:0,fprR=D.neg.length?C.FP/D.neg.length:0,prec=(C.TP+C.FP)?C.TP/(C.TP+C.FP):1;
+    var fpr=pr?tpr:fprR;if(pr)tpr=prec;   // จุดของ threshold ปัจจุบัน: ROC = (FPR, TPR) · PR = (recall, precision) — ใช้ตัวแปร fpr/tpr เป็นพิกัด x/y ต่อจากนี้
     g.fillStyle=MC;g.beginPath();g.arc(px(fpr),py(tpr),5.5,0,7);g.fill();g.strokeStyle='#fff';g.lineWidth=2;g.stroke();
     // ป้าย threshold ข้างจุด: อยู่ในกรอบเสมอ ไม่ทับป้าย AUC (มุมขวาล่าง)
     g.fillStyle='#111';g.font='14px KaTeX_Main,serif';g.textAlign='left';var tl='threshold '+t.toFixed(2),wl=g.measureText(tl).width,lx=px(fpr)+10;
     if(lx+wl>L+pw)lx=px(fpr)-10-wl;if(lx<L)lx=L;var ly=(tpr>0.85)?py(tpr)+16:py(tpr)-8;
     if(ly>py(0.18)&&lx+wl>px(0.5))ly=py(tpr)-8;if(ly-12<TOP)ly=py(tpr)+16;
     g.fillText(tl,lx,ly);
-    g.fillStyle='rgba(90,90,90,0.9)';g.textAlign='center';g.fillText('FPR',px(0.5),H-5);
-    g.save();g.translate(16,py(0.5));g.rotate(-Math.PI/2);g.fillText('TPR',0,0);g.restore();   // baseline ที่ x=16 → ตัวอักษรอยู่ช่วง 5–16 ไม่ชิดขอบ
-    var lb=labs(cvr);lb('\\text{AUC}='+R.auc.toFixed(2),px(0.97),py(0.06),{align:'right',color:MC});}
+    g.fillStyle='rgba(90,90,90,0.9)';g.textAlign='center';g.fillText(pr?'Recall':'FPR',px(0.5),H-5);
+    g.save();g.translate(16,py(0.5));g.rotate(-Math.PI/2);g.fillText(pr?'Precision':'TPR',0,0);g.restore();   // baseline ที่ x=16 → ตัวอักษรอยู่ช่วง 5–16 ไม่ชิดขอบ
+    var lb=labs(cvr);lb(pr?'\\text{AP}='+R.ap.toFixed(2):'\\text{AUC}='+R.auc.toFixed(2),px(0.97),py(0.06),{align:'right',color:MC});
+    if(pr)lb('\\text{baseline }n_+/n='+R.prev.toFixed(2),px(0.97),py(R.prev)-5,{align:'right',color:'#555'});}
 
   // ---------- ตารางข้อมูล (ซ้าย): x | (p̂) | y | ŷ เรียงตามคะแนนมากไปน้อย · สีแถว = ผล TP/FN/FP/TN ----------
   function fillDtab(t){var tb=document.getElementById('dtbody');if(!tb)return;var arr=D.all.slice().sort(function(a,b){return sc(b)-sc(a);}),h='';
     function cls(y){return y?'\\textcolor{'+Rd+'}{+}':'\\textcolor{'+Bl+'}{-}';}
     // แท็บ ROC: TPR/FPR ของแถว = ค่าที่ได้ถ้าตั้ง threshold ที่คะแนนของแถวนั้น (threshold scanning — ไล่ทีละแถวจากบนลงล่าง = เดินไปตามโค้ง ROC)
     var isR=T().key==='roc',P=D.pos.length,N=D.neg.length,ctp=0,cfp=0,scan=[];
-    if(isR){var i2=0;while(i2<arr.length){var s0=sc(arr[i2]),j2=i2;while(j2<arr.length&&sc(arr[j2])===s0){if(arr[j2].y)ctp++;else cfp++;j2++;}for(;i2<j2;i2++)scan[i2]=[ctp/P,cfp/N];}}
+    if(isR){var i2=0;while(i2<arr.length){var s0=sc(arr[i2]),j2=i2;while(j2<arr.length&&sc(arr[j2])===s0){if(arr[j2].y)ctp++;else cfp++;j2++;}for(;i2<j2;i2++)scan[i2]=(curve==='pr')?[ctp/P,(ctp+cfp)?ctp/(ctp+cfp):1]:[ctp/P,cfp/N];}}   /* PR: recall, precision ต่อแถว */
     var cut=-1;arr.forEach(function(d,i){var yh=sc(d)>=t?1:0,k=d.y?(yh?'tp':'fn'):(yh?'fp':'tn');if(!yh&&cut<0)cut=i;   // แถวแรกที่อยู่ใต้ threshold
       h+='<tr class="'+k+(cut===i?' cut':'')+'"><td>'+kx(d.x.toFixed(1))+'</td>'+(isEX()?'':'<td>'+kx(d.p.toFixed(2))+'</td>')+'<td>'+kx(cls(d.y))+'</td>'
         +(isR?'<td>'+kx(scan[i][0].toFixed(2))+'</td><td>'+kx(scan[i][1].toFixed(2))+'</td>':'<td>'+kx(cls(yh))+'</td>')+'</tr>';});
@@ -361,12 +373,19 @@
       // ถ้า ΔFPR เท่ากันทุกช่วง (= 1/n−) ย่อเป็น ΔFPR · (ผลรวม TPR เฉลี่ยของแต่ละช่วง) ให้สั้นลง
       var same=dfs.length>1&&dfs.every(function(v){return Math.abs(v-dfs[0])<1e-9;});
       if(same)parts=['\\Delta\\mathrm{FPR}\\textstyle\\sum\\overline{\\mathrm{TPR}}=\\tfrac{1}{'+Math.round(1/dfs[0])+'}\\times'+avs.reduce(function(s,v){return s+v;},0).toFixed(2)];
-      else if(parts.length>3)parts=[parts[0],parts[1],'\\cdots',parts[parts.length-1]];   // ช่วงไม่เท่ากันและมีหลายช่วง → แสดง 2 พจน์แรก … พจน์สุดท้าย
+      else if(parts.length>3)parts=['\\textstyle\\sum\\tfrac12(\\mathrm{TPR}_{i-1}+\\mathrm{TPR}_i)\\,\\Delta\\mathrm{FPR}_i'];   // ช่วงไม่เท่ากันและมีหลายช่วง (n มาก / มีค่าซ้ำ) → เขียนเป็นสูตรผลรวม บรรทัดเดียว
       var win=0,tie=0,a,b2;for(a=0;a<D.pos.length;a++)for(b2=0;b2<D.neg.length;b2++){if(D.pos[a]>D.neg[b2])win++;else if(D.pos[a]===D.neg[b2])tie++;}
       var np=D.pos.length*D.neg.length;
       function ln(ps){return '<span class="ln">'+ps.map(function(p){return '<span>'+kx(p)+'</span>';}).join('')+'</span>';}
       note=ln(['\\text{area: AUC}='].concat(parts.map(function(p,j){return (j?'+':'')+p;})).concat(['='+R.auc.toFixed(2)]))
-          +ln(['\\text{ranking: AUC}=\\dfrac{\\#(\\hat p_+>\\hat p_-)+\\frac12\\#\\text{ties}}{n_+\\,n_-}','=\\dfrac{'+win+(tie?'+\\frac12\\cdot'+tie:'')+'}{'+D.pos.length+'\\cdot'+D.neg.length+'}','='+((win+tie/2)/np).toFixed(2)]);}
+          +ln(['\\text{ranking: AUC}=\\dfrac{\\#(\\hat p_+>\\hat p_-)+\\frac12\\#\\text{ties}}{n_+\\,n_-}','=\\dfrac{'+win+(tie?'+\\frac12\\cdot'+tie:'')+'}{'+D.pos.length+'\\cdot'+D.neg.length+'}','='+((win+tie/2)/np).toFixed(2)]);
+      if(curve==='pr'){   // PR: แถว = recall, precision ของ threshold ปัจจุบัน · AP · เส้นฐาน — คำอธิบายใต้ตาราง: ทำไม PR เหมาะกับข้อมูลที่บวกน้อย (PdM)
+        rows=[['\\text{Recall}',fr(cs('TP'),cs('TP')+'+'+cs('FN')),vv(tp,tp+'+'+fn,TP,TP+FN)],
+              ['\\text{Precision}',fr(cs('TP'),cs('TP')+'+'+cs('FP')),vv(tp,tp+'+'+fp,TP,TP+FP)],
+              ['\\text{baseline}','n_+/n',R.prev.toFixed(2)],
+              ['\\text{AP}','\\textstyle\\sum\\Delta R\\cdot P',R.ap.toFixed(2)]];
+        note=ln(['\\text{Precision ignores TN:}','\\text{many negatives cannot}','\\text{hide the false alarms}'])   /* ชิ้นสั้น ๆ → ตัดบรรทัดในแผงแคบได้ */
+            +ln(['\\text{AUC}='+R.auc.toFixed(2)+',','\\text{AP}='+R.ap.toFixed(2),'(\\text{random}='+R.prev.toFixed(2)+')']);}}
     var h='';rows.forEach(function(r){h+='<tr>'+r.map(function(c,j){return '<td'+(j>=2?' class="r"':'')+'>'+kx(c)+'</td>';}).join('')+'</tr>';});
     document.querySelector('#grp-met .tblbox').style.display=(k==='thr')?'none':'';document.getElementById('mbars').style.display=(k==='thr')?'':'none';
     document.getElementById('mbody').innerHTML=h;
@@ -376,7 +395,7 @@
   function upd(){var t=curT(),C=confusion(t),R=roc(),k=T().key;
     document.querySelector('.main').className='main'+(k==='roc'?' roc':'');
     document.getElementById('stage').className='stage'+(isEX()?'':' wide');
-    document.getElementById('scSeg').style.display=(k==='roc')?'none':'';
+    document.getElementById('scSeg').style.display=(k==='roc')?'none':'';document.getElementById('grp-cv').style.display=(k==='roc')?'':'none';
     var gm=document.getElementById('grp-met');gm.style.display='';   // metric ทุกแท็บ: ex/thr ใต้กราฟ · roc ในแผงควบคุม (ใต้กราฟมี ROC แล้ว)
     var host=(k==='roc')?document.querySelector('.panel'):document.querySelector('.main');if(gm.parentElement!==host)host.appendChild(gm);
     drawStrip(t,C);if(k==='roc')drawRoc(t,R);fillTable(C,R);fillLegend();fillDtab(t);
@@ -411,6 +430,8 @@
   document.querySelectorAll('#dsSeg button').forEach(function(b){b.addEventListener('click',function(){dsIdx=parseInt(b.getAttribute('data-ds'),10);setDsSeg();dataset();setTRange();upd();});});
   document.querySelectorAll('#scSeg button').forEach(function(b){b.addEventListener('click',function(){scMode=b.getAttribute('data-sc');
     var bs=document.querySelectorAll('#scSeg button');for(var i=0;i<bs.length;i++)bs[i].className=(bs[i]===b)?'on':'';renderTexts();dataset();setTRange();upd();});});
+  document.querySelectorAll('#cvSeg button').forEach(function(b){b.addEventListener('click',function(){curve=b.getAttribute('data-cv');
+    var bs=document.querySelectorAll('#cvSeg button');for(var i=0;i<bs.length;i++)bs[i].className=(bs[i]===b)?'on':'';renderTexts();upd();});});
   document.getElementById('resample').addEventListener('click',function(){seed=(seed*1664525+1013904223)>>>0;regen(seed);dataset();setTRange();upd();});
   window.addEventListener('resize',function(){upd();});
 
