@@ -199,7 +199,7 @@
   function labs(c){var p=c.parentElement,Ly=p.querySelector('.cvlab');if(!Ly){Ly=document.createElement('div');Ly.className='cvlab';p.appendChild(Ly);}Ly.innerHTML='';
     return function(tex,x,y,o){o=o||{};var s=document.createElement('span');K(tex,s);var pr=document.createElement('span');pr.style.cssText='display:inline-block;width:0;height:0;vertical-align:baseline';s.appendChild(pr);
       s.style.left=x+'px';s.style.top='0px';s.style.transform='translateX('+(o.align==='right'?'-100%':'0')+')';Ly.appendChild(s);var sr=s.getBoundingClientRect(),base=pr.getBoundingClientRect().top-sr.top;s.style.top=(y-base)+'px';};}
-  function dotR(n){return n<=20?6:n<=60?5:4;}
+  function dotR(n){return 6;}   // ขนาดจุดคงที่ r = 6 ทุกค่า n (เท่ากับ Intro / Classification Metrics)
   function dotAt(g,x,y,yv,pr,r){g.fillStyle=yv?'rgba(224,122,95,0.92)':'rgba(91,143,185,0.88)';g.beginPath();g.arc(x,y,r,0,7);g.fill();   // สี = actual class · ✗ ขาว = ทำนายผิด
     if(pr!==yv){var q=r*0.6;g.strokeStyle='#fff';g.lineWidth=1.8;g.beginPath();g.moveTo(x-q,y-q);g.lineTo(x+q,y+q);g.moveTo(x+q,y-q);g.lineTo(x-q,y+q);g.stroke();}}
   function draw(M,fk,TR,cnt){var g=ctx;g.setTransform(SC,0,0,SC,0,0);g.clearRect(0,0,W_,H_);

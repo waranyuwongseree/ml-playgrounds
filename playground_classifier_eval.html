@@ -73,7 +73,7 @@
   .mbarsbox{border:1px solid var(--line);border-radius:12px;padding:8px 12px;background:#fff;box-shadow:0 1px 3px rgba(0,0,0,.04)}
   .mbarsbox .katex{font-size:1em}
   .mbarsbox .mrow{display:flex;align-items:center;gap:10px;font-size:14px;line-height:1.25;margin:3px 0}
-  .mbarsbox .mrow .lab{flex:0 0 172px;white-space:nowrap;color:var(--ink)}
+  .mbarsbox .mrow .lab{flex:0 0 188px;white-space:nowrap;color:var(--ink)}
   .mbarsbox .mrow .track{flex:1;position:relative;height:11px;background:#eef1f5;border-radius:6px;box-shadow:inset 0 1px 2px rgba(0,0,0,.06)}
   .mbarsbox .mrow .track>span{position:absolute;left:0;top:0;height:100%;border-radius:6px;transition:width .25s}
   .mbarsbox .mrow .track>.trainbar{opacity:.32}
@@ -261,7 +261,7 @@
     g.strokeStyle='#111';g.setLineDash([5,4]);g.lineWidth=1.8;g.beginPath();g.moveTo(L-4,yT);g.lineTo(L+pw+4,yT);g.stroke();g.setLineDash([]);
     g.fillStyle='#111';g.font='14px KaTeX_Main,serif';g.textAlign='right';g.fillText(t.toFixed(dec),L-7,yT);g.textBaseline='alphabetic';
     // จุด: beeswarm ต่อคอลัมน์ (ชนกันในแนวตั้ง → ขยับซ้าย/ขวาสลับกัน) สีตามผล TP coral · FN ทอง · FP เขียวน้ำทะเล · TN ฟ้า
-    var r=D.all.length<=20?6:5,gap=2*r+1.5;
+    var r=6,gap=2*r+1.5;   // ขนาดจุดคงที่ทุกค่า n (ไม่ลดเมื่อ n มาก)
     // dot histogram แนวตั้ง: ช่องคะแนนคงที่บนแกน (ไม่ขึ้นกับ threshold → เลื่อน threshold แล้วจุดไม่กระโดด) เรียงเป็นแถวออกจากกลางคอลัมน์
     // จุดที่ขอบ 0/1 ถูกดันเข้ามาให้เห็นวงกลมเต็ม · จุดในช่องที่เส้น threshold ผ่านจะถูกดันไปฝั่งที่ถูกต้องของเส้น (ขยับเล็กน้อยเฉพาะช่องนั้น)
     function swarm(vals,cx,pos){var nb=Math.max(1,Math.ceil(ph/gap)),bins={};
@@ -341,7 +341,7 @@
       var cmp=!!T().cmp,Gc='#3F8F6B',refTxt=isEX()?'x\\ge '+tR.toFixed(1):'0.50';
       var bar=function(i){var a=A[i],b=B[i],ok=a[1]>0,v=ok?a[0]/a[1]:0,rk=b[1]>0,r=rk?b[0]/b[1]:0,col=!cmp?MC:(v<r-0.005)?Rd:Gc;
         // แถวเดียว: ชื่อ + สูตร | แถบ (จาง = ค่าอ้างอิง) | ค่า — compare เขียน "อ้างอิง → ปัจจุบัน" เช่น 99 → 100%
-        return '<div class="mrow"><span class="lab">'+kx((i===4?'F_1':'\\text{'+NM[i]+'}')+'\\;'+FMs[i])+'</span>'
+        return '<div class="mrow"><span class="lab">'+kx((i===4?'F_1':'\\text{'+NM[i]+'}')+'='+FMs[i])+'</span>'
           +'<div class="track">'+(cmp?'<span class="trainbar" style="width:'+(r*100)+'%;background:'+col+'"></span>':'')+'<span class="fill" style="width:'+(v*100)+'%;background:'+col+'"></span></div>'
           +'<span class="v" style="color:'+col+'">'+kx((cmp?'\\textcolor{#6b7280}{'+(rk?Math.round(r*100):'\\text{--}')+'\\to}\\,':'')+(ok?Math.round(v*100)+'\\%':'\\text{--}'))+'</span></div>';};
       // หัวการ์ด: บอกว่าเป็น metric ของ threshold เดียว หรือการเปรียบเทียบระหว่าง 2 threshold (อ้างอิง → ปัจจุบัน)
