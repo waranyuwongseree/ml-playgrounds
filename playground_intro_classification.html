@@ -36,7 +36,7 @@
   .cvlab>span{position:absolute;white-space:nowrap;color:rgba(90,90,90,0.9)}   /* เฉพาะลูกตรง — ห้ามโดน span ภายในของ KaTeX */
   .cvlab .katex{font-size:1em}
   /* กล่องคำนวณ: แต่ละบรรทัด = ชิ้น KaTeX หลายชิ้น ตัดบรรทัดระหว่างชิ้นได้ (ไม่ตัดกลางสมการ) → ไม่ถูกตัดทิ้ง */
-  .excalc{background:#fff;border:1px solid var(--line);border-radius:12px;padding:8px 6px;font-size:14px;line-height:1.5;overflow:hidden}
+  .excalc{background:#fff;border:1px solid var(--line);border-radius:12px;padding:5px 6px;font-size:14px;line-height:1.38;overflow:hidden}
   .excalc .ln{display:block;white-space:normal;margin:2px 0}
   .excalc .ln>span{display:inline-block;margin-right:.3em;vertical-align:middle}
   .excalc .katex{font-size:1em}
@@ -48,8 +48,11 @@
   .excalc .ln.lbd>.bd>span.nl{display:block;margin-top:2px}
   /* bivariate: สมการยาว → ป้ายกำกับขึ้นบรรทัดของตัวเอง (เนื้อสมการได้ความกว้างเต็มกล่อง) · ห้ามย่อฟอนต์ (มาตรฐาน: สมการ ≥ 14px ยาวก็ตัดบรรทัด) */
   /* ป้ายกำกับนำหน้าบรรทัด แล้วชิ้นสมการไหลต่อ — ที่พอก็อยู่บรรทัดเดียวกับป้าย ที่ไม่พอชิ้นถัดไปขึ้นบรรทัดใหม่เอง (ไม่เปลืองแถวเปล่า ไม่ย่อฟอนต์) */
-  .excalc .ln.lbd{display:block}.excalc .ln.lbd>.lb{display:inline-block;margin:0 10px 0 0;vertical-align:middle}.excalc .ln.lbd>.bd{display:inline}
-  .excalc .ln.lbd.tr>.lb:empty{display:none}.excalc .ln.lbd.tr>.bd{display:block}
+  /* ป้ายกำกับ = หัวข้อย่อยของแต่ละกลุ่ม (ตัวหนา สีกรมท่า ขึ้นบรรทัดของตัวเอง) · สมการอยู่บรรทัดถัดไปแบบเยื้อง → เห็นชัดว่าส่วนไหนคือ model / rule / testing point */
+  .excalc .ln.lbd{display:block;padding:1px 0}
+  .excalc .ln.lbd>.lb{display:inline-block;margin:0 10px 2px 0;padding:1px 9px;border-radius:6px;background:#E6ECF8;color:var(--navy);font-size:13px;vertical-align:middle}   /* ป้าย = แถบสีกรมท่าอ่อน ตัวหนา → แยกจากสมการชัดเจน */
+  .excalc .ln.lbd>.bd{display:inline}
+  .excalc .ln.lbd.tr{padding:0}.excalc .ln.lbd.tr>.lb:empty{display:none}.excalc .ln.lbd.tr>.bd{display:block}
   .excalc .ln.lbd:not(.tr)+.ln.lbd,.excalc .ln.tr+.ln.lbd:not(.tr){border-top:1px solid var(--line);padding-top:2px;margin-top:2px}
   .excalc .ln.tr{margin:0;line-height:1.08;font-size:14px}   /* กฎของ tree (ลึก 3 = ได้ถึง ~14 บรรทัด) → บรรทัดชิดกัน */
   .dtab{width:100%;border-collapse:collapse;font-size:15px}
@@ -540,12 +543,12 @@
     var yh=p0>0.5?POS():NEG(),PA=Q.map(function(v){return fx(v,dec);}).join(',\\ ');   // PA = ค่า testing point ที่แทนลงใน p̂(·)
     // ลำดับบรรทัด: แบบจำลอง → กฎ if–then → query point · ไม่ใช้สัญลักษณ์ σ(z) เขียน 1/(1+e^{-z}) ตรง ๆ
     // ป้ายกำกับหน้าบรรทัด (คอลัมน์ซ้าย): probabilistic model = ให้ p̂ · decision rule = ให้คลาสโดยตรง (แบบจำลองเดียวกันเขียนเป็นกฎ) · testing point = แทนค่าจุดทดสอบ
-    var LBW=138,lab=function(t){return '<span class="lb">'+kx('\\text{'+t+'}')+'</span>';};
+    var lab=function(t){return '<span class="lb">'+kx('\\textbf{'+t+'}')+'</span>';};   // หัวข้อย่อย: ตัวหนา (สี/ขนาดกำหนดใน CSS)
     // parts: สตริง = ชิ้นสมการ (ตัดบรรทัดระหว่างชิ้นได้ถ้าที่ไม่พอ) · ['nl',tex] = ขึ้นบรรทัดใหม่เสมอ (ใช้กับ ⇒ y = …)
     var lline=function(t,parts){return '<span class="ln lbd">'+lab(t)+'<span class="bd">'+parts.map(function(p){return (p instanceof Array)?'<span class="nl">'+kx(p[1])+'</span>':'<span>'+kx(p)+'</span>';}).join('')+'</span></span>';};
     var OR='\\quad\\text{or}',RL=lline('Decision rule',ruleLines(f,sym,dec));
     // สมการคำนวณของ testing point เขียนต่อเนื่องบรรทัดเดียว (1-D) · 2-D ยาวเกินกล่อง จึงยอมให้ตัดที่เครื่องหมาย = · ⇒ y = … ขึ้นบรรทัดใหม่
-    var tline=function(a,b,c){return lline('Testing point',(D===1?[a+b+c]:[a,b,c]).concat([['nl','\\text{or }'+yh]]));};   // 2-D: ตัดบรรทัดได้ระหว่าง 3 ชิ้น (ชื่อ | เศษส่วน | ผลลัพธ์)
+    var tline=function(a,b,c){return lline('Testing point',D===1?[a+b+c,['nl','\\text{or }'+yh]]:[a,b,c+'\\quad\\text{or }'+yh]);};   // 2-D: ผลลัพธ์ "= 0.51" ขึ้นบรรทัดใหม่อยู่แล้ว จึงต่อ "or predicted …" ในบรรทัดเดียวกัน (ประหยัดความสูง)   // 2-D: ตัดบรรทัดได้ระหว่าง 3 ชิ้น (ชื่อ | เศษส่วน | ผลลัพธ์)
     var XA=D===1?'x':'\\mathbf x';
     if(modeM==='logistic'||modeM==='nb'){   // logistic และ naive Bayes แสดงแบบเดียวกัน (ทั้งคู่ log-odds เชิงเส้น ต่างกันที่วิธีหา w, b) · เขียน exp(−(…)) แทนค่า z ลงไปเลย ไม่ตั้งตัวแปร z
       h+=lline('Probabilistic model',['\\hat p('+XA+')=\\dfrac{1}{1+\\exp(-('+linExpr(f,sym)+'))}',OR]);h+=RL;
@@ -653,7 +656,7 @@
   // ค่า control จำแยกตามชนิด tab: sim (Univariate/Bivariate) · ex (Example, สเกล PSA) · pdm
   var MEM={sim:{mu1:70.8,s1:1.0,mu0:68.5,s0:1.0,sep:3.0,sg:1.0,n:20},   /* μ บนสเกลอุณหภูมิแบริ่ง (°C): healthy ≈ 68.5 · fault ≈ 70.8 (ค่าจากข้อมูลปั๊มจริง) */ex:{x0:2.6,mu1:2.8,s1:0.82,mu0:1.5,s0:0.61,n:7},pdm:{n:20}};   // sim n=20 เท่ากับ Classifier Evaluation · pdm x0/xy0 ตั้งจากช่วงข้อมูลตอน upd
   function kind(){return isEX()?'ex':isPDM()?'pdm':'sim';}
-  var RANGE={sim:{mu:[65,75,0.1],s:[0.4,2.5,0.1],n:[12,60,4]},ex:{mu:[0.5,4.5,0.1],s:[0.2,1.5,0.01],n:[3,12,1],x0:[0.3,4.7,0.1]},pdm:{n:[20,1440,20]}};   /* ทุกแท็บเริ่มที่ n = 20 (ตารางเห็นครบไม่ต้องเลื่อน) */
+  var RANGE={sim:{mu:[65,75,0.1],s:[0.4,2.5,0.1],n:[10,100,10]},   /* n: 10–100 เท่ากับ Classification Metrics */ex:{mu:[0.5,4.5,0.1],s:[0.2,1.5,0.01],n:[3,12,1],x0:[0.3,4.7,0.1]},pdm:{n:[20,1440,20]}};   /* ทุกแท็บเริ่มที่ n = 20 (ตารางเห็นครบไม่ต้องเลื่อน) */
   function setRange(b,r){['R','N'].forEach(function(p){var e=document.getElementById(p+b);e.min=r[0];e.max=r[1];e.step=r[2];});}
   function syncRows(){var t=T(),kd=kind();['ex','pos','neg','ds','share','model','rs'].forEach(function(g){document.getElementById('grp-'+g).style.display=(t.groups.indexOf(g)>=0)?'':'none';});
     ['x0','xy0','mu1','muy1','s1','mu0','muy0','s0','sep','sg','p1','sev','n'].forEach(function(b){document.getElementById('row-'+b).style.display=(t.rows.indexOf(b)>=0)?'':'none';});

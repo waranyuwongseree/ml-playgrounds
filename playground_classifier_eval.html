@@ -124,7 +124,7 @@
       <div id="grp-ds"><div class="dhd" id="hd-ds"></div>
       <div class="seg2" id="dsSeg"><button data-ds="0" id="ds-0" class="on"></button><button data-ds="1" id="ds-1"></button><button data-ds="2" id="ds-2"></button></div>
       <div class="dgrid">
-        <div class="drow" id="row-n"><span class="dlab" id="lbl-n"></span><input type="range" id="Rn" min="10" max="40" step="2" value="20"><input class="num" type="number" id="Nn" min="10" max="40" step="2" value="20"></div>
+        <div class="drow" id="row-n"><span class="dlab" id="lbl-n"></span><input type="range" id="Rn" min="10" max="100" step="10" value="20"><input class="num" type="number" id="Nn" min="10" max="100" step="10" value="20"></div>
       </div></div>
       <div id="grp-th"><div class="dhd" id="hd-th"></div>
       <!-- คะแนนที่ใช้ตัดสิน: ค่าดิบ x หรือความน่าจะเป็นจากแบบจำลอง p̂ (ชุดข้อมูลเดียวกัน · threshold แปลงตามกัน → confusion matrix เท่าเดิม) -->
@@ -217,7 +217,7 @@
     var used={};   // ค่า x ไม่ซ้ำกัน (กริด 0.1): ซ้ำ → ขยับ ±0.1 สลับข้างจนว่าง จุดจึงไม่ทับกัน
     for(i=0;i<n;i++){var y=(i<nP)?1:0,raw=P?(y?P.fault[PF[i%PF.length]%P.fault.length]:P.good[PG[i%PG.length]%P.good.length]):(y?m1:m0)+Z[i];
       if(y)raw=m0+c.d*(raw-m0);var x0=Math.round(raw*10)/10,x=x0,k=0;
-      while(used[x.toFixed(1)]&&k<80){k++;x=Math.round((x0+(k%2?1:-1)*Math.ceil(k/2)*0.1)*10)/10;}
+      while(used[x.toFixed(1)]&&k<6){   /* ขยับไม่เกิน ±0.3 °C — n มาก (ถึง 100) ช่องบนกริด 0.1 ไม่พอ ก็ยอมให้ค่าซ้ำ (dot histogram ซ้อนจุดให้ · ROC/AUC รองรับค่าเท่ากัน) */k++;x=Math.round((x0+(k%2?1:-1)*Math.ceil(k/2)*0.1)*10)/10;}
       used[x.toFixed(1)]=1;
       var p=sig(w*(x-mid)+b);D.all.push({x:x,p:p,y:y});}
     D.all.forEach(function(d){(d.y?D.pos:D.neg).push(sc(d));});
@@ -267,15 +267,18 @@
     function swarm(vals,cx,pos){var nb=Math.max(1,Math.ceil(ph/gap)),bins={};
       vals.forEach(function(s){var idx=Math.min(nb-1,Math.max(0,Math.floor((py(s)-TOP)/gap)));(bins[idx]=bins[idx]||[]).push(s);});
       Object.keys(bins).forEach(function(idx){var yc=Math.min(TOP+ph-r-1,Math.max(TOP+r+1,TOP+(+idx+0.5)*gap));
-        bins[idx].sort(function(a,b){return b-a;}).forEach(function(s,j){var x=cx+Math.ceil(j/2)*(j%2?1:-1)*gap,miss=pos?(s<t):(s>=t);
-          var yd=(s>=t)?Math.min(yc,yT-r-1):Math.max(yc,yT+r+1);yd=Math.min(TOP+ph-r-1,Math.max(TOP+r+1,yd));
+        // แถวหนึ่งกว้างไม่เกินคอลัมน์ของตัวเอง (n ถึง 100: คะแนนกองที่ 0 หรือ 1 ได้หลายสิบจุด) → จุดที่เกินขึ้นแถวใหม่ ซ้อนเข้าหากลางกราฟ ขนาดจุดคงเดิม
+        var perRow=Math.max(1,Math.floor((pw/2-10)/gap)),dirIn=(yc>TOP+ph/2)?-1:1;
+        bins[idx].sort(function(a,b){return b-a;}).forEach(function(s,j0){var j=j0%perRow,lay=Math.floor(j0/perRow),x=cx+Math.ceil(j/2)*(j%2?1:-1)*gap,miss=pos?(s<t):(s>=t);
+          var yd=(s>=t)?Math.min(yc+lay*gap*dirIn,yT-r-1):Math.max(yc+lay*gap*dirIn,yT+r+1);yd=Math.min(TOP+ph-r-1,Math.max(TOP+r+1,yd));
           g.fillStyle=pos?'#E07A5F':'#5B8FB9';g.beginPath();g.arc(x,yd,r,0,7);g.fill();   // สีจุด = actual class · พื้นช่อง = predicted
           if(miss){var q=r*0.55;g.strokeStyle='#fff';g.lineWidth=2;g.beginPath();g.moveTo(x-q,yd-q);g.lineTo(x+q,yd+q);g.moveTo(x+q,yd-q);g.lineTo(x-q,yd+q);g.stroke();}});});}   // ✗ = ทำนายผิด
     g.save();g.beginPath();g.rect(L,TOP,pw,ph);g.clip();swarm(D.pos,xL,true);swarm(D.neg,xR,false);g.restore();   // จุดไม่ล้นกรอบ
     // นับในมุมของแต่ละช่อง (ตัวเลขใหญ่ + ชื่อช่อง)
     // ตัวเลข + ชื่อช่องบรรทัดเดียว ที่มุมกรอบคงที่ (ไม่ล้นกรอบแม้ threshold สุดขอบ)
     function cnt(v,lab,x,y,al,col,big){var fs=(big?21:15)+'px KaTeX_Main,serif';g.fillStyle=col;g.font=fs;var wv=g.measureText(String(v)).width;g.font='14px KaTeX_Main,serif';var wl=g.measureText(lab).width;
-      var x0=al==='left'?x:x-(wv+6+wl);g.textAlign='left';g.font=fs;g.fillText(String(v),x0,y);g.font='14px KaTeX_Main,serif';g.fillText(lab,x0+wv+6,y);}
+      var x0=al==='left'?x:x-(wv+6+wl);g.textAlign='left';
+      var fh=big?21:15;g.save();g.fillStyle='rgba(255,255,255,0.82)';g.fillRect(x0-4,y-fh+1,wv+6+wl+8,fh+5);g.restore();g.fillStyle=col;   /* พื้นขาวโปร่งหลังป้ายนับ — n มาก จุดกองถึงมุมกรอบ ป้ายยังอ่านได้ */g.font=fs;g.fillText(String(v),x0,y);g.font='14px KaTeX_Main,serif';g.fillText(lab,x0+wv+6,y);}
     // แถวบางกว่า 34px (threshold ใกล้สุดขอบ) → ย้ายป้ายนับออกนอกกรอบ (เหนือ/ใต้) ตัวเล็กลง ไม่ทับเส้น/จุด
     var thinA=(yT-TOP)<34,thinB=(TOP+ph-yT)<34,yA=thinA?TOP-9:TOP+24,yB=thinB?TOP+ph+15:TOP+ph-10;
     cnt(C.TP,'TP',L+8,yA,'left','#8A3B2C',!thinA);cnt(C.FP,'FP',L+pw-8,yA,'right','#2E7D70',!thinA);
@@ -351,7 +354,7 @@
     else if(k==='roc'){
       rows=[['\\text{TPR}',fr(cs('TP'),cs('TP')+'+'+cs('FN')),vv(tp,tp+'+'+fn,TP,TP+FN)],
             ['\\text{FPR}',fr(cs('FP'),cs('FP')+'+'+cs('TN')),vv(fp,fp+'+'+tn,FP,FP+TN)],
-            ['\\text{thresholds}','n+1',String(n+1)],
+            ['\\text{thresholds}','\\text{distinct scores}+1',String(R.pts.length)],   // n มากอาจมีคะแนนซ้ำ → นับเฉพาะค่าที่ต่างกัน (ไม่ซ้ำเลย = n + 1)
             ['\\text{AUC}','P(\\hat p_+>\\hat p_-)',R.auc.toFixed(2)]];
       // AUC คิดมือ 2 ทาง: (1) รวมพื้นที่สี่เหลี่ยมคางหมูใต้ ROC เฉพาะช่วงที่ FPR ขยับ (2) นับคู่ (+,−) ที่จัดอันดับถูก
       var parts=[],pt=R.pts,i,dfs=[],avs=[];for(i=1;i<pt.length;i++){var df=pt[i].f-pt[i-1].f;if(df>1e-12){dfs.push(df);avs.push((pt[i-1].t+pt[i].t)/2);parts.push('\\tfrac12('+pt[i-1].t.toFixed(2)+'+'+pt[i].t.toFixed(2)+')('+df.toFixed(2)+')');}}
