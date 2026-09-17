@@ -95,6 +95,7 @@
      Test accuracy วัดบนจุดใหม่ NTEST จุดจากเครื่องกำเนิดเดียวกัน (ไม่แสดงในกราฟ) — กราฟ/ตาราง/ป้ายนับ = ข้อมูลฝึก n จุด
      ========================================================================================== */
   var NTEST=800;
+  var SHOW_ACC=false,SHOW_PRED=false;   // ปิดไว้ก่อนตามคำขอ (2026-09-18): บรรทัด Test accuracy · ป้าย predicted ทุกที่ (คอลัมน์ Predicted, ✗, ป้ายนับ TP/FN/FP/TN, สีแถวตามผลทำนาย) — เปิดกลับได้ที่นี่
   var TABS=[{n:'\\text{Raw Features}',fe:false},{n:'\\text{Feature Engineering}',fe:true}];
   var MODELS=[{k:'knn',n:'k\\text{-NN}'},{k:'tree',n:'\\text{Tree}'},{k:'nb',n:'\\text{Naive Bayes}',s:'\\text{NB}'},{k:'logistic',n:'\\text{Logistic}'}];
   // คอลัมน์ที่สร้างเพิ่มคำนวณจากค่าที่ normalise แล้ว z_j = (x_j − x̄_j)/s_j — เหมือน workflow (Normalizer → Expression) และตัวเลขในตารางอยู่ในสเกลเดียวกันทุกชุดข้อมูล
@@ -165,7 +166,11 @@
   function fitNB(F,y){var D=F[0].length,st=[[],[]],cnt=[0,0],c,d,i;
     for(c=0;c<2;c++)for(d=0;d<D;d++){var m=0,q=0,k=0;for(i=0;i<F.length;i++)if(y[i]===c){m+=F[i][d];k++;}m/=Math.max(1,k);for(i=0;i<F.length;i++)if(y[i]===c)q+=(F[i][d]-m)*(F[i][d]-m);st[c].push([m,Math.max(1e-3,q/Math.max(1,k))]);cnt[c]=k;}
     var lp=[Math.log(Math.max(1e-9,cnt[0]/F.length)),Math.log(Math.max(1e-9,cnt[1]/F.length))];
-    return {post:function(f){var s=[lp[0],lp[1]];for(c=0;c<2;c++)for(d=0;d<D;d++){var v=st[c][d][1],t=f[d]-st[c][d][0];s[c]+=-0.5*Math.log(v)-t*t/(2*v);}return 1/(1+Math.exp(s[0]-s[1]));}};}
+    // log-odds ของ Gaussian naive Bayes = พหุนามกำลังสองของแต่ละ feature (ไม่มีพจน์ไขว้ เพราะสมมติว่า feature อิสระกัน):
+    //   z = ln(π+/π−) + Σ_j [ ½ln(s²_j−/s²_j+) − (φ_j−m_j+)²/(2s²_j+) + (φ_j−m_j−)²/(2s²_j−) ] = c + Σ_j (a_j φ_j² + b_j φ_j)
+    var qa=[],qb=[],qc=lp[1]-lp[0];for(d=0;d<D;d++){var mN=st[0][d][0],vN=st[0][d][1],mP=st[1][d][0],vP=st[1][d][1];
+      qa.push(1/(2*vN)-1/(2*vP));qb.push(mP/vP-mN/vN);qc+=0.5*Math.log(vN/vP)+mN*mN/(2*vN)-mP*mP/(2*vP);}
+    return {Q:{a:qa,b:qb,c:qc},post:function(f){var s=[lp[0],lp[1]];for(c=0;c<2;c++)for(d=0;d<D;d++){var v=st[c][d][1],t=f[d]-st[c][d][0];s[c]+=-0.5*Math.log(v)-t*t/(2*v);}return 1/(1+Math.exp(s[0]-s[1]));}};}
   function solve(A,b){var n=b.length,i,j,k;for(i=0;i<n;i++){var p=i;for(k=i+1;k<n;k++)if(Math.abs(A[k][i])>Math.abs(A[p][i]))p=k;var t=A[i];A[i]=A[p];A[p]=t;var tb=b[i];b[i]=b[p];b[p]=tb;
       if(Math.abs(A[i][i])<1e-12)continue;for(k=i+1;k<n;k++){var f=A[k][i]/A[i][i];for(j=i;j<n;j++)A[k][j]-=f*A[i][j];b[k]-=f*b[i];}}
     var x=new Array(n);for(i=n-1;i>=0;i--){var s=b[i];for(j=i+1;j<n;j++)s-=A[i][j]*x[j];x[i]=Math.abs(A[i][i])<1e-12?0:s/A[i][i];}return x;}
@@ -184,7 +189,8 @@
   function kx(t){if(KXC[t]!==undefined)return KXC[t];var r;try{r=katex.renderToString(t,{throwOnError:false});}catch(e){r=t;}if(t.length<24)KXC[t]=r;return r;}
   function K(t,el){if(!el)return;try{katex.render(t,el,{throwOnError:false});}catch(e){el.textContent=t;}}
   function POS(){return 'y=\\textcolor{'+Rd+'}{\\text{positive}}';} function NEG(){return 'y=\\textcolor{'+Bl+'}{\\text{negative}}';}
-  function num(v){var a=Math.abs(v);return (a<1e-9?0:a).toFixed(a>=0.095||a<1e-9?2:a>=0.0095?3:4);}   // สัมประสิทธิ์ของ speed (rpm) เล็กมาก → เพิ่มตำแหน่งทศนิยม
+  function num(v){var a=Math.abs(v);if(a<1e-12)return '0.00';if(a<0.00095){var e=Math.floor(Math.log10(a)),m=a/Math.pow(10,e);if(m>=9.95){m=1;e++;}return m.toFixed(1)+'{\\times}10^{'+e+'}';}   // สัมประสิทธิ์ของ speed² ฯลฯ เล็กมาก → เขียนแบบ ×10ⁿ
+    return a.toFixed(a>=0.095?2:a>=0.0095?3:4);}   // สัมประสิทธิ์ของ speed (rpm) เล็กมาก → เพิ่มตำแหน่งทศนิยม
   function sgn(v){return (v>=0?'+':'-')+num(v);}
 
   // ---------- canvas ----------
@@ -206,35 +212,37 @@
     g.fillStyle='rgba(128,128,128,0.9)';g.font='13px KaTeX_Main,serif';g.textAlign='center';g.textBaseline='alphabetic';for(var a=ax;a<=bx+1e-9;a+=d.tick[0])g.fillText(String(a),px(a),y1+15);
     g.textAlign='right';g.textBaseline='middle';for(var b=ay;b<=by+1e-9;b+=d.tick[1])g.fillText(String(b),x0-6,py(b));g.textBaseline='alphabetic';
     var lb=labs(cv);lb('x_2',x0+4,y0-8);lb('x_1',x1,y1+29,{align:'right'});
-    var r=dotR(TR.X.length);for(i=0;i<TR.X.length;i++){var v=TR.X[i];dotAt(g,px(v[0]),py(v[1]),TR.y[i],M.post(phi(v,fk))>0.5?1:0,r);}
+    var r=dotR(TR.X.length);for(i=0;i<TR.X.length;i++){var v=TR.X[i];dotAt(g,px(v[0]),py(v[1]),TR.y[i],SHOW_PRED?(M.post(phi(v,fk))>0.5?1:0):TR.y[i],r);}
+    if(!SHOW_PRED)return;
     g.font='13px KaTeX_Main,serif';g.textBaseline='middle';var cxr=x1,cyr=y0-29;   // ป้ายนับ (สัญลักษณ์ = จุดแบบเดียวกับในกราฟ)
     [['TN',cnt.TN,0,0],['FP',cnt.FP,0,1],['FN',cnt.FN,1,0],['TP',cnt.TP,1,1]].forEach(function(c){var s=c[0]+' '+c[1];g.fillStyle='#444';g.textAlign='right';g.fillText(s,cxr,cyr);cxr-=g.measureText(s).width+9;dotAt(g,cxr,cyr,c[2],c[3],5);cxr-=5+14;});g.textBaseline='alphabetic';}
 
   // ---------- legend / table / calc ----------
   function clLine(name,lc,tc,shape){return '<span class="cli"><i class="'+(shape||'ln')+'" style="background:'+lc+'"></i><span>'+kx('\\textcolor{'+tc+'}{\\text{'+name+'}}')+'</span></span>';}
-  function fillLegend(){document.getElementById('classleg').innerHTML=clLine('Positive class','#E07A5F',Rd,'ar')+clLine('Negative class','#5B8FB9',Bl,'ar')+clLine('Misclassified (✗)','#888','#666')+clLine('Predicted region',MC,MC,'ar');}
+  function fillLegend(){document.getElementById('classleg').innerHTML=clLine('Positive class','#E07A5F',Rd,'ar')+clLine('Negative class','#5B8FB9',Bl,'ar')+(SHOW_PRED?clLine('Misclassified (✗)','#888','#666'):'')+clLine('Decision region',MC,MC,'ar');}   // พื้นสี = ฝั่งของเส้นแบ่ง (สิ่งที่หน้านี้ต้องการให้ดู)
   function fillTab(M,fk,TR){var F=FT(fk),hasP=(model!=='tree'),Wt=function(t){return '\\textcolor{#fff}{'+t+'}';};
     var dm=DM();   // หัวตาราง = ชื่อตัวแปรของ workflow (สัญลักษณ์) · คอลัมน์ที่สร้างเพิ่มใช้สัญลักษณ์อย่างเดียว
-    document.getElementById('mthead').innerHTML=dm.nm.concat(F.names.slice(2)).concat(hasP?['\\hat p']:[]).concat(['\\text{Actual}','\\text{Predicted}']).map(function(t){return '<th>'+kx(Wt(t))+'</th>';}).join('');
+    document.getElementById('mthead').innerHTML=dm.nm.concat(F.names.slice(2)).concat(hasP?['\\hat p']:[]).concat(SHOW_PRED?['\\text{Actual}','\\text{Predicted}']:['\\text{Actual}']).map(function(t){return '<th>'+kx(Wt(t))+'</th>';}).join('');
     var idx=TR.X.map(function(_,i){return i;}).sort(function(a,b){return TR.X[b][0]-TR.X[a][0];}),h='';
     function cls(y){return y?'\\textcolor{'+Rd+'}{+}':'\\textcolor{'+Bl+'}{-}';}
-    idx.forEach(function(i){var f=phi(TR.X[i],fk),p=M.post(f),yh=p>0.5?1:0,y=TR.y[i],k=y?(yh?'tp':'fn'):(yh?'fp':'tn');
-      h+='<tr class="'+k+'">'+f.map(function(v,j){return '<td'+(j>=2?' class="fe"':'')+'>'+kx(v.toFixed(j<2?dm.dec[j]:2))+'</td>';}).join('')+(hasP?'<td>'+kx(p.toFixed(2))+'</td>':'')+'<td>'+kx(cls(y))+'</td><td>'+kx(cls(yh))+'</td></tr>';});
+    idx.forEach(function(i){var f=phi(TR.X[i],fk),p=M.post(f),yh=p>0.5?1:0,y=TR.y[i],k=SHOW_PRED?(y?(yh?'tp':'fn'):(yh?'fp':'tn')):(y?'tp':'tn');   /* ไม่แสดง predicted → สีแถวตามคลาสจริง */
+      h+='<tr class="'+k+'">'+f.map(function(v,j){return '<td'+(j>=2?' class="fe"':'')+'>'+kx(v.toFixed(j<2?dm.dec[j]:2))+'</td>';}).join('')+(hasP?'<td>'+kx(p.toFixed(2))+'</td>':'')+'<td>'+kx(cls(y))+'</td>'+(SHOW_PRED?'<td>'+kx(cls(yh))+'</td>':'')+'</tr>';});
     document.getElementById('mtbody').innerHTML=h;}
   function lline(t,parts,cls){return '<span class="ln'+(cls||'')+'"><span class="lb">'+(t?kx('\\text{'+t+'}'):'')+'</span><span class="bd">'+parts.map(function(p){return '<span>'+kx(p)+'</span>';}).join('')+'</span></span>';}
   function fillCalc(M,fk,accs){var F=FT(fk),h='',fe=TABS[curTab].fe;
     if(fe)h+=lline('Features',['\\boldsymbol\\phi(\\mathbf x)=('+F.names.join(',\\ ')+')'].concat(fk==='raw'?[]:['z_j=(x_j-\\bar x_j)/s_j']),' lnwr');
-    if(model==='logistic'){var s=num(M.C[0]),s2='';if(M.C[0]<0)s='-'+s;F.names.forEach(function(nm,j){var t=sgn(M.C[j+1])+'\\,'+nm;if(j<2)s+=t;else s2+=t;});var sAll=s+s2;
-      // feature ดิบ 2 ตัว: แทนค่าลงใน exp ได้ในบรรทัดเดียว (เหมือน Intro) · feature เพิ่ม → สมการยาวเกินกล่อง จึงแยก z(x) ไว้บรรทัดถัดไป
-      h+=(F.names.length<=2?lline('Probabilistic model',['\\hat p(\\mathbf x)=\\dfrac{1}{1+\\exp(-('+sAll+'))}','\\quad\\text{or}'])
-          :lline('Probabilistic model',['\\hat p(\\mathbf x)=\\dfrac{1}{1+\\exp(-z(\\mathbf x))}','\\quad\\text{or}'])+lline('',['z(\\mathbf x)='+s,s2],' tr lnwr'))   /* z(x) ยาว → ตัดบรรทัดหลังพจน์ของ x ได้ */+lline('Decision rule',['\\text{if }\\hat p(\\mathbf x)>0.5\\text{ then }'+POS()+'\\text{, else }'+NEG()]);}
-    else if(model==='nb')h+=lline('Probabilistic model',['\\hat p(\\mathbf x)\\propto\\pi_+\\textstyle\\prod_j\\mathcal N(\\phi_j;\\ \\bar\\phi_{j+},\\ s_{j+}^2)','\\quad\\text{or}'])+lline('Decision rule',['\\text{if }\\hat p(\\mathbf x)>0.5\\text{ then }'+POS()+'\\text{, else }'+NEG()]);
+    if(model==='logistic'){var zl=['z(\\mathbf x)='+(M.C[0]<0?'-':'')+num(M.C[0])];F.names.forEach(function(nm,j){zl.push(sgn(M.C[j+1])+'\\,'+nm);});   // พจน์ละชิ้น → ตัดบรรทัดระหว่างพจน์ได้
+      // z(x) แยกไว้อีกบรรทัดเสมอ (รูปแบบเดียวกับ naive Bayes): สัมประสิทธิ์ของ speed ต้องเขียนแบบ ×10ⁿ จึงยาวเกินบรรทัดเดียว · ตัดบรรทัดหลังพจน์ของ x ได้
+      h+=lline('Probabilistic model',['\\hat p(\\mathbf x)=\\dfrac{1}{1+\\exp(-z(\\mathbf x))}','\\quad\\text{or}'])+lline('',zl,' tr lnwr')+lline('Decision rule',['\\text{if }\\hat p(\\mathbf x)>0.5\\text{ then }'+POS()+'\\text{, else }'+NEG()]);}
+    else if(model==='nb'){   // naive Bayes (normal ต่อคลาสต่อ feature) เขียนเป็น logistic ของพหุนามกำลังสองได้พอดี: z = c + Σ (a_j φ_j² + b_j φ_j) — ไม่มีพจน์ไขว้
+      var zp=['z(\\mathbf x)='+(M.Q.c<0?'-':'')+num(M.Q.c)];F.names.forEach(function(nm,j){var sq=(nm.indexOf('^')>=0||nm.indexOf('z_1z')>=0)?'('+nm+')^2':nm+'^2';zp.push(sgn(M.Q.a[j])+'\\,'+sq+sgn(M.Q.b[j])+'\\,'+nm);});
+      h+=lline('Probabilistic model',['\\hat p(\\mathbf x)=\\dfrac{1}{1+\\exp(-z(\\mathbf x))}','\\quad\\text{or}'])+lline('',zp,' tr lnwr')+lline('Decision rule',['\\text{if }\\hat p(\\mathbf x)>0.5\\text{ then }'+POS()+'\\text{, else }'+NEG()]);}
     else if(model==='knn')h+=lline('Probabilistic model',['\\hat p(\\mathbf x)=\\dfrac{1}{k}\\sum_{i\\in N_k(\\mathbf x)}y_i,','k='+M.k,'\\quad\\text{or}'])+lline('Decision rule',[M.k===1?'y=\\text{class of the nearest point}':'y=\\text{majority of the }'+M.k+'\\text{ nearest points}']);
     else{var first=true,ind=function(tex,dp){var t=first?'Decision rule':'';first=false;return '<span class="ln tr"><span class="lb">'+(t?kx('\\text{'+t+'}'):'')+'</span><span class="bd" style="padding-left:'+(dp*24)+'px"><span>'+kx(tex)+'</span></span></span>';};
       (function walk(nd,dp){if(nd.leaf){h+=ind('\\text{always }'+(nd.p>0.5?POS():NEG()),dp);return;}var lf=function(k){return k.leaf?'\\ '+(k.p>0.5?POS():NEG()):'';};
         h+=ind('\\textbf{if }'+F.names[nd.f]+'<'+nd.t.toFixed(nd.f<2?Math.max(1,DM().dec[nd.f]):2)+'\\textbf{ then}'+lf(nd.left),dp);if(!nd.left.leaf)walk(nd.left,dp+1);h+=ind('\\textbf{else}'+lf(nd.right),dp);if(!nd.right.leaf)walk(nd.right,dp+1);})(M.root,0);}
     // เทียบ: แท็บ 1 = 4 แบบจำลองบน feature ดิบ · แท็บ 2 = 3 ชุด feature ของแบบจำลองที่เลือก (ตัวที่กำลังแสดง = ตัวหนาสีกรมท่า)
-    h+=lline('Test accuracy',accs.map(function(a){return (a.on?'\\textcolor{'+MC+'}{\\boldsymbol{':'{{')+a.n+'\\ '+a.v.toFixed(2)+'}}'+(a.last?'':'\\ \\cdot');}),' lnwr');   /* ชื่อคลาสห้ามใช้ "wrap" — ชนกับ .wrap (กรอบหน้า) ใน pg_style.css */   // ยาวเกิน → ตัดบรรทัดระหว่างรายการ (ไม่ย่อฟอนต์)
+    if(SHOW_ACC)h+=lline('Test accuracy',accs.map(function(a){return (a.on?'\\textcolor{'+MC+'}{\\boldsymbol{':'{{')+a.n+'\\ '+a.v.toFixed(2)+'}}'+(a.last?'':'\\ \\cdot');}),' lnwr');   /* ชื่อคลาสห้ามใช้ "wrap" — ชนกับ .wrap (กรอบหน้า) ใน pg_style.css */   // ยาวเกิน → ตัดบรรทัดระหว่างรายการ (ไม่ย่อฟอนต์)
     var el=document.getElementById('mcalc');el.innerHTML=h;
     el.className='excalc'+(el.querySelectorAll('.ln.tr').length>9?' sm':'');   // กฎของ tree ยาว (ลึก 3 เต็มต้น ≈ 14 บรรทัด) → ตัวเล็กลง บรรทัดชิดขึ้น หน้าไม่ scroll
     Array.prototype.forEach.call(el.querySelectorAll('.ln:not(.lnwr)>.bd'),function(bd){var av=bd.clientWidth-parseFloat(bd.style.paddingLeft||0)-4,w=0;Array.prototype.forEach.call(bd.children,function(s){w+=s.getBoundingClientRect().width+5;});
@@ -259,7 +267,7 @@
     setSeg('patSeg',pat);setSeg('modelSeg',model);setSeg('featSeg',feat);
     var TR=gen(U,n,noise),TE=gen(TU,NTEST,noise);setZS(TR);var M=fit(model,fk,TR),cnt={TP:0,FN:0,FP:0,TN:0},i;
     for(i=0;i<n;i++){var p=M.post(phi(TR.X[i],fk))>0.5;if(TR.y[i]){if(p)cnt.TP++;else cnt.FN++;}else{if(p)cnt.FP++;else cnt.TN++;}}
-    var accs=fe?FEATS.map(function(f,j){return {n:f.s||f.n,v:acc(f.k===fk?M:fit(model,f.k,TR),f.k,TE),on:f.k===fk,last:j===FEATS.length-1};})
+    var accs=!SHOW_ACC?[]:fe?FEATS.map(function(f,j){return {n:f.s||f.n,v:acc(f.k===fk?M:fit(model,f.k,TR),f.k,TE),on:f.k===fk,last:j===FEATS.length-1};})
                :MODELS.map(function(m,j){return {n:m.s||m.n,v:acc(m.k===model?M:fit(m.k,'raw',TR),'raw',TE),on:m.k===model,last:j===MODELS.length-1};});
     fillTab(M,fk,TR);fillCalc(M,fk,accs);fillLegend();sizeCanvas();draw(M,fk,TR,cnt);
     // ตารางสูงอย่างน้อย 20 แถว (หรือเท่าคอลัมน์กราฟ) ไม่เกินขอบจอ — เกินนั้นเลื่อนในตาราง
