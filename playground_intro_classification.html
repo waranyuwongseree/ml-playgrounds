@@ -297,6 +297,7 @@
 
   // ---------- state ----------
   var bases=['x0','xy0','mu0','muy0','mu1','muy1','s0','s1','sep','sg','p1','sev','n','k','depth'];
+  var QT={};   // testing point ที่ผู้ใช้เลื่อนเองแล้ว (key = แท็บ + ชุดข้อมูล)
   var modeM='knn', curTab=0, dsIdx=0;   // ลำดับแบบจำลอง: k-NN (เริ่มที่ k = 1) → Tree → Naive Bayes → Logistic
   var TABS=[
     // แท็บ Example (PSA) ย้ายไป 1-D Bayes แล้ว · univariate สองแท็บอยู่ติดกัน แล้วค่อย bivariate
@@ -610,6 +611,14 @@
     var f1=F[modeM],TP=0,FN=0,FP=0,TN=0,Tmain=S.mid;
     for(k=0;k<X.length;k++){var pr=f1.post(X[k])>0.5;if(ys[k]){if(pr)TP++;else FN++;}else{if(pr)FP++;else TN++;}}
     if(f1.xstar.length){Tmain=f1.xstar[0];for(k=1;k<f1.xstar.length;k++){if(Math.abs(f1.xstar[k]-S.mid)<Math.abs(Tmain-S.mid))Tmain=f1.xstar[k];}}
+    // ค่าเริ่มต้นของ testing point = อยู่บน threshold ของแบบจำลองที่เลือก (จุดที่ตัดสินยากที่สุด) — ตามไปเรื่อย ๆ จนกว่าผู้ใช้จะเลื่อน x_test เอง (QT)
+    if(!QT[T().n+dsIdx]){var snap=function(b,v){var e=document.getElementById('R'+b),st=parseFloat(e.step)||0.1,lo=parseFloat(e.min),hi=parseFloat(e.max);
+        return +(Math.min(hi,Math.max(lo,Math.round(v/st)*st)).toFixed(4));};
+      if(D===1){Q=[snap('x0',Tmain)];sv('x0',Q[0]);}
+      else{var cp=[0,0],cn=[0,0],np_=0,nn_=0;for(k=0;k<X.length;k++){if(ys[k]){cp[0]+=X[k][0];cp[1]+=X[k][1];np_++;}else{cn[0]+=X[k][0];cn[1]+=X[k][1];nn_++;}}
+        if(np_&&nn_){cp=[cp[0]/np_,cp[1]/np_];cn=[cn[0]/nn_,cn[1]/nn_];var tb=0.5,prev=f1.post(cn)>0.5,j;   // เดินจากศูนย์กลางคลาสลบ → บวก หาจุดแรกที่คำทำนายเปลี่ยน
+          for(j=1;j<=200;j++){var tt=j/200,pt=[cn[0]+tt*(cp[0]-cn[0]),cn[1]+tt*(cp[1]-cn[1])];if((f1.post(pt)>0.5)!==prev){tb=tt-0.0025;break;}}
+          Q=[snap('x0',cn[0]+tb*(cp[0]-cn[0])),snap('xy0',cn[1]+tb*(cp[1]-cn[1]))];sv('x0',Q[0]);sv('xy0',Q[1]);}}}
     var DP={dim:D,xmin:S.xmin,xmax:S.xmax,ymin:S.ymin,ymax:S.ymax,X:X,ys:ys,m:f1,TP:TP,FN:FN,FP:FP,TN:TN,Tmain:Tmain,ax:S.ax,x0:Q};
     fillCM(DP);sizeCanvas();draw(DP);fillCalc2(F,S.sym,S.dec,{TP:TP,FN:FN,FP:FP,TN:TN},Q);fillModTab(S,f1);fillLegend();   // sizeCanvas หลัง fillCM: สลับ 1-D↔2-D กล่องกราฟเปลี่ยนรูปทรง ต้องตั้งบัฟเฟอร์ใหม่ก่อนวาด (ไม่งั้นภาพยืด)
     if(fitPlot()){sizeCanvas();draw(DP);}
@@ -664,6 +673,7 @@
   TABS.forEach(function(t,i){var el=document.createElement('button');el.className='tabbtn';K('\\text{'+t.n+'}',el);el.addEventListener('click',function(){applyTab(i);});tb.appendChild(el);});
   bases.forEach(function(b){var Re=document.getElementById('R'+b),Ne=document.getElementById('N'+b);
     function rem(){var M=MEM[kind()];if(M&&(b in M))M[b]=parseFloat(Re.value);
+      if(b==='x0'||b==='xy0')QT[T().n+dsIdx]=true;   // ผู้ใช้เลื่อน testing point เอง → เลิกตาม threshold
       if(isPDM()&&(b==='x0'||b==='xy0'))MEM.pdm[b+'@'+T().n+dsIdx]=parseFloat(Re.value);   // query point ของ PDM จำต่อชุดข้อมูล
       if(isEX()&&(b==='s1'||b==='s0')){var v=parseFloat(Re.value);sv(b==='s1'?'s0':'s1',v);MEM.ex.s1=v;MEM.ex.s0=v;}   // Example: σ ร่วม (σ+ = σ−) ปรับจากตัวไหนก็ได้
       if(isEX()&&(b==='mu1'||b==='s1'||b==='mu0'||b==='s0'||b==='n'))EX.fixed=false;}   // แตะ μ/σ ใน Example → สุ่มข้อมูลใหม่
