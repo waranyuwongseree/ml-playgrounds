@@ -51,7 +51,7 @@
   .excalc .ln.lbd:not(.tr)+.ln.lbd,.excalc .ln.tr+.ln.lbd:not(.tr){border-top:1px solid var(--line);padding-top:2px;margin-top:2px}
   .excalc .ln.tr{margin:0;line-height:1.22;font-size:13.5px}   /* กฎของ tree (ลึก 3 = ได้ถึง ~14 บรรทัด) → บรรทัดชิดกัน */
   .dtab{width:100%;border-collapse:collapse;font-size:15px}
-  .dtab th{background:var(--navy);color:#fff;font-weight:400;padding:5px 8px;text-align:center}
+  .dtab th{background:var(--navy);color:#fff;font-weight:400;padding:5px 5px;text-align:center}
   .dtab td{padding:1px 6px;text-align:center;color:var(--ink);line-height:1.35;background:#fff}   /* ความสูงแถวเท่ากับ Classification Metrics (20 แถว + หัว ≈ 480px) → จอเตี้ยก็ยังเห็นครบ 20 แถวโดยไม่ต้องเลื่อน */
   .dtab tr.alt td{background:#f1f4f9}
   .dtab tr.ft td{background:#e6ebf4;text-align:left;padding:4px 10px;border-top:2px solid #fff}
@@ -87,7 +87,8 @@
   /* model tabs: ตารางข้อมูลซ้าย + คอลัมน์ขวา (แบบ Classifier Evaluation) — ตารางยาวเกินคอลัมน์ขวาให้เลื่อนในตาราง หัวตรึง */
   .stage.mod{flex-direction:row;gap:18px;align-items:flex-start}
   .dleft{display:none;flex:0 0 auto;min-width:0;overflow-y:auto;border-radius:8px;position:relative}   /* relative: ชิ้นส่วน absolute ของ KaTeX ในแถวที่ถูกซ่อนต้องถูก clip ด้วย ไม่งั้นหน้า scroll ยาว */
-  .stage.mod .dleft{display:block}
+  .stage.mod .dleft{display:block;flex:0 0 250px}   /* กว้างคงที่ → ตารางและกราฟของ Univariate = PDM univariate (250px เท่า Classification Metrics) */
+  .stage.mod.d2 .dleft{flex-basis:300px}            /* bivariate 5 คอลัมน์ → 300px เท่ากันทั้ง Bivariate และ PDM bivariate */
   .main{display:flex;flex-direction:column;gap:6px;flex:1 1 auto;min-width:0}
   .dtab th{position:sticky;top:0}
   .dtab.c5{font-size:13.5px}.dtab.c5 th{padding:5px 4px}.dtab.c5 td{padding:2px 4px}
@@ -299,7 +300,7 @@
   var modeM='knn', curTab=0, dsIdx=0;   // ลำดับแบบจำลอง: k-NN (เริ่มที่ k = 1) → Tree → Naive Bayes → Logistic
   var TABS=[
     // แท็บ Example (PSA) ย้ายไป 1-D Bayes แล้ว · univariate สองแท็บอยู่ติดกัน แล้วค่อย bivariate
-    {n:'Univariate',     dim:1, groups:['ex','pos','neg','share','model','rs'], rows:['x0','mu1','s1','mu0','s0','p1','n']},
+    {n:'Univariate',     dim:1, groups:['ex','pos','neg','share','model','rs'], rows:['x0','mu1','mu0','sg','p1','n']},   // σ ร่วมตัวเดียว (sg) แทน σ+ / σ−
     {n:'PDM univariate', dim:1, pdm:PDM1, groups:['ex','ds','share','model','rs'], rows:['x0','sev','n']},
     // Bivariate: control ลดเหลือ ระยะห่างระหว่างคลาส d + σ ร่วม (แทน μ 4 ตัว + σ 2 ตัว) — บทเรียนของแท็บนี้คือรูปร่างเส้นแบ่งของแต่ละแบบจำลอง
     {n:'Bivariate',      dim:2, groups:['ex','share','model','rs'], rows:['x0','xy0','sep','sg','p1','n']},
@@ -351,7 +352,7 @@
     K(dim()===2?'x_{1,\\text{test}}':'x_{\\text{test}}',document.getElementById('lbl-x0'));K('x_{2,\\text{test}}',document.getElementById('lbl-xy0'));
     K(isEX()?'\\textcolor{#B0503A}{\\text{Cancer }(y=+)}':'\\textcolor{#B0503A}{\\text{Positive class}}',document.getElementById('hd-pos'));
     K(isEX()?'\\textcolor{#3F6E99}{\\text{Healthy }(y=-)}':'\\textcolor{#3F6E99}{\\text{Negative class}}',document.getElementById('hd-neg'));
-    K(isEX()?'\\text{Points per class}':isPDM()?'\\text{Fault shift }\\delta\\ \\&\\ \\text{hours}':dim()===2?'\\text{Class distance, spread \\& size}':'\\text{Class balance \\& size}',document.getElementById('hd-share'));
+    K(isEX()?'\\text{Points per class}':isPDM()?'\\text{Fault shift }\\delta\\ \\&\\ \\text{hours}':dim()===2?'\\text{Class distance, spread \\& size}':'\\text{Spread, balance \\& size}',document.getElementById('hd-share'));
     if(isPDM()){K('\\text{'+T().pdm[0].lab+'}',document.getElementById('ds-0'));K('\\text{'+T().pdm[1].lab+'}',document.getElementById('ds-1'));}}
   function posName(){return isEX()?'cancer':isPDM()?'fault':'positive';} function negName(){return isEX()?'healthy':isPDM()?'healthy':'negative';}
   function clLine(name,lc,tc,shape){return '<span class="cli"><i class="'+(shape||'ln')+'" style="background:'+lc+'"></i><span>'+kx('\\textcolor{'+tc+'}{\\text{'+name+'}}')+'</span></span>';}
@@ -566,7 +567,7 @@
     var hasP=(modeM!=='tree');   // tree ให้คลาสโดยตรง ไม่แสดงคอลัมน์ p̂
     var cols=S.sym.map(function(s,i){return nm?'\\text{'+nm[i].charAt(0).toUpperCase()+nm[i].slice(1)+' }('+s+')':s;}).concat(hasP?['\\hat p']:[]).concat(['\\text{Actual}','\\text{Predicted}']);   // p̂ = ความน่าจะเป็นจากแบบจำลองที่เลือก (logistic/NB = σ(z) · k-NN = สัดส่วนเพื่อนบ้าน · tree = สัดส่วนในใบ)   // PDM: ชื่อจริง (สัญลักษณ์) · คำเดียวกับ confusion matrix
     hd.innerHTML=cols.map(function(t){return '<th>'+kx(W(t))+'</th>';}).join('');
-    document.getElementById('mtab').className='dtab'+(cols.length>=5?' c5':'');   // 5 คอลัมน์ (bivariate + p̂) → ช่องแคบลง ไม่เบียดคอลัมน์กราฟ
+    document.getElementById('mtab').className='dtab'+(S.sym.length===2?' c5':'');   // 5 คอลัมน์ (bivariate + p̂) → ช่องแคบลง ไม่เบียดคอลัมน์กราฟ
     var idx=[],i;for(i=0;i<S.X.length;i++)idx.push(i);idx.sort(function(a,b){return S.X[b][0]-S.X[a][0];});
     function cls(y){return y?'\\textcolor{#B0503A}{+}':'\\textcolor{#3F6E99}{-}';}
     var h='';idx.forEach(function(i){var y=S.ys[i],ph=f.post(S.X[i]),yh=ph>0.5?1:0,k=y?(yh?'tp':'fn'):(yh?'fp':'tn');
@@ -577,7 +578,8 @@
   function dataset(){var D=dim(),n=Math.round(gv('n')),X=[],ys=[],k;
     var sym=D===1?['x']:['x_1','x_2'];
     if(!isPDM()){var m0=gv('mu0'),m1=gv('mu1'),my0=gv('muy0'),my1=gv('muy1'),s0=gv('s0'),s1=gv('s1'),p1=gv('p1');
-      if(D===2){var dd=gv('sep')/2;m1=my1=4.5+dd;m0=my0=4.5-dd;s0=s1=gv('sg');}   // Bivariate: สองคลาสห่างกัน d ตามแนวทแยง รอบจุด (4.5, 4.5) · σ ร่วม
+      s0=s1=gv('sg');   // σ ร่วมทั้งสองคลาส (ทั้ง 1-D และ 2-D)
+      if(D===2){var dd=gv('sep')/2;m1=my1=4.5+dd;m0=my0=4.5-dd;}   // Bivariate: สองคลาสห่างกัน d ตามแนวทแยง รอบจุด (4.5, 4.5) · σ ร่วม
       var n1=Math.max(1,Math.round(n*p1)),n0=Math.max(1,n-n1);
       for(k=0;k<n1;k++){X.push(D===1?[m1+s1*Z1[k]]:[m1+s1*Z1[k],my1+s1*Z1y[k]]);ys.push(1);}
       for(k=0;k<n0;k++){X.push(D===1?[m0+s0*Z0[k]]:[m0+s0*Z0[k],my0+s0*Z0y[k]]);ys.push(0);}
@@ -595,7 +597,7 @@
 
   // ---------- main update ----------
   function showEx(on){document.getElementById('exwrap').className='exwrap'+(on?' on':'');
-    document.querySelector('.stage').className='stage'+(on?'':' mod');
+    document.querySelector('.stage').className='stage'+(on?'':' mod'+(dim()===2?' d2':''));
     ['dleft','main'].forEach(function(id){document.getElementById(id).style.display=on?'none':'';});}
   function upd(){
     if(T().summary)return;
