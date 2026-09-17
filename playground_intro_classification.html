@@ -45,7 +45,7 @@
   .excalc .ln.lbd{display:flex;align-items:center;gap:10px}
   .excalc .ln.lbd>.lb{flex:0 0 122px;color:var(--muted);font-size:13px;margin:0}
   .excalc .ln.lbd>.bd{flex:1;min-width:0;margin:0}
-  .excalc .ln.lbd>.bd>span{display:inline-block;margin-right:.3em;vertical-align:middle}
+  .excalc .ln.lbd>.bd>span{display:inline-block;margin-right:.3em;vertical-align:middle;white-space:nowrap}   /* nowrap: KaTeX ยอมตัดบรรทัดที่เครื่องหมาย = ภายในชิ้นเดียวกัน → ผลลัพธ์หลุดไปบรรทัดใหม่ */
   .excalc .ln.lbd>.bd>span.nl{display:block;margin-top:2px}
   .excalc.d2{padding:8px 10px}.excalc.d2 .ln.lbd{gap:6px}.excalc.d2 .ln.lbd>.lb{flex-basis:104px;font-size:12px}.excalc.d2 .ln.lbd>.bd{font-size:11.5px}
   .excalc .ln.lbd:not(.tr)+.ln.lbd,.excalc .ln.tr+.ln.lbd:not(.tr){border-top:1px solid var(--line);padding-top:2px;margin-top:2px}
@@ -308,6 +308,7 @@
   // จุดข้อมูล: สี = actual class (coral +, ฟ้า −) · ✗ ขาว = ทำนายผิด (predicted อ่านจากตำแหน่งเทียบ threshold/region)
   function dotAt(g,x,y,yv,pr,r){g.fillStyle=yv?'rgba(224,122,95,0.9)':'rgba(91,143,185,0.85)';g.beginPath();g.arc(x,y,r,0,7);g.fill();
     if(pr!==yv){var q=r*0.6;g.strokeStyle='#fff';g.lineWidth=1.8;g.beginPath();g.moveTo(x-q,y-q);g.lineTo(x+q,y+q);g.moveTo(x+q,y-q);g.lineTo(x-q,y+q);g.stroke();}}
+  function dotR(n){return n<=20?6:n<=60?5:4.5;}   // ขนาดจุดเท่ากับ Classification Metrics (n ≤ 20 → r = 6) · n มากจึงค่อยเล็กลง
   var MODELS=[{key:'logistic',name:'Logistic regression'},{key:'nb',name:'Naive Bayes'},{key:'knn',name:'KNN'},{key:'tree',name:'Decision tree'}];
   function gv(b){return parseFloat(document.getElementById('R'+b).value);}
   function sv(b,v){document.getElementById('R'+b).value=v;document.getElementById('N'+b).value=v;}
@@ -440,8 +441,10 @@
     var lb=labs(cv);   // ไม่พิมพ์ชื่อแกนตั้ง P(y=+|x) บนกราฟ
     lb(P.ax[0],L+pw,py(0)+31,{align:'right'});
     var k;
+    // พื้น = predicted region (เหมือนกราฟ 2-D): ช่วง x ที่ทำนายบวก = coral อ่อน · ทำนายลบ = ฟ้าอ่อน → ใช้ได้กับทุกแบบจำลอง (k-NN / tree มีหลายช่วง)
+    for(k=0;k<pw;k+=2){var xs0=xmin+(k+1)/pw*(xmax-xmin);ctx.fillStyle=m.post([xs0])>0.5?'rgba(224,122,95,0.13)':'rgba(91,143,185,0.13)';ctx.fillRect(L+k,py(1),Math.min(2,pw-k),ph);}
     // dot plot ซ้อนเป็น histogram: บวกซ้อนลงจากขอบบน ลบซ้อนขึ้นจากขอบล่าง (ช่องละ ~11px) · n มาก → บีบระยะให้พอดีครึ่งกราฟ
-    var rD=4.5,bwp=2*rD+2,NBn=Math.max(1,Math.floor(pw/bwp)),binsP=[],binsN=[];for(k=0;k<NBn;k++){binsP.push([]);binsN.push([]);}
+    var rD=dotR(P.X.length),bwp=2*rD+2,NBn=Math.max(1,Math.floor(pw/bwp)),binsP=[],binsN=[];for(k=0;k<NBn;k++){binsP.push([]);binsN.push([]);}
     for(k=0;k<P.X.length;k++){var xv=P.X[k][0],xp=px(xv);if(xp<L||xp>L+pw)continue;var bi=Math.min(NBn-1,Math.floor((xp-L)/bwp));(P.ys[k]?binsP:binsN)[bi].push(k);}
     var mxS=1;for(k=0;k<NBn;k++)mxS=Math.max(mxS,binsP[k].length,binsN[k].length);
     var dyS=Math.min(2*rD+1,(ph/2-14)/mxS);
@@ -452,10 +455,12 @@
     ctx.strokeStyle=MC;ctx.lineWidth=2.4;ctx.beginPath();
     for(i=0;i<=N;i++){x=xmin+i*dx;var Y=py(Math.max(0,Math.min(1,m.post([x]))));i===0?ctx.moveTo(px(x),Y):ctx.lineTo(px(x),Y);}ctx.stroke();
     ctx.font='13px KaTeX_Main,serif';
-    if(m.linear){ctx.strokeStyle='#111';ctx.fillStyle='#111';ctx.lineWidth=1.8;ctx.textAlign='center';
-      m.xstar.forEach(function(r){if(r<xmin||r>xmax)return;ctx.setLineDash([5,4]);ctx.beginPath();ctx.moveTo(px(r),py(1)-6);ctx.lineTo(px(r),py(0)+4);ctx.stroke();ctx.setLineDash([]);
-        ctx.fillText('Threshold '+r.toFixed(ns.dec+1),px(r),H-4);});}
     var xT=px(P.Tmain),yTop=TOP-8,yBot=py(0)+31;
+    // เส้น threshold ลากยาวจากแถวป้าย FN | TP (บน) ถึงแถว TN | FP (ล่าง) → เส้นเดียวแบ่งป้ายทั้ง 4
+    // k-NN / tree มีได้หลายเส้น: เส้นหลัก (ใกล้กึ่งกลาง — ป้ายนับเกาะอยู่) ลากยาว เส้นอื่นอยู่ในกรอบ · ป้าย "Threshold …" เฉพาะแบบจำลองเชิงเส้น (เส้นเดียว)
+    ctx.strokeStyle='#111';ctx.fillStyle='#111';ctx.lineWidth=1.8;ctx.textAlign='center';
+    m.xstar.forEach(function(r){if(r<xmin||r>xmax)return;var main=Math.abs(r-P.Tmain)<1e-9;ctx.setLineDash([5,4]);ctx.beginPath();ctx.moveTo(px(r),main?yTop-12:py(1));ctx.lineTo(px(r),main?yBot+4:py(0));ctx.stroke();ctx.setLineDash([]);
+      if(m.linear)ctx.fillText('Threshold '+r.toFixed(2),px(r),H-4);});   // 2 ตำแหน่ง ตรงกับกฎ if–then
     ctx.textAlign='left'; ctx.fillStyle='#B0503A'; ctx.fillText('TP '+P.TP, xT+12, yTop);
     ctx.textAlign='right';ctx.fillStyle='#8A6510'; ctx.fillText('FN '+P.FN, xT-12, yTop);
     ctx.textAlign='left'; ctx.fillStyle='#2E7D70'; ctx.fillText('FP '+P.FP, xT+12, yBot);
@@ -467,7 +472,7 @@
       lb('x_{\\text{test}}',xq+(xq>L+pw/2?-9:9),py(0.5)+18,{align:xq>L+pw/2?'right':'left',color:'#444'});}}
   }
   function draw2(P){
-    var L=40,Rm=12,TOP=22,BOT=34,pw=W-L-Rm,ph=H-TOP-BOT,m=P.m,/* L: ขอบซ้ายพอดีตัวเลขแกน (เดิม 52 ดูเป็นช่องว่าง) */xmin=P.xmin,xmax=P.xmax,ymin=P.ymin,ymax=P.ymax;
+    var L=40,Rm=12,TOP=40,BOT=34,pw=W-L-Rm,ph=H-TOP-BOT,m=P.m,/* TOP: 2 แถว = ป้ายนับ (บน) + ชื่อแกนตั้ง (ล่าง) ไม่ทับกัน · L: ขอบซ้ายพอดีตัวเลขแกน (เดิม 52 ดูเป็นช่องว่าง) */xmin=P.xmin,xmax=P.xmax,ymin=P.ymin,ymax=P.ymax;
     var x0=L,x1=L+pw,y0=TOP,y1=TOP+ph;
     function px(x){return x0+(x-xmin)/(xmax-xmin)*pw;} function py(y){return y1-(y-ymin)/(ymax-ymin)*ph;}
     var st=6,i,j;
@@ -480,10 +485,12 @@
     ctx.textAlign='right';ctx.textBaseline='middle';for(var b=Math.ceil(ymin/ny.step)*ny.step;b<=ymax+1e-9;b+=ny.step)ctx.fillText(b.toFixed(ny.dec),x0-6,py(b));
     ctx.textBaseline='alphabetic';var lb=labs(cv);lb(P.ax[1],x0+4,y0-8);lb(P.ax[0],x1,y1+30,{align:'right'});
     // ป้ายนับ TP / FN / FP / TN (แทน confusion matrix) — มุมขวาบนเหนือกรอบ สีเดียวกับช่อง
-    ctx.font='13px KaTeX_Main,serif';ctx.textAlign='right';var cxr=x1;
-    [['TN',P.TN,'#3F6E99'],['FP',P.FP,'#2E7D70'],['FN',P.FN,'#8A6510'],['TP',P.TP,'#B0503A']].forEach(function(c){var s=c[0]+' '+c[1];ctx.fillStyle=c[2];ctx.fillText(s,cxr,y0-8);cxr-=ctx.measureText(s).width+14;});
+    // สัญลักษณ์ = จุดแบบเดียวกับในกราฟ: สี = actual class · ✗ = ทำนายผิด → TP ●coral · FN ⊗coral · FP ⊗ฟ้า · TN ●ฟ้า (ตัวอักษรสีเดียว อ่านง่ายกว่าแยกด้วยสีตัวหนังสือ)
+    ctx.font='13px KaTeX_Main,serif';ctx.textAlign='right';ctx.textBaseline='middle';var cxr=x1,cyr=y0-29;
+    [['TN',P.TN,0,0],['FP',P.FP,0,1],['FN',P.FN,1,0],['TP',P.TP,1,1]].forEach(function(c){var s=c[0]+' '+c[1];ctx.fillStyle='#444';ctx.textAlign='right';ctx.fillText(s,cxr,cyr);
+      cxr-=ctx.measureText(s).width+9;dotAt(ctx,cxr,cyr,c[2],c[3],5);cxr-=5+14;});ctx.textBaseline='alphabetic';
     var k;for(k=0;k<P.X.length;k++){var v=P.X[k],yv=P.ys[k],xp=px(v[0]),yp=py(v[1]);if(xp<x0-4||xp>x1+4||yp<y0-4||yp>y1+4)continue;
-      var pr=m.post(v)>0.5?1:0;dotAt(ctx,xp,yp,yv,pr,4.5);}
+      var pr=m.post(v)>0.5?1:0;dotAt(ctx,xp,yp,yv,pr,dotR(P.X.length));}
     // query point x0: จุดดำขอบขาว + ป้าย x_0
     if(P.x0){var qx=px(P.x0[0]),qy=py(P.x0[1]);if(qx>=x0&&qx<=x1&&qy>=y0&&qy<=y1){
       ctx.fillStyle='#222';ctx.beginPath();ctx.arc(qx,qy,6,0,7);ctx.fill();ctx.strokeStyle='#fff';ctx.lineWidth=2;ctx.stroke();
@@ -549,7 +556,10 @@
         h+=ind('\\textbf{else}'+lf(nd.right),dp);if(!nd.right.leaf)walk(nd.right,dp+1);})(f.root,0);
       // tree: ไม่แสดงความน่าจะเป็น — แทนค่า testing point แล้วได้คลาสเลย
       h+=lline('Testing point',[(D===1?'x_{\\text{test}}='+PA:'\\mathbf x_{\\text{test}}=('+PA+')')+'\\ \\textbf{then}\\ '+yh]);}
-    el.className='excalc'+(D===2?' d2':'');el.innerHTML=h;}   // d2 = bivariate: สมการยาว → ป้ายแคบลง ตัวเล็กลงเล็กน้อย · ไม่แสดง accuracy (เรื่อง metric อยู่ใน Classification Metrics)
+    el.className='excalc'+(D===2?' d2':'');el.innerHTML=h;
+    // ชิ้นสมการห้ามตัดบรรทัด (nowrap) → ชิ้นที่ยาวกว่ากล่อง (ตัวเลข PDM หลายหลัก) ย่อฟอนต์ลงให้พอดี ไม่ต่ำกว่า 10px
+    Array.prototype.forEach.call(el.querySelectorAll('.bd>span:not(.nl)'),function(sp){var av=sp.parentElement.clientWidth-parseFloat(getComputedStyle(sp.parentElement).paddingLeft||0)-4,wd=sp.getBoundingClientRect().width;
+      if(wd>av&&av>0){var fs=parseFloat(getComputedStyle(sp).fontSize);sp.style.fontSize=Math.max(10,Math.floor(fs*av/wd*10)/10)+'px';}});}   // d2 = bivariate: สมการยาว → ป้ายแคบลง ตัวเล็กลงเล็กน้อย · ไม่แสดง accuracy (เรื่อง metric อยู่ใน Classification Metrics)
   // ---------- ตารางข้อมูลซ้าย: x | y | ŷ (2-D: x_1 | x_2 | y | ŷ) เรียงตาม x มากไปน้อย · สีแถว = ผล TP/FN/FP/TN ----------
   function fillModTab(S,f){var hd=document.getElementById('mthead'),tb=document.getElementById('mtbody');if(!hd||!tb)return;
     var W=function(t){return '\\textcolor{#fff}{'+t+'}';},nm=isPDM()?T().pdm[dsIdx].nm:null;
@@ -594,7 +604,7 @@
     var D=dim(),S=dataset(),X=S.X,ys=S.ys,kk=Math.round(gv('k')),dp=Math.round(gv('depth')),k;
     syncQueryPDM(S);var Q=D===1?[gv('x0')]:[gv('x0'),gv('xy0')];   // query point
     var F={logistic:fitLogistic(X,ys),nb:fitNB(X,ys),knn:fitKNN(X,ys,kk,S.scale),tree:fitTree(X,ys,dp)};
-    MODELS.forEach(function(m){var f=F[m.key];f.err=trainErr(f.post,X,ys);f.xstar=(D===1&&f.linear)?crossings1(f.post,S.xmin,S.xmax):[];});
+    MODELS.forEach(function(m){var f=F[m.key];f.err=trainErr(f.post,X,ys);f.xstar=(D===1)?crossings1(f.post,S.xmin,S.xmax):[];});   // ทุกแบบจำลอง: จุดที่ p̂ ข้าม 0.5 (k-NN / tree อาจมีหลายจุด)
     var f1=F[modeM],TP=0,FN=0,FP=0,TN=0,Tmain=S.mid;
     for(k=0;k<X.length;k++){var pr=f1.post(X[k])>0.5;if(ys[k]){if(pr)TP++;else FN++;}else{if(pr)FP++;else TN++;}}
     if(f1.xstar.length){Tmain=f1.xstar[0];for(k=1;k<f1.xstar.length;k++){if(Math.abs(f1.xstar[k]-S.mid)<Math.abs(Tmain-S.mid))Tmain=f1.xstar[k];}}
