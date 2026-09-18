@@ -36,6 +36,8 @@
      และตัวตรวจ (verify.html) จะข้ามหน้าเหล่านี้ ไม่เสียเวลาไล่แก้ของที่ยังจะรื้ออยู่ดี */
   a.card.wip{background:repeating-linear-gradient(135deg,#fff,#fff 8px,#faf7f0 8px,#faf7f0 16px);border-style:dashed}
   a.card.wip .title{color:var(--muted);font-weight:600}
+  a.card.off{cursor:default}   /* หน้าที่ยังไม่อยู่บน hub — ไม่มี href กดไม่ได้ */
+  a.card.off:hover{border-color:var(--line);box-shadow:none}
   .date.wip{color:#63500f;background:#fdf3d7;border:1px solid #eddca0;border-radius:6px;padding:1px 7px;font-weight:600}   /* เข้มพอให้ contrast ≥4.5:1 บนพื้นครีม */
   .titlerow{display:flex;align-items:baseline;gap:12px;flex-wrap:wrap;margin-bottom:8px}
   .meta{font-size:13px;color:var(--muted)}
@@ -142,14 +144,33 @@
 /* cache-bust ทุกการ์ด: ?v = นาทีปัจจุบัน → เปิด playground ได้ของใหม่เสมอ แม้ landing เองยังเป็นฉบับ cache ของ GitHub Pages (10 นาที) — ไม่ต้องบั๊มค่าตอน deploy */
 var PGV=String(Math.floor(Date.now()/60000));
 document.querySelectorAll('a.card[href]').forEach(function(a){var h=a.getAttribute('href');if(h&&h.indexOf('?')<0)a.setAttribute('href',h+'?v='+PGV);});
-window.addEventListener('load',function(){
+var esc=function(s){ return s.replace(/\\/g,'').replace(/([%&#$_{}])/g,'\\$1')
+                      .replace(/·/g,'}\\cdot\\text{').replace(/★/g,'}\\bigstar\\text{'); };
+var kx=function(el){
   if(!window.katex) return;
-  var esc=function(s){ return s.replace(/\\/g,'').replace(/([%&#$_{}])/g,'\\$1')
-                        .replace(/·/g,'}\\cdot\\text{').replace(/★/g,'}\\bigstar\\text{'); };
-  var kx=function(el){
-    var raw=(el.getAttribute('data-tex')||('\\text{'+esc(el.textContent.trim())+'}'));
-    try{ katex.render(raw,el,{throwOnError:false}); }catch(e){}
-  };
+  var raw=(el.getAttribute('data-tex')||('\\text{'+esc(el.textContent.trim())+'}'));
+  try{ katex.render(raw,el,{throwOnError:false}); }catch(e){}
+};
+/* hub สาธารณะ (GitHub Pages) มีเฉพาะหน้าที่ deploy แล้ว แต่ landing นี้ copy ทั้งไฟล์ไปเป็น index.html
+   → เช็กทุกการ์ดว่ามีไฟล์จริงไหม ถ้า 404: ปิดการกด + ป้าย "not published yet" (การ์ด WIP คงป้าย under construction)
+   ทำเฉพาะ http(s) — file:// fetch ไม่ได้ และในเครื่องมีไฟล์ครบอยู่แล้ว */
+function markMissing(){
+  if(!/^https?:$/.test(location.protocol) || !window.fetch) return;
+  document.querySelectorAll('a.card[href]').forEach(function(a){
+    var f=a.getAttribute('href').split('?')[0];
+    fetch(f,{method:'HEAD',cache:'no-store'}).then(function(r){
+      if(r.ok) return;
+      a.removeAttribute('href'); a.setAttribute('aria-disabled','true'); a.classList.add('off');
+      if(!a.classList.contains('wip')){
+        a.classList.add('wip');
+        var d=a.querySelector('.date'); if(d){ d.className='date wip'; d.textContent='not published yet'; kx(d); }
+      }
+    }).catch(function(){});
+  });
+}
+window.addEventListener('load',function(){
+  markMissing();
+  if(!window.katex) return;
   var t=document.getElementById('__pgt'); if(t) kx(t);
   document.querySelectorAll('.kick,.meta,.part .n,.title,.date').forEach(kx);
   // .part มีทั้งตัวเลขและชื่อหมวด → เรนเดอร์เฉพาะโหนดข้อความของมันเอง
