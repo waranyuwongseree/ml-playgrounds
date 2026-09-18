@@ -58,6 +58,9 @@
   .classleg .cli{display:flex;align-items:center;gap:5px;white-space:nowrap}
   .classleg .cli .dot{width:11px;height:11px;border-radius:50%;display:inline-block;flex:none}
   .classleg .cli .ring{width:11px;height:11px;border-radius:50%;display:inline-block;flex:none;box-sizing:border-box;background:transparent}
+  /* มาร์กเกอร์ legend แบบเดียวกับ Intro / Classification Metrics / Model & Feature Comparison: สี่เหลี่ยม = class · เส้นเทา = ✗ ทำนายผิด */
+  .classleg .cli .ar{display:inline-block;width:13px;height:11px;border-radius:3px;flex:none}
+  .classleg .cli .ln{display:inline-block;width:16px;height:3px;border-radius:2px;flex:none}
   .classleg .katex,.classleg .katex-html{white-space:nowrap}
   /* TOP: plot | confusion */
   .toprow{display:flex;gap:16px;align-items:center;justify-content:center;flex-wrap:wrap}
@@ -124,11 +127,11 @@
           </div>
         </div>
       </div>
-      <!-- legend = เหมือน 1-D -->
+      <!-- legend = เหมือน playground จำแนกตัวอื่น: จุด = actual class · ✗ ขาว = ทำนายผิด -->
       <div class="classleg">
-        <span class="cli"><i class="dot" style="background:#E07A5F"></i>\(\textcolor{#B0503A}{\text{class }+\ (\text{positive})}\)</span>
-        <span class="cli"><i class="dot" style="background:#5B8FB9"></i>\(\textcolor{#3F6E99}{\text{class }-\ (\text{negative})}\)</span>
-        <span class="cli"><i class="ring" style="border:2px solid #888"></i>\(\text{misclassified (ring)}\)</span>
+        <span class="cli"><i class="ar" style="background:#E07A5F"></i>\(\textcolor{#B0503A}{\text{Positive class}}\)</span>
+        <span class="cli"><i class="ar" style="background:#5B8FB9"></i>\(\textcolor{#3F6E99}{\text{Negative class}}\)</span>
+        <span class="cli"><i class="ln" style="background:#888"></i>\(\textcolor{#666}{\text{Misclassified (✗)}}\)</span>
       </div>
       <!-- BOTTOM = เหมือน 1-D .below: สมการ + Classification metrics -->
       <div class="below">
@@ -286,9 +289,12 @@
       kxProse(e3,P);
     })();
     ctx.setTransform(SC,0,0,SC,0,0);ctx.clearRect(0,0,W,H);
-    var st=7,ix,iy,x,y;
-    for(ix=0;ix<W;ix+=st)for(iy=0;iy<H;iy+=st){x=(ix-cx0)/scale;y=(cy0-iy)/scale;
-      var pr1=gc(x,y,m1,U1,p1)>gc(x,y,m0,U0,p0);ctx.fillStyle=pr1?'rgba(224,122,95,0.15)':'rgba(91,143,185,0.15)';ctx.fillRect(ix,iy,st,st);}
+    /* พื้น predicted region: คำนวณทุกพิกเซล ลง ImageData ของ offscreen canvas (เหมือน Intro / Model & Feature) — เดิมระบายช่อง 7px ขอบเป็นขั้นบันได */
+    var ix,iy,x,y,off=document.createElement('canvas');off.width=Math.max(1,Math.round(W));off.height=Math.max(1,Math.round(H));
+    var og=off.getContext('2d'),im=og.createImageData(off.width,off.height),dd=im.data,q4=0;
+    for(iy=0;iy<off.height;iy++){y=(cy0-(iy+0.5))/scale;for(ix=0;ix<off.width;ix++){x=((ix+0.5)-cx0)/scale;
+      var pr1=gc(x,y,m1,U1,p1)>gc(x,y,m0,U0,p0);dd[q4]=pr1?224:91;dd[q4+1]=pr1?122:143;dd[q4+2]=pr1?95:185;dd[q4+3]=38;q4+=4;}}
+    og.putImageData(im,0,0);ctx.imageSmoothingEnabled=true;ctx.drawImage(off,0,0,off.width,off.height,0,0,W,H);
     ctx.strokeStyle='rgba(120,120,120,0.3)';ctx.lineWidth=1;ctx.beginPath();ctx.moveTo(0,py(0));ctx.lineTo(W,py(0));ctx.moveTo(px(0),0);ctx.lineTo(px(0),H);ctx.stroke();
     ellipse(m0,S0,1,'#5B8FB9',1.5);ellipse(m0,S0,2,'rgba(91,143,185,0.4)',1.1);
     ellipse(m1,S1,1,'#E07A5F',1.5);ellipse(m1,S1,2,'rgba(224,122,95,0.4)',1.1);
@@ -298,9 +304,10 @@
       var xx=m[0]+l11*z1,yy=m[1]+l21*z1+l22*z2;
       var score=gc(xx,yy,m1,U1,p1)-gc(xx,yy,m0,U0,p0),pred1=score>0,cat;
       if(c1)posS.push(score);else negS.push(score);
-      if(c1&&pred1){cat='#E07A5F';TP++;}else if(c1&&!pred1){cat='#E07A5F';FN++;}else if(!c1&&!pred1){cat='#5B8FB9';TN++;}else{cat='#5B8FB9';FP++;}
-      var Xp=px(xx),Yp=py(yy);ctx.globalAlpha=0.82;ctx.fillStyle=cat;ctx.beginPath();ctx.arc(Xp,Yp,3.3,0,6.2832);ctx.fill();ctx.globalAlpha=1;
-      if(c1!==pred1){ctx.strokeStyle=pred1?'#E07A5F':'#5B8FB9';ctx.lineWidth=1.8;ctx.beginPath();ctx.arc(Xp,Yp,5.2,0,6.2832);ctx.stroke();}}  // วงขอบ = คลาสที่ทายเป็น (FP→แดง, FN→น้ำเงิน)
+      if(c1&&pred1)TP++;else if(c1&&!pred1)FN++;else if(!c1&&!pred1)TN++;else FP++;
+      /* จุดแบบเดียวกับ playground จำแนกตัวอื่น: r = 6 · สี = actual class · ✗ ขาว = ทำนายผิด */
+      var Xp=px(xx),Yp=py(yy),r=6,q=r*0.6;ctx.fillStyle=c1?'rgba(224,122,95,0.9)':'rgba(91,143,185,0.85)';ctx.beginPath();ctx.arc(Xp,Yp,r,0,6.2832);ctx.fill();
+      if(c1!==pred1){ctx.strokeStyle='#fff';ctx.lineWidth=1.8;ctx.beginPath();ctx.moveTo(Xp-q,Yp-q);ctx.lineTo(Xp+q,Yp+q);ctx.moveTo(Xp+q,Yp-q);ctx.lineTo(Xp-q,Yp+q);ctx.stroke();}}
     K(String(TP),document.getElementById('tp'));K(String(FN),document.getElementById('fn'));K(String(FP),document.getElementById('fp'));K(String(TN),document.getElementById('tn'));
     var acc=(TP+TN)/n,prec=(TP+FP)?TP/(TP+FP):0,rec=(TP+FN)?TP/(TP+FN):0,spec=(TN+FP)?TN/(TN+FP):0;
     var f1=(prec+rec)?2*prec*rec/(prec+rec):0,auc=aucFrom(posS,negS);
