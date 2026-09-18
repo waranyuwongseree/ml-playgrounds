@@ -189,7 +189,7 @@
     'cv-roc':'\\text{ROC curve}','cv-pr':'\\text{PR curve}',
     'sc-x':'\\text{raw value }x','sc-p':'\\text{model probability }\\hat p',
     'ds-0':'\\text{Separated}','ds-1':'\\text{Unseparated}','ds-2':'\\text{Imbalanced}',
-    'ch-pp':'\\hat y=+','ch-pn':'\\hat y=-','ch-ap':'\\text{actual }+','ch-an':'\\text{actual }-','cs-tp':'\\mathrm{TP}','cs-fn':'\\mathrm{FN}','cs-fp':'\\mathrm{FP}','cs-tn':'\\mathrm{TN}'};
+    'ch-pp':'\\hat y=\\text{NG}','ch-pn':'\\hat y=\\text{OK}','ch-ap':'\\text{actual NG}','ch-an':'\\text{actual OK}','cs-tp':'\\mathrm{TP}','cs-fn':'\\mathrm{FN}','cs-fp':'\\mathrm{FP}','cs-tn':'\\mathrm{TN}'};
   function K(tex,el){if(!el)return;try{katex.render(tex,el,{throwOnError:false});}catch(e){el.textContent=tex;}}
   function kx(t){try{return window.katex?katex.renderToString(t,{throwOnError:false}):t;}catch(e){return t;}}
   function renderTexts(){if(!window.katex)return;for(var id in MT)K(MT[id],document.getElementById(id));
@@ -202,7 +202,7 @@
   function clLine(name,lc,tc,shape){return '<span class="cli"><i class="'+(shape||'ln')+'" style="background:'+lc+'"></i><span>'+kx('\\textcolor{'+tc+'}{\\text{'+name+'}}')+'</span></span>';}
   // legend: สีเดียวกับ confusion matrix / ตาราง — FN วงแหวนทอง · FP วงแหวนเขียวน้ำทะเล
   function fillLegend(){var el=document.getElementById('classleg');if(!el)return;
-    el.innerHTML=clLine('Positive class','#E07A5F',Rd,'ar')+clLine('Negative class','#5B8FB9',Bl,'ar')+clLine('misclassified (✗)','#888','#666');}   // จุด = actual class · พื้นช่อง = ช่อง confusion matrix · ✗ = ผิด
+    el.innerHTML=clLine('Positive class (NG)','#E07A5F',Rd,'ar')+clLine('Negative class (OK)','#5B8FB9',Bl,'ar')+clLine('misclassified (✗)','#888','#666');}   // จุด = actual class · พื้นช่อง = ช่อง confusion matrix · ✗ = ผิด
 
   // ---------- data ----------
   var D={all:[],pos:[],neg:[]};
@@ -291,8 +291,8 @@
     cnt(C.TP,'TP',L+8,yA,'left','#8A3B2C',!thinA);cnt(C.FP,'FP',L+pw-8,yA,'right','#2E7D70',!thinA);
     cnt(C.FN,'FN',L+8,yB,'left','#8A6510',!thinB);cnt(C.TN,'TN',L+pw-8,yB,'right','#3F6E99',!thinB);
     // หัวคอลัมน์ (actual) + ป้ายแถว (ŷ) แนวตั้งด้านขวา
-    lb('\\text{actual }+',xL,TOP-9,{align:'center'});lb('\\text{actual }-',xR,TOP-9,{align:'center'});
-    if(!thinA)lb('\\text{predicted }+',L-46,(TOP+yT)/2,{rot:true});if(!thinB)lb('\\text{predicted }-',L-46,(yT+TOP+ph)/2,{rot:true});}   // ป้ายแถวแนวตั้งซ้ายสุด · แถวบาง → ไม่ใส่
+    lb('\\text{actual NG}',xL,TOP-9,{align:'center'});lb('\\text{actual OK}',xR,TOP-9,{align:'center'});
+    if(!thinA)lb('\\text{predicted NG}',L-46,(TOP+yT)/2,{rot:true});if(!thinB)lb('\\text{predicted OK}',L-46,(yT+TOP+ph)/2,{rot:true});}   // ป้ายแถวแนวตั้งซ้ายสุด · แถวบาง → ไม่ใส่
 
   function drawRoc(t,R){var sz=prep(cvr,ctr),W=sz.W,H=sz.H,g=ctr;
     var L=48,Rm=14,TOP=14,BOT=34,pw=W-L-Rm,ph=H-TOP-BOT,i;   // L กว้างพอให้ป้าย TPR (แนวตั้ง) ไม่ชิดขอบและไม่ทับ tick
@@ -322,7 +322,7 @@
 
   // ---------- ตารางข้อมูล (ซ้าย): x | (p̂) | y | ŷ เรียงตามคะแนนมากไปน้อย · สีแถว = ผล TP/FN/FP/TN ----------
   function fillDtab(t){var tb=document.getElementById('dtbody');if(!tb)return;var arr=D.all.slice().sort(function(a,b){return sc(b)-sc(a);}),h='';
-    function cls(y){return y?'\\textcolor{'+Rd+'}{+}':'\\textcolor{'+Bl+'}{-}';}
+    function cls(y){return y?'\\textcolor{'+Rd+'}{\\text{NG}}':'\\textcolor{'+Bl+'}{\\text{OK}}';}
     // แท็บ ROC: TPR/FPR ของแถว = ค่าที่ได้ถ้าตั้ง threshold ที่คะแนนของแถวนั้น (threshold scanning — ไล่ทีละแถวจากบนลงล่าง = เดินไปตามโค้ง ROC)
     var isR=T().key==='roc',P=D.pos.length,N=D.neg.length,ctp=0,cfp=0,scan=[];
     if(isR){var i2=0;while(i2<arr.length){var s0=sc(arr[i2]),j2=i2;while(j2<arr.length&&sc(arr[j2])===s0){if(arr[j2].y)ctp++;else cfp++;j2++;}for(;i2<j2;i2++)scan[i2]=(curve==='pr')?[ctp/P,(ctp+cfp)?ctp/(ctp+cfp):1]:[ctp/P,cfp/N];}}   /* PR: recall, precision ต่อแถว */
