@@ -1,0 +1,265 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Introduction to Time Series</title>
+<link rel="stylesheet" href="pg_style.css?v=24">
+<link rel="stylesheet" href="vendor/katex/katex.min.css">
+<script src="vendor/katex/katex.min.js"></script>
+<style>
+  /* intro-timeseries — โครงเดียวกับ Introduction to Classification / Regression: ตารางซ้าย · กราฟ + legend + กล่องคำนวณ · control ขวา */
+  .layout{align-items:start}
+  .pg.distcls .canvasbox{height:260px}
+  .distcls .stage{gap:6px}
+  .canvasbox{position:relative}
+  .cvlab{position:absolute;left:0;top:0;width:100%;height:100%;pointer-events:none;overflow:hidden;font-size:14px;line-height:1}   /* มาตรฐาน: ตัวอักษรบนกราฟ ≥ 14px */
+  .cvlab>span{position:absolute;white-space:nowrap;color:rgba(90,90,90,0.9)}
+  .cvlab .katex{font-size:1em}
+  .excalc{background:#fff;border:1px solid var(--line);border-radius:12px;padding:5px 6px;font-size:14px;line-height:1.38;overflow:hidden}
+  .excalc .katex{font-size:1em}
+  .excalc .ln{display:block;padding:1px 0}
+  .excalc .ln>.lb{display:inline-block;margin:0 10px 2px 0;padding:1px 9px;border-radius:6px;background:#E6ECF8;color:var(--navy);font-size:13px;vertical-align:middle}
+  .excalc .ln>.bd{display:inline}
+  .excalc .ln>.bd>span{display:inline-block;margin-right:.35em;vertical-align:middle;white-space:nowrap}
+  .excalc .ln+.ln{border-top:1px solid var(--line);padding-top:2px;margin-top:2px}
+  .dtab{width:100%;border-collapse:collapse;font-size:15px}
+  .dtab th{background:var(--navy);color:#fff;font-weight:400;padding:5px 5px;text-align:center;position:sticky;top:0;z-index:3}
+  .dtab td{padding:1px 6px;text-align:center;color:var(--ink);line-height:1.35;background:#fff}
+  .dtab tr.te td{background:#F3F4F6}   /* ช่วงทดสอบ (multi-step) */
+  .dtab tr.hl td{background:#E6ECF8}   /* ค่าในอดีตที่ใช้คำนวณ ŷ ของ testing point */
+  .dtab tr.cur td{background:#FAEFD6}   /* วันของ testing point */
+  .dtab .katex{font-size:1em}
+  .panel{max-height:calc(100vh - 96px);overflow-y:auto;overflow-x:hidden}
+  .seg2{display:flex;flex-wrap:wrap;border:1px solid var(--line);border-radius:8px;overflow:hidden;margin-bottom:6px;background:#fff}
+  .seg2 button{flex:1 1 auto;font:inherit;font-size:14px;padding:6px 8px;border:0;background:#fff;color:#555;cursor:pointer;white-space:nowrap}
+  .seg2 button.on{background:var(--navy);color:#fff}
+  .seg2 .katex{font-size:1em}
+  .tgls{display:flex;flex-direction:column;gap:9px;margin-top:10px}
+  .distcls .below{min-height:0;padding:6px 14px 8px}
+  .below .excalc{width:100%;box-sizing:border-box}
+  .stage.mod{flex-direction:row;gap:18px;align-items:flex-start}
+  .dleft{display:block;flex:0 0 362px;min-width:0;overflow-y:auto;overflow-x:hidden;border-radius:8px;position:relative}
+  .main{display:flex;flex-direction:column;gap:6px;flex:1 1 auto;min-width:0}
+  .pg .panel .dgrid{row-gap:5px}
+  .classleg .cli .ring{display:inline-block;width:13px;height:13px;border-radius:50%;border:2px solid #1e3a8a;box-sizing:border-box;flex:none}
+  @media(max-width:820px){.stage.mod{flex-direction:column}.dleft{flex:none;width:100%}}
+</style>
+</head>
+<body class="pg distcls">
+<div class="wrap">
+  <div class="hdr"><h1 id="h1">Introduction to Time Series</h1><div class="tabs" id="tabs"></div></div>
+
+  <div class="layout" id="mainPanel">
+    <!-- ตารางซ้าย (t | y | ŷ | y − ŷ) · ขวา = กราฟตามเวลา → legend → การคำนวณของวิธีพยากรณ์ที่เลือก -->
+    <div class="stage mod">
+      <div class="dleft" id="dleft"><table class="dtab" id="mtab"><thead><tr id="mthead"></tr></thead><tbody id="mtbody"></tbody></table></div>
+      <div class="main" id="main">
+        <div class="canvasbox"><canvas id="cv"></canvas></div>
+        <div class="classleg" id="classleg"></div>
+        <div class="below"><div class="excalc" id="mcalc"></div></div>
+      </div>
+    </div>
+
+    <!-- CONTROL: ลักษณะอนุกรม → (ช่วงพยากรณ์) → วิธีพยากรณ์ → testing point → Resample -->
+    <div class="panel">
+      <div id="grp-data"><div class="dhd" id="hd-data"></div>
+      <div class="dgrid">
+        <div class="drow"><span class="dlab" id="lbl-b"></span><input type="range" id="Rb" min="0" max="0.4" step="0.05" value="0.2"><input class="num" type="number" id="Nb" min="0" max="0.4" step="0.05" value="0.2"></div>
+        <div class="drow"><span class="dlab" id="lbl-A"></span><input type="range" id="RA" min="0" max="8" step="0.5" value="5"><input class="num" type="number" id="NA" min="0" max="8" step="0.5" value="5"></div>
+        <div class="drow"><span class="dlab" id="lbl-sg"></span><input type="range" id="Rsg" min="0" max="4" step="0.5" value="1"><input class="num" type="number" id="Nsg" min="0" max="4" step="0.5" value="1"></div>
+        <div class="drow"><span class="dlab" id="lbl-n"></span><input type="range" id="Rn" min="28" max="84" step="7" value="35"><input class="num" type="number" id="Nn" min="28" max="84" step="7" value="35"></div>
+      </div></div>
+      <div id="grp-hz"><div class="dhd" id="hd-hz"></div>
+      <div class="dgrid">
+        <div class="drow"><span class="dlab" id="lbl-H"></span><input type="range" id="RH" min="7" max="21" step="7" value="14"><input class="num" type="number" id="NH" min="7" max="21" step="7" value="14"></div>
+      </div></div>
+      <div id="grp-model"><div class="dhd" id="hd-model"></div>
+      <div class="seg2" id="modelSeg">
+        <button data-m="naive" id="sb-naive" class="on"></button><button data-m="snaive" id="sb-snaive"></button><button data-m="ma" id="sb-ma"></button><button data-m="drift" id="sb-drift"></button>
+      </div>
+      <div class="dhd" id="hd-hp"></div>
+      <div class="dgrid">
+        <div class="drow" id="row-k"><span class="dlab" id="lbl-k"></span><input type="range" id="Rk" min="1" max="14" step="1" value="7"><input class="num" type="number" id="Nk" min="1" max="14" step="1" value="7"></div>
+      </div></div>
+      <div id="grp-ex"><div class="dhd" id="hd-ex"></div>
+      <div class="dgrid">
+        <div class="drow"><span class="dlab" id="lbl-t0"></span><input type="range" id="Rt0" min="2" max="35" step="1" value="35"><input class="num" type="number" id="Nt0" min="2" max="35" step="1" value="35"></div>
+      </div></div>
+      <div id="grp-rs" class="tgls"><button class="primary" id="resample" style="width:100%"></button></div>
+    </div>
+  </div>
+</div>
+
+<script>
+(function(){
+  "use strict";
+  function mulberry32(a){return function(){a|=0;a=a+0x6D2B79F5|0;var t=Math.imul(a^a>>>15,1|a);
+    t=t+Math.imul(t^t>>>7,61|t)^t;return((t^t>>>14)>>>0)/4294967296;};}
+  var MAXN=84,ZN=[];
+  function regen(s){var rng=mulberry32(s),i;ZN=[];for(i=0;i<MAXN;i++){var u=rng()||1e-9,v=rng();ZN.push(Math.sqrt(-2*Math.log(u))*Math.cos(2*Math.PI*v));}}
+  var seed=12345;regen(seed);
+
+  // ---------- อนุกรมจำลอง: ปริมาณน้ำที่สถานีสูบจ่ายต่อวัน (พัน m³) ----------
+  //   y_t = 40 + b·(t − 1) + ฤดูกาลรายสัปดาห์ (วันทำงานสูง เสาร์–อาทิตย์ต่ำ, สูงสุด ±A) + noise σ · ปัดทศนิยม 1 ตำแหน่งเท่าที่แสดงในตาราง
+  var SEAS=[1.5,2.5,2.5,2,1,-4,-5.5],M=7;   // ผลรวม 0 · ความยาวฤดูกาล m = 7 วัน
+  function rnd(v,d){var p=Math.pow(10,d);return Math.round(v*p)/p;}
+  function series(){var n=Math.round(gv('n')),b=gv('b'),A=gv('A'),sg=gv('sg'),y=[null],t;
+    for(t=1;t<=n;t++)y.push(rnd(40+b*(t-1)+A*SEAS[(t-1)%M]/5.5+sg*ZN[t-1],1));return y;}   // y[1..n]
+
+  // ---------- วิธีพยากรณ์: ŷ_{o+h | o} จากข้อมูล y_1 … y_o (o = จุดเริ่มพยากรณ์, h = จำนวนก้าวข้างหน้า) ----------
+  function fc(mk,y,o,h,k){var i,s=0,u=[];
+    if(mk==='naive'){if(o<1)return null;return {v:y[o],used:[o]};}
+    if(mk==='snaive'){var j=o+h-M*Math.ceil(h/M);if(j<1)return null;return {v:y[j],used:[j],j:j};}   // ค่าของวันเดียวกันในฤดูกาลล่าสุดที่เห็นแล้ว
+    if(mk==='ma'){if(o<k)return null;for(i=o-k+1;i<=o;i++){s+=y[i];u.push(i);}return {v:s/k,used:u};}
+    if(o<2)return null;return {v:y[o]+h*(y[o]-y[1])/(o-1),used:[1,o]};}   // drift: ลากเส้นจาก y_1 ถึง y_o ต่อออกไป h ก้าว
+  function tMin(mk,k){return mk==='naive'?2:mk==='snaive'?M+1:mk==='ma'?k+1:3;}   // วันแรกที่พยากรณ์ one-step ได้
+
+  var TABS=[{n:'One-step ahead',multi:false},{n:'Multi-step forecast',multi:true}];
+  var curTab=0,modeM='naive',QM={};   // ลำดับ: Naive → Seasonal naive → Moving average → Drift
+  var MC='#1e3a8a',Rd='#B0503A',MV='#B07AAE',MVt='#7E5A93';
+  function T(){return TABS[curTab];}
+  function gv(b){return parseFloat(document.getElementById('R'+b).value);}
+  function sv(b,v){document.getElementById('R'+b).value=v;document.getElementById('N'+b).value=v;}
+  function setRange(b,r){['R','N'].forEach(function(p){var e=document.getElementById(p+b);e.min=r[0];e.max=r[1];e.step=r[2];});}
+
+  // ---------- KaTeX ----------
+  var MT={'h1':'\\text{Introduction to Time Series}','resample':'\\text{Resample points}',
+    'hd-data':'\\text{Trend, season, noise \\& length}','lbl-b':'b','lbl-A':'A','lbl-sg':'\\sigma','lbl-n':'n',
+    'hd-hz':'\\text{Forecast horizon}','lbl-H':'H',
+    'hd-model':'\\text{Method}','hd-hp':'\\text{Method setting}','hd-ex':'\\text{Testing point}','lbl-k':'k','lbl-t0':'t_{\\text{test}}',
+    'sb-naive':'\\text{Naive}','sb-snaive':'\\text{Seasonal naive}','sb-ma':'\\text{Moving average}','sb-drift':'\\text{Drift}'};
+  var KXC={};
+  function kx(t){if(KXC[t]!==undefined)return KXC[t];var r;try{r=window.katex?katex.renderToString(t,{throwOnError:false}):t;}catch(e){r=t;}if(t.length<24&&window.katex)KXC[t]=r;return r;}
+  function K(t,el){if(!el)return;try{katex.render(t,el,{throwOnError:false});}catch(e){el.textContent=t;}}
+  function renderTexts(){if(!window.katex)return;for(var id in MT)K(MT[id],document.getElementById(id));}
+  function fx(v,d){d=d===undefined?1:d;return (Math.abs(v)<Math.pow(10,-d)/2?0:v).toFixed(d);}
+
+  // ---------- canvas ----------
+  var cv=document.getElementById('cv'),ctx=cv.getContext('2d'),SC=2,W=640,H=260;
+  function sizeCanvas(){var w=Math.round(cv.clientWidth)||640,h=Math.round(cv.clientHeight)||260,dpr=window.devicePixelRatio||1;
+    W=w;H=h;SC=dpr;cv.width=Math.round(w*dpr);cv.height=Math.round(h*dpr);}
+  function labs(c){var p=c.parentElement,Ly=p.querySelector('.cvlab');if(!Ly){Ly=document.createElement('div');Ly.className='cvlab';p.appendChild(Ly);}Ly.innerHTML='';
+    var ox=c.clientLeft||0,oy=c.clientTop||0;
+    return function(tex,x,y,o){o=o||{};var s=document.createElement('span');K(tex,s);if(o.color)s.style.color=o.color;
+      if(o.bg){s.style.background=o.bg;s.style.borderRadius='4px';s.style.padding='1px 3px';}
+      var pr=document.createElement('span');pr.style.cssText='display:inline-block;width:0;height:0;vertical-align:baseline';s.appendChild(pr);
+      s.style.left=(x+ox)+'px';s.style.top='0px';s.style.transform='translateX('+(o.align==='right'?'-100%':o.align==='center'?'-50%':'0')+')';Ly.appendChild(s);
+      var sr=s.getBoundingClientRect(),base=pr.getBoundingClientRect().top-sr.top;
+      s.style.top=(oy+(o.vt==='middle'?y-sr.height/2:y-base))+'px';};}
+  function niceStep(lo,hi,nt){var raw=(hi-lo)/(nt||6),p=Math.pow(10,Math.floor(Math.log10(raw))),m=raw/p,s=(m<1.5?1:m<3.5?2:m<7.5?5:10)*p;
+    return {step:s,dec:Math.max(0,-Math.floor(Math.log10(s)+1e-9))};}
+  function draw(P){try{ctx.setTransform(SC,0,0,SC,0,0);ctx.clearRect(0,0,W,H);draw1(P);}
+    catch(e){ctx.setTransform(SC,0,0,SC,0,0);ctx.fillStyle='#c0392b';ctx.font='15px KaTeX_Main,serif';ctx.textAlign='left';ctx.fillText('draw err: '+e.message,10,20);}}
+  function draw1(P){
+    var L=40,Rm=14,TOP=26,BOT=38,pw=W-L-Rm,ph=H-TOP-BOT,n=P.n,y=P.y,t,a;
+    var xmin=0.5,xmax=n+0.5;function px(v){return L+(v-xmin)/(xmax-xmin)*pw;} function py(v){return TOP+(P.ymax-v)/(P.ymax-P.ymin)*ph;}
+    // ช่วงทดสอบ (multi-step): พื้นเทา + เส้นแบ่ง train | test
+    if(P.multi){ctx.fillStyle='rgba(128,128,128,0.10)';ctx.fillRect(px(P.T+0.5),TOP,L+pw-px(P.T+0.5),ph);
+      ctx.strokeStyle='#666';ctx.setLineDash([4,4]);ctx.lineWidth=1.2;ctx.beginPath();ctx.moveTo(px(P.T+0.5),TOP);ctx.lineTo(px(P.T+0.5),TOP+ph);ctx.stroke();ctx.setLineDash([]);}
+    ctx.font='14px KaTeX_Main,serif';ctx.fillStyle='rgba(90,90,90,0.9)';
+    var ny=niceStep(P.ymin,P.ymax,5);
+    ctx.strokeStyle='rgba(128,128,128,0.16)';ctx.lineWidth=1;ctx.textAlign='right';ctx.textBaseline='middle';
+    for(a=Math.ceil(P.ymin/ny.step)*ny.step;a<=P.ymax+1e-9;a+=ny.step){ctx.beginPath();ctx.moveTo(L,py(a));ctx.lineTo(L+pw,py(a));ctx.stroke();ctx.fillText(a.toFixed(ny.dec),L-6,py(a));}
+    ctx.textAlign='center';ctx.textBaseline='alphabetic';var tk=n>56?14:7;for(a=tk;a<=n;a+=tk)ctx.fillText(String(a),px(a),TOP+ph+16);   // ขีดทุกสัปดาห์
+    ctx.strokeStyle='rgba(128,128,128,0.45)';ctx.strokeRect(L,TOP,pw,ph);
+    var lb=labs(cv);lb('y_t',L+4,TOP-8);lb('t\\ (\\text{day})',L+pw,TOP+ph+32,{align:'right'});
+    if(P.multi){lb('\\text{train}',px(P.T+0.5)-6,TOP+18,{align:'right',color:'#555'});lb('\\text{test}',px(P.T+0.5)+6,TOP+18,{color:'#555'});}
+    // error = เส้นตั้งจากค่าจริงถึงค่าพยากรณ์
+    ctx.strokeStyle=MV;ctx.lineWidth=1.8;for(t=1;t<=n;t++)if(P.pred[t]!==null){ctx.beginPath();ctx.moveTo(px(t),py(y[t]));ctx.lineTo(px(t),py(P.pred[t]));ctx.stroke();}
+    // ค่าจริง: เส้น + จุด coral
+    ctx.strokeStyle='rgba(224,122,95,0.75)';ctx.lineWidth=1.5;ctx.beginPath();for(t=1;t<=n;t++){t===1?ctx.moveTo(px(t),py(y[t])):ctx.lineTo(px(t),py(y[t]));}ctx.stroke();
+    ctx.fillStyle='rgba(224,122,95,0.95)';for(t=1;t<=n;t++){ctx.beginPath();ctx.arc(px(t),py(y[t]),4,0,7);ctx.fill();}
+    // ค่าพยากรณ์: เส้นกรมท่า (multi-step เริ่มจากค่าจริงที่จุดเริ่ม T)
+    ctx.strokeStyle=MC;ctx.lineWidth=2.2;ctx.beginPath();var st=false;
+    if(P.multi){ctx.moveTo(px(P.T),py(y[P.T]));st=true;}
+    for(t=1;t<=n;t++){if(P.pred[t]===null)continue;if(!st){ctx.moveTo(px(t),py(P.pred[t]));st=true;}else ctx.lineTo(px(t),py(P.pred[t]));}ctx.stroke();
+    // ค่าในอดีตที่ใช้คำนวณ ŷ ของ testing point
+    P.used.forEach(function(j){var X0=px(j),Y0=py(y[j]);ctx.strokeStyle='rgba(255,255,255,0.9)';ctx.lineWidth=4;ctx.beginPath();ctx.arc(X0,Y0,8,0,7);ctx.stroke();
+      ctx.strokeStyle=MC;ctx.lineWidth=2;ctx.beginPath();ctx.arc(X0,Y0,8,0,7);ctx.stroke();});
+    // testing point: เส้นประจากแกนเวลา + จุดดำที่ค่าพยากรณ์
+    if(P.qv!==null){var xq=px(P.t0),yq=py(P.qv),rt=xq>L+pw/2;
+      ctx.strokeStyle='#444';ctx.setLineDash([4,4]);ctx.lineWidth=1.3;ctx.beginPath();ctx.moveTo(xq,TOP+ph);ctx.lineTo(xq,yq);ctx.stroke();ctx.setLineDash([]);
+      ctx.fillStyle='#222';ctx.beginPath();ctx.arc(xq,yq,5.5,0,7);ctx.fill();ctx.strokeStyle='#fff';ctx.lineWidth=2;ctx.stroke();
+      lb('t_{\\text{test}}',xq+(rt?-8:8),TOP+ph-8,{align:rt?'right':'left',color:'#222',bg:'rgba(255,255,255,0.85)'});
+      lb('\\hat y='+fx(P.qv),xq+(rt?-12:12),yq+(yq<TOP+40?22:-12),{align:rt?'right':'left',color:MC,bg:'rgba(255,255,255,0.85)'});}}
+
+  // ---------- legend ----------
+  function leg(shape,style,tex){return '<span class="cli"><i class="'+shape+'" style="'+style+'"></i><span>'+kx(tex)+'</span></span>';}
+  function fillLegend(P){var h=leg('ar','background:#E07A5F','\\textcolor{'+Rd+'}{\\text{Observed }y_t}')+leg('ln','background:'+MC,'\\textcolor{'+MC+'}{\\text{Forecast }\\hat y_t}')+leg('ln','background:'+MV,'\\textcolor{'+MVt+'}{\\text{Error }y_t-\\hat y_t}');
+    if(P.multi)h+=leg('ar','background:rgba(128,128,128,0.25)','\\text{Test period}');
+    h+=leg('ring','','\\textcolor{'+MC+'}{\\text{Values used for }t_{\\text{test}}}');
+    document.getElementById('classleg').innerHTML=h;}
+
+  // ---------- ตารางซ้าย: t | y | ŷ | y − ŷ ----------
+  function fillTable(P){var Wt=function(t){return '\\textcolor{#fff}{'+t+'}';};
+    document.getElementById('mthead').innerHTML=['\\text{Day }(t)','\\text{Volume }(y_t)','\\hat y_t','y_t-\\hat y_t'].map(function(t){return '<th>'+kx(Wt(t))+'</th>';}).join('');
+    var U={},h='',t,pd=(modeM==='naive'||modeM==='snaive')?1:2;P.used.forEach(function(j){U[j]=1;});   // naive / seasonal naive = ค่าในอดีตตรง ๆ → ทศนิยมเท่า y
+    for(t=1;t<=P.n;t++){var p=P.pred[t],cl=t===P.t0?'cur':U[t]?'hl':(P.multi&&t>P.T)?'te':'';
+      h+='<tr'+(cl?' class="'+cl+'"':'')+'><td>'+kx(String(t))+'</td><td>'+kx(fx(P.y[t]))+'</td><td>'+(p===null?kx('-'):kx(fx(p,pd)))+'</td><td>'+(p===null?kx('-'):kx(fx(P.y[t]-p,pd)))+'</td></tr>';}
+    document.getElementById('mtbody').innerHTML=h;}
+
+  // ---------- กล่องคำนวณ: Model → Testing point (+ ค่าจริงและ error) ----------
+  function fillCalc(P){var el=document.getElementById('mcalc'),h='',y=P.y,k=P.k;
+    var lab=function(t){return '<span class="lb">'+kx('\\textbf{'+t+'}')+'</span>';};
+    var lline=function(t,parts){return '<span class="ln">'+lab(t)+'<span class="bd">'+parts.map(function(p){return '<span>'+kx(p)+'</span>';}).join('')+'</span></span>';};
+    // สูตรทั่วไป: one-step ใช้ ŷ_{t|t−1} (รู้ถึงเมื่อวาน) · multi-step ใช้ ŷ_{T+h|T} (รู้ถึงวันที่ T แล้วพยากรณ์ไป h วัน)
+    var G=P.multi?{naive:['\\hat y_{T+h|T}=y_T'],snaive:['\\hat y_{T+h|T}=y_{T+h-7\\lceil h/7\\rceil}','\\text{(same weekday, last week seen)}'],
+        ma:['\\hat y_{T+h|T}=\\dfrac{1}{k}\\textstyle\\sum_{j=0}^{k-1}y_{T-j}','\\text{(flat for every }h)'],drift:['\\hat y_{T+h|T}=y_T+h\\,\\dfrac{y_T-y_1}{T-1}']}
+      :{naive:['\\hat y_{t|t-1}=y_{t-1}'],snaive:['\\hat y_{t|t-1}=y_{t-7}','\\text{(same weekday, last week)}'],
+        ma:['\\hat y_{t|t-1}=\\dfrac{1}{k}\\textstyle\\sum_{j=1}^{k}y_{t-j}'],drift:['\\hat y_{t|t-1}=y_{t-1}+\\dfrac{y_{t-1}-y_1}{t-2}']};
+    h+=lline('Model',G[modeM]);
+    if(P.multi)h+=lline('Split',['\\text{train }t=1,\\dots,'+P.T+'\\ (T='+P.T+'),','\\text{test }t='+(P.T+1)+',\\dots,'+P.n+'\\ (H='+(P.n-P.T)+')']);
+    if(P.qv!==null){var t0=P.t0,o=P.multi?P.T:t0-1,hh=t0-o,Y='\\hat y_{'+t0+'|'+o+'}',f=P.q,pc=[];
+      if(modeM==='naive')pc=[Y+'=y_{'+o+'}','='+fx(y[o])];
+      else if(modeM==='snaive')pc=[Y+'=y_{'+f.j+'}','='+fx(y[f.j])];
+      else if(modeM==='ma'){var s=0;f.used.forEach(function(j){s+=y[j];});
+        pc=[Y+'=\\dfrac{'+(k<=5?f.used.map(function(j){return fx(y[j]);}).join('+'):'y_{'+f.used[0]+'}+\\dots+y_{'+o+'}')+'}{'+k+'}'].concat(k<=5?[]:['=\\dfrac{'+fx(s)+'}{'+k+'}']).concat(['='+fx(P.qv,2)]);}
+      else pc=[Y+'=y_{'+o+'}+'+(hh>1?hh+'\\cdot':'')+'\\dfrac{y_{'+o+'}-y_1}{'+(o-1)+'}','='+fx(y[o])+'+'+(hh>1?hh+'\\cdot':'')+'\\dfrac{'+fx(y[o])+'-'+fx(y[1])+'}{'+(o-1)+'}','='+fx(P.qv,2)];
+      pc.push('\\quad\\text{actual }y_{'+t0+'}='+fx(y[t0])+',','e='+fx(y[t0]-P.qv,2));
+      h+=lline('Testing point',pc);}
+    el.innerHTML=h;}   // สมการ 14px เสมอ — ยาวให้ตัดบรรทัดระหว่างชิ้น ห้ามย่อ
+
+  // ---------- main update ----------
+  function upd(){var multi=T().multi,n=Math.round(gv('n')),Hh=Math.round(gv('H')),Tt=multi?n-Hh:n;
+    var kmax=Math.min(14,multi?Tt:n-1);setRange('k',[1,kmax,1]);if(gv('k')>kmax)sv('k',kmax);var k=Math.round(gv('k'));
+    var y=series(),pred=[null],t;
+    for(t=1;t<=n;t++){var r=multi?(t>Tt?fc(modeM,y,Tt,t-Tt,k):null):(t>1?fc(modeM,y,t-1,1,k):null);pred.push(r?r.v:null);}
+    // testing point: one-step = วันที่พยากรณ์ได้ · multi-step = วันในช่วงทดสอบ · ค่าเริ่ม = วันสุดท้าย · จำแยกตามแท็บ
+    var lo=multi?Tt+1:tMin(modeM,k),hi=n;lo=Math.min(lo,hi);setRange('t0',[lo,hi,1]);var qk=curTab;if(QM[qk]===undefined)QM[qk]=hi;var t0=Math.min(hi,Math.max(lo,QM[qk]));sv('t0',t0);
+    var q=multi?fc(modeM,y,Tt,t0-Tt,k):fc(modeM,y,t0-1,1,k);
+    var ys=y.slice(1),all=ys.concat(pred.filter(function(v){return v!==null;})),mn=Math.min.apply(null,all),mx=Math.max.apply(null,all),pd=((mx-mn)||1)*0.08;
+    var P={multi:multi,n:n,T:Tt,y:y,pred:pred,k:k,t0:t0,q:q,qv:q?q.v:null,used:q?q.used:[],ymin:mn-pd,ymax:mx+pd};
+    sizeCanvas();draw(P);fillCalc(P);fillTable(P);fillLegend(P);
+    var dl=document.getElementById('dleft'),mnEl=document.getElementById('main');   // ตารางสูงอย่างน้อย 20 แถว (เกินจึงเลื่อน) ไม่เกินขอบล่างจอ
+    if(innerWidth>820){var rw=document.querySelectorAll('#mtbody tr'),tbl=document.getElementById('mtab'),h20=0;
+      if(rw.length)h20=Math.ceil(rw[Math.min(19,rw.length-1)].getBoundingClientRect().bottom-tbl.getBoundingClientRect().top)+2;
+      var capH=Math.max(200,innerHeight-Math.round(dl.getBoundingClientRect().top+window.scrollY)-10);
+      dl.style.maxHeight=Math.min(capH,Math.max(Math.round(mnEl.getBoundingClientRect().height),h20))+'px';}else dl.style.maxHeight='300px';
+    // เลื่อนตารางให้เห็นแถวของ testing point
+    var cur=document.querySelector('#mtbody tr.cur');if(cur){var top=cur.offsetTop-dl.clientHeight/2;dl.scrollTop=Math.max(0,top);}
+    if(Math.round(cv.clientWidth)!==W||Math.round(cv.clientHeight)!==H){sizeCanvas();draw(P);}}
+
+  // ---------- controls ----------
+  function setModelSeg(){document.querySelectorAll('#modelSeg button').forEach(function(b){b.className=(b.getAttribute('data-m')===modeM)?'on':'';});
+    var on=modeM==='ma';document.getElementById('row-k').style.display=on?'':'none';document.getElementById('hd-hp').style.display=on?'':'none';}
+  function applyTab(i){curTab=i;document.querySelectorAll('.tabbtn').forEach(function(b,j){b.className='tabbtn'+(j===i?' on':'');});
+    document.getElementById('grp-hz').style.display=T().multi?'':'none';renderTexts();setModelSeg();sizeCanvas();upd();}
+  var tb=document.getElementById('tabs');
+  TABS.forEach(function(t,i){var el=document.createElement('button');el.className='tabbtn';K('\\text{'+t.n+'}',el);el.addEventListener('click',function(){applyTab(i);});tb.appendChild(el);});
+  ['b','A','sg','n','H','k','t0'].forEach(function(b){var Re=document.getElementById('R'+b),Ne=document.getElementById('N'+b);
+    function rem(){if(b==='t0')QM[curTab]=parseFloat(Re.value);}
+    Re.addEventListener('input',function(){Ne.value=Re.value;rem();upd();});Ne.addEventListener('input',function(){Re.value=Ne.value;rem();upd();});});
+  document.querySelectorAll('#modelSeg button').forEach(function(b){b.addEventListener('click',function(){modeM=b.getAttribute('data-m');setModelSeg();upd();});});
+  document.getElementById('resample').addEventListener('click',function(){seed=(seed*1664525+1013904223)>>>0;regen(seed);upd();});
+  window.addEventListener('resize',function(){sizeCanvas();upd();});
+
+  renderTexts();applyTab(0);
+  requestAnimationFrame(function(){renderTexts();upd();});
+  setTimeout(function(){renderTexts();upd();},250);
+  setTimeout(function(){renderTexts();upd();},800);
+  if(document.fonts&&document.fonts.ready)document.fonts.ready.then(function(){upd();});
+})();
+</script>
+</body>
+</html>
