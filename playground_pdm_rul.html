@@ -3,365 +3,505 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Remaining Useful Life</title>
+<title>Introduction to RUL</title>
 <link rel="stylesheet" href="pg_style.css?v=24">
 <link rel="stylesheet" href="vendor/katex/katex.min.css">
 <script src="vendor/katex/katex.min.js"></script>
-<script src="vendor/katex/auto-render.min.js"></script>
 <style>
-  /* four result boxes in one row: the vertical budget at 585px belongs to the two figures */
-  .metrics{grid-template-columns:repeat(4,1fr)}
-  /* a lever that does not apply to the chosen evaluation is DIMMED, not removed (drift's own
-     pattern): removing it makes the rail jump, and the dim itself says "this one is not in
-     play here". pg_style's central .off hides -- overridden for this page only. */
-  body.pg .drow.off,body.pg .row.off{display:flex!important;opacity:.42;pointer-events:none}
-  button.primary:disabled{opacity:.5;cursor:default}
-  /* the two figures stack on a phone -- side by side each would be half a screen wide --
-     and the four result boxes fold to two columns so none pokes past the right edge */
-  @media(max-width:820px){.pg .plots{flex-direction:column}
-    .metrics{grid-template-columns:1fr 1fr}}
+  /* intro-RUL — โครงเดียวกับ Introduction to Regression: ตารางข้อมูลซ้าย · กราฟ + legend +
+     กล่องคำนวณ · control ขวา · ข้อมูลเป็นของจริงจากเวิร์กโฟลว์ Day 7 จึงไม่มีปุ่ม Resample */
+  :root{--panel-h:234px}   /* ความสูงจริงของ tab ที่ control สูงสุด (รวม margin) — ตรึงทุก tab เท่ากัน */
+  .layout{align-items:start}
+  .pg.distcls .canvasbox{height:260px}
+  .distcls .stage{gap:6px}
+  .canvasbox{position:relative}
+  .cvlab{position:absolute;left:0;top:0;width:100%;height:100%;pointer-events:none;overflow:hidden;font-size:14px;line-height:1}
+  .cvlab>span{position:absolute;white-space:nowrap;color:rgba(90,90,90,0.9)}
+  .cvlab .katex{font-size:1em}
+  .excalc{background:#fff;border:1px solid var(--line);border-radius:12px;padding:5px 6px;font-size:14px;line-height:1.38;overflow:hidden}
+  .excalc .katex{font-size:1em}
+  .excalc .ln{display:block;padding:1px 0}
+  .excalc .ln>.lb{display:inline-block;margin:0 10px 2px 0;padding:1px 9px;border-radius:6px;background:#E6ECF8;color:var(--navy);font-size:13px;vertical-align:middle}
+  .excalc .ln>.bd{display:inline}
+  .excalc .ln>.bd>span{display:inline-block;margin-right:.35em;vertical-align:middle;white-space:nowrap}
+  .excalc .ln+.ln{border-top:1px solid var(--line);padding-top:2px;margin-top:2px}
+  .dtab{width:100%;border-collapse:collapse;font-size:15px}
+  .dtab th{background:var(--navy);color:#fff;font-weight:400;padding:5px 5px;text-align:center;position:sticky;top:0;z-index:3}
+  .dtab td{padding:1px 6px;text-align:center;color:var(--ink);line-height:1.35;background:#fff}
+  .dtab tr.hl td{background:#E6ECF8}          /* แถวของ testing hour */
+  .dtab td.ycol{background:#fff3df;color:#7a4a06;font-weight:600}   /* คอลัมน์ป้าย y เหมือน intro */
+  .dtab .katex{font-size:1em}
+  .dtcap{font-size:13px;color:var(--muted);margin:0 0 4px}
+  .seg2{display:flex;width:100%;border:1px solid #e6e6e0;border-radius:8px;overflow:hidden;margin-bottom:9px}
+  .seg2 button{flex:1;font-size:15px;border:0;padding:7px 4px;cursor:pointer;background:#fff;color:#555;line-height:1.2}
+  .seg2 button+button{border-left:1px solid #e6e6e0}
+  .seg2 button.on{background:var(--navy);color:#fff}
+  .seg2 .katex{font-size:1em}
+  .stage.mod{flex-direction:row;gap:18px;align-items:flex-start}
+  .dleft{display:block;flex:0 0 300px;min-width:0;overflow-y:auto;overflow-x:hidden;border-radius:8px;position:relative}
+  .main{display:flex;flex-direction:column;gap:6px;flex:1 1 auto;min-width:0}
+  .classleg .clrow{display:flex;align-items:center;gap:14px;flex-wrap:wrap;color:#555}
+  @media(max-width:820px){.stage.mod{flex-direction:column}.dleft{flex:none;width:100%;max-height:300px}}
 </style>
 </head>
-<body class="pg">
-<h2 class="sr-only" style="position:absolute;width:1px;height:1px;overflow:hidden">Six pumps that ran to failure, and one linear regression predicting the hours left. The left figure is the health indicator against hours left before failure, one colour per pump; the right is predicted against actual with MAE and R squared. Three levers: read the vibration in raw mm/s or as a z-score against the pump's own baseline; train on one to four pumps; and score on two held-out pumps or by leave-one-pump-out. Same data, same model — only the measuring stick changes.</h2>
+<body class="pg distcls">
+<h2 class="sr-only" style="position:absolute;width:1px;height:1px;overflow:hidden">Introduction to Remaining Useful Life on the course's own seven pumps. Tab one: where the label comes from — a pump that ran to failure gives every hour a label, the hours left until that failure, capped at 720; a pump still running has no label yet. Tab two: the health indicator — pumps sit at different healthy vibration levels in mm per second, so the reading is smoothed over 24 hours and z-scored against the pump's own baseline window. Tab three: one linear regression from the indicator to the hours left, fitted on the four failed training pumps and read out step by step at any testing hour of a new pump.</h2>
 <div class="wrap">
-  <div class="hdr">
-    <h1 id="__pgt" data-tex="\text{Remaining Useful Life}">Remaining Useful Life</h1>
-    <div class="tabs" id="tabs"></div>
-  </div>
-  <div class="layout">
-    <div class="stage">
-      <div class="plots">
-        <div class="canvasbox"><canvas id="cvL" aria-label="health indicator against hours left before failure, one colour per pump"></canvas></div>
-        <div class="canvasbox"><canvas id="cvR" aria-label="predicted remaining hours against the actual remaining hours"></canvas></div>
+  <div class="hdr"><h1 id="h1">Introduction to RUL</h1><div class="tabs" id="tabs"></div></div>
+  <div class="layout" id="mainPanel">
+    <div class="stage mod">
+      <div class="dleft" id="dleft"><div class="dtcap" id="dtcap"></div>
+        <table class="dtab" id="mtab"><thead><tr id="mthead"></tr></thead><tbody id="mtbody"></tbody></table></div>
+      <div class="main" id="main">
+        <div class="canvasbox"><canvas id="cv"></canvas></div>
+        <div class="classleg" id="classleg"></div>
+        <div class="excalc" id="mcalc"></div>
       </div>
-      <div class="legend" id="legend"></div>
-      <div class="metrics" id="mbox"></div>
     </div>
     <div class="panel">
-      <div class="ctrl" id="c-ind"><label id="lb-ind">\(\text{Health indicator}\)</label>
-        <div class="seg" id="segInd">
-          <button type="button" data-val="raw" class="on">\(\text{mm/s raw}\)</button>
-          <button type="button" data-val="hi">\(\text{z vs baseline}\)</button>
-        </div>
+      <div class="dhd" id="hd-pump"></div>
+      <div class="seg2" id="pumpSeg"></div>
+      <div id="grp-view"><div class="dhd" id="hd-view"></div>
+      <div class="seg2" id="viewSeg"><button data-v="raw" id="vb-raw"></button><button data-v="hi" id="vb-hi" class="on"></button></div></div>
+      <div class="dhd" id="hd-now"></div>
+      <div class="dgrid">
+        <div class="drow" id="row-now"><span class="dlab" id="lbl-now"></span><input type="range" id="Rnow" min="0" max="1204" step="1" value="260"><input class="num" type="number" id="Nnow" min="0" max="1204" step="1" value="260"></div>
       </div>
-      <div class="ctrl" id="c-eval"><label id="lb-eval">\(\text{Evaluation}\)</label>
-        <div class="seg" id="segEval">
-          <button type="button" data-val="holdout" class="on">\(\text{Hold out 2 pumps}\)</button>
-          <button type="button" data-val="lopo">\(\text{Leave-one-out}\)</button>
-        </div>
-      </div>
-      <div class="drow" id="c-k">
-        <span class="dlab" id="lb-k" style="flex:0 0 auto;font-weight:600">\(\text{Pumps to train}\)</span>
-        <input type="range" id="kR" min="1" max="4" step="1" value="4" aria-label="how many pumps the model is trained on">
-        <input class="num" type="number" id="kN" min="1" max="4" step="1" value="4" aria-label="type how many pumps to train on">
-      </div>
-      <div class="row" id="c-draw"><button class="primary" id="drawBtn" title="train on the next set of pumps of this size">\(\text{New draw}\)</button></div>
     </div>
   </div>
 </div>
 <script src="pdm_rul_data.js"></script>
 <script>
 (function(){
+"use strict";
 /* ============================================================================================
-   REMAINING USEFUL LIFE  ·  Day 7 of the KNIME PdM course, on the UNIVERSAL_DESIGN shell
-   (reference layout: playground_drift.html · dual figure + metrics: playground_intro.html)
+   INTRODUCTION TO RUL  ·  Day 7 of the KNIME PdM course, on the intro-playground shell
+   (the archetype: playground_intro_regression / _classification — data table on the left,
+    figure in the middle, a calc box that substitutes the real numbers step by step,
+    controls on the right)
 
-   ONE QUESTION ONLY: the pumps are the pumps and the model is one linear regression -- what
-   changes the number is THE MEASURING STICK. The data is the course's own
-   (Day7_S1_RUL_Minimal, six failed pumps, copied column for column into pdm_rul_data.js), so
-   the numbers here are the numbers the learner saw in KNIME:
+   RIT 2026-09-23: "playground ไม่ได้ช่วยให้เรียนรู้อะไร ... จริงๆต้องทำเหมือนเป็น introduction
+   to RUL · workflow นี่เอามาแค่ data กับผล". So the workflow contributes exactly two things --
+   its pumps (pdm_rul_data.js, copied column for column) and its reference numbers -- and the
+   page teaches the three ideas a beginner needs, one tab each:
 
-     indicator   raw mm/s -> z against the pump's own baseline: deploy MAE 93.78 -> 47.60
-                 (Numeric Scorers 18 and 45 of the workflow, reproduced to four decimals)
-     pumps       train on 1..4 of the four training pumps: with 1 the answer depends on which
-                 pump you drew (MAE 36.0 to 123.0); with all 4 there is one answer, 47.60
-     evaluation  two held-out pumps -> leave-one-pump-out: 47.60 -> 60.0. The held-out pair
-                 happens to be two of the easiest pumps in the fleet, which is also why the
-                 test score beats the train score here -- luck of the draw, not model skill
+     1 The label            RUL(t) = hours left until the failure that DID happen: on a pump
+                            that ran to failure every hour gets its label by counting
+                            backwards; capped at 720 (beyond 30 days the plan is the same);
+                            and the still-running PUMP-03 has no label at all -- censoring
+     2 The health indicator pumps sit at different healthy mm/s levels, so the reading is
+                            smoothed over 24 h and z-scored against the pump's OWN baseline
+                            window (hours 23-222) -- the calc box does the arithmetic
+     3 Predict              one linear regression, hours left from the indicator, fitted on
+                            every hour of the four failed training pumps; slide the testing
+                            hour of a new pump and read the prediction out step by step
 
-   Every computed step mirrors pdm_rul_ref.py line for line (same left-to-right arithmetic),
-   and the gate compares all 15 training subsets and all 6 folds, both indicators, to 1e-6.
+   Every number is computed here and cross-checked against pdm_rul_ref.py, which reads the
+   workflow's own CSVs and refuses to run unless this same model reproduces all four Numeric
+   Scorers (129.6724/0.5215 · 93.7817/0.7580 · 64.0899/0.8936 · 47.6038/0.9383).
    ========================================================================================== */
 var CAP=RULDATA.cap, W=RULDATA.win, B0=RULDATA.base0, B1=RULDATA.base1+1;
-var PUMPS=RULDATA.pumps;
-var TRAINP=[],DEPLOYP=[];
-PUMPS.forEach(function(p){(p.role==='train'?TRAINP:DEPLOYP).push(p.id);});
-var SIX=TRAINP.concat(DEPLOYP);
-/* one colour per pump, all pairs dE >= 25 against each other AND against the model line
-   (navy) and the identity line (#111) -- measured, not assumed */
-var PCOL={'PUMP-01':'#E07A5F','PUMP-02':'#5B8FB9','PUMP-04':'#6BA38C','PUMP-05':'#B07AAE',
-          'PUMP-06':'#E3B23C','PUMP-08':'#8A6510'};
-var NAVY='#1e3a8a', GREY='#8b95a6', TXT='#6b7280', IDN='#111';
+/* one colour per pump, every pair dE >= 25 within any one legend -- measured, not assumed.
+   The still-running pump is slate: the colour of "no label yet". */
+var PCOL={'PUMP-01':'#E07A5F','PUMP-02':'#5B8FB9','PUMP-03':'#5b616e','PUMP-04':'#6BA38C',
+          'PUMP-05':'#B07AAE','PUMP-06':'#E3B23C','PUMP-08':'#8A6510'};
+var NAVY='#1e3a8a', INK='#334155', GREY='#8b95a6', BAND='#e6e6e0', FAILC='#111';
+var TRAINP=[],DEPLOYP=[],CENSP=[];
+RULDATA.pumps.forEach(function(p){
+  (p.role==='train'?TRAINP:p.role==='deploy'?DEPLOYP:CENSP).push(p.id);});
+var T1P=TRAINP.slice(0,2).concat(CENSP).concat(TRAINP.slice(2));   /* P01 P02 P03 P04 P05 */
 
 /* ---------------- the columns, exactly as the workflow computes them ---------------- */
-function smoothOf(v){                       /* Moving Aggregation: backward 24 h mean,
-                                               incomplete windows resolved from what exists */
-  var c=[0],i;
+function smoothOf(v){var c=[0],i;
   for(i=0;i<v.length;i++)c.push(c[i]+v[i]);
   var out=[];
   for(i=0;i<v.length;i++){var lo=Math.max(0,i-W+1);out.push((c[i+1]-c[lo])/(i+1-lo));}
   return out;}
 var BYID={};
-PUMPS.forEach(function(p){
-  var n=p.vib.length, s=smoothOf(p.vib), i;
+RULDATA.pumps.forEach(function(p){
+  var n=p.vib.length,s=smoothOf(p.vib),i;
   var m=0;for(i=B0;i<B1;i++)m+=s[i];m/=(B1-B0);
   var q=0;for(i=B0;i<B1;i++)q+=(s[i]-m)*(s[i]-m);
   var sd=Math.sqrt(q/(B1-B0-1));
-  var hi=[],rul=[],y=[];
-  for(i=0;i<n;i++){hi.push((s[i]-m)/sd);rul.push(n-i);y.push(Math.min(n-i,CAP));}
-  BYID[p.id]={n:n,raw:s,hi:hi,rul:rul,y:y,role:p.role,
+  var hi=[];for(i=0;i<n;i++)hi.push((s[i]-m)/sd);
+  BYID[p.id]={n:n,vib:p.vib,raw:s,hi:hi,mu:m,sd:sd,role:p.role,
               vibSum:+p.vib.reduce(function(a,b){return a+b;},0).toFixed(3)};});
-function X(kind,p){return BYID[p][kind];}
 
-/* least squares, closed form, two passes in pump order -- the reference runs the same loop */
-function fit(kind,pumps){
-  var sx=0,sy=0,n=0,i,p,x,y;
-  for(var a=0;a<pumps.length;a++){p=pumps[a];x=X(kind,p);y=BYID[p].y;
-    for(i=0;i<x.length;i++){sx+=x[i];sy+=y[i];n++;}}
+/* the one model of the day: least squares over every hour of the four failed training pumps,
+   the same two-pass left-to-right arithmetic as pdm_rul_ref.py */
+function fitFull(kind){
+  var sx=0,sy=0,n=0,a,i,p,x;
+  for(a=0;a<TRAINP.length;a++){p=TRAINP[a];x=BYID[p][kind];
+    for(i=0;i<x.length;i++){sx+=x[i];sy+=Math.min(BYID[p].n-i,CAP);n++;}}
   var mx=sx/n,my=sy/n,sxx=0,sxy=0;
-  for(a=0;a<pumps.length;a++){p=pumps[a];x=X(kind,p);y=BYID[p].y;
-    for(i=0;i<x.length;i++){sxx+=(x[i]-mx)*(x[i]-mx);sxy+=(x[i]-mx)*(y[i]-my);}}
+  for(a=0;a<TRAINP.length;a++){p=TRAINP[a];x=BYID[p][kind];
+    for(i=0;i<x.length;i++){var yc=Math.min(BYID[p].n-i,CAP);
+      sxx+=(x[i]-mx)*(x[i]-mx);sxy+=(x[i]-mx)*(yc-my);}}
   var b=sxy/sxx;
   return [my-b*mx,b];}
-function scoreOf(kind,pumps,w){
-  var n=0,sae=0,sy=0,i,p,x,y,a;
-  for(a=0;a<pumps.length;a++){p=pumps[a];x=X(kind,p);y=BYID[p].y;
-    for(i=0;i<x.length;i++){sae+=Math.abs(w[0]+w[1]*x[i]-y[i]);sy+=y[i];n++;}}
-  var yb=sy/n,sse=0,sst=0;
-  for(a=0;a<pumps.length;a++){p=pumps[a];x=X(kind,p);y=BYID[p].y;
-    for(i=0;i<x.length;i++){var e=w[0]+w[1]*x[i]-y[i];sse+=e*e;sst+=(y[i]-yb)*(y[i]-yb);}}
-  return {mae:sae/n,r2:1-sse/sst};}
-
-/* every model this page can show, computed once -- the data never changes, so neither do these */
-function combos(arr,k){
-  if(k===0)return [[]];
-  if(arr.length<k)return [];
-  var head=arr[0],rest=arr.slice(1),out=[];
-  combos(rest,k-1).forEach(function(c){out.push([head].concat(c));});
-  return out.concat(combos(rest,k));}
-var STATS={};
-['raw','hi'].forEach(function(kind){
-  var rec={holdout:[],lopo:{folds:[]}},k,i;
-  for(k=1;k<=4;k++)combos(TRAINP,k).forEach(function(sub){
-    var w=fit(kind,sub),tr=scoreOf(kind,sub,w),te=scoreOf(kind,DEPLOYP,w);
-    rec.holdout.push({pumps:sub,k:k,coef:[+w[0].toFixed(6),+w[1].toFixed(6)],
-      maeTrain:+tr.mae.toFixed(6),r2Train:+tr.r2.toFixed(6),
-      maeTest:+te.mae.toFixed(6),r2Test:+te.r2.toFixed(6)});});
-  rec.holdoutSpread={};
-  for(k=1;k<=4;k++){
-    var v=rec.holdout.filter(function(s){return s.k===k;}).map(function(s){return s.maeTest;});
-    rec.holdoutSpread[k]={lo:+Math.min.apply(null,v).toFixed(6),
-                          hi:+Math.max.apply(null,v).toFixed(6)};}
-  var preds=[];
-  SIX.forEach(function(held){
-    var tr=SIX.filter(function(p){return p!==held;});
-    var w=fit(kind,tr);
-    rec.lopo.folds.push({held:held,coef:[+w[0].toFixed(6),+w[1].toFixed(6)],
-      maeTrain:+scoreOf(kind,tr,w).mae.toFixed(6),
-      maeTest:+scoreOf(kind,[held],w).mae.toFixed(6)});
-    var x=X(kind,held),y=BYID[held].y;
-    for(i=0;i<x.length;i++)preds.push([w[0]+w[1]*x[i],y[i]]);});
-  var maes=rec.lopo.folds.map(function(f){return f.maeTest;}),s=0;
-  maes.forEach(function(m){s+=m;});
-  rec.lopo.mean=+(s/maes.length).toFixed(6);
-  rec.lopo.lo=+Math.min.apply(null,maes).toFixed(6);
-  rec.lopo.hi=+Math.max.apply(null,maes).toFixed(6);
-  s=0;rec.lopo.folds.forEach(function(f){s+=f.maeTrain;});
-  rec.lopo.maeTrainMean=+(s/6).toFixed(6);
-  var yb=0;preds.forEach(function(q){yb+=q[1];});yb/=preds.length;
-  var sse=0,sst=0;
-  preds.forEach(function(q){sse+=(q[0]-q[1])*(q[0]-q[1]);sst+=(q[1]-yb)*(q[1]-yb);});
-  rec.lopo.r2Pooled=+(1-sse/sst).toFixed(6);
-  STATS[kind]=rec;});
+var COEF={raw:fitFull('raw'),hi:fitFull('hi')};
+function maeDeploy(kind){
+  var w=COEF[kind],s=0,n=0;
+  DEPLOYP.forEach(function(p){var x=BYID[p][kind],d=BYID[p];
+    for(var i=0;i<x.length;i++){s+=Math.abs(w[0]+w[1]*x[i]-Math.min(d.n-i,CAP));n++;}});
+  return s/n;}
+var MAED={raw:maeDeploy('raw'),hi:maeDeploy('hi')};
 
 /* ---------------- state ---------------- */
-var ind='raw', ev='holdout', K=4, draw=0;
-function subsetsOfK(){return STATS[ind].holdout.filter(function(s){return s.k===K;});}
-function current(){return subsetsOfK()[draw%subsetsOfK().length];}
-function lopoModels(){
-  var out={};
-  STATS[ind].lopo.folds.forEach(function(f){out[f.held]=f.coef;});
-  return out;}
+var TABS=[{n:'The label'},{n:'The health indicator'},{n:'Predict'}];
+var curTab=0,pump='PUMP-01',view='hi',NOWM={};
+function pumpsOfTab(){return curTab===2?DEPLOYP:T1P;}
+function nowOf(pid){if(NOWM[pid]===undefined)NOWM[pid]=Math.min(260,BYID[pid].n-1);
+  return NOWM[pid];}
 
-/* ---------------- drawing ---------------- */
-function ctxOf(cv){cv.style.width='100%';cv.style.height='100%';
-  /* clientWidth, not getBoundingClientRect: the canvas is border-box with a 1px border, and a
-     backing store sized from the rect is 2px too big -- fractionally rescaled = blurred */
-  var d=window.devicePixelRatio||1,r={width:cv.clientWidth,height:cv.clientHeight};
-  cv.width=Math.round(r.width*d);cv.height=Math.round(r.height*d);
-  var c=cv.getContext('2d');c.setTransform(d,0,0,d,0,0);
-  return {c:c,W:Math.round(r.width),H:Math.round(r.height)};}
-function nice(v){return Math.abs(v-Math.round(v))<1e-9?String(Math.round(v)):v.toFixed(1);}
-function axes(c,box,x0,x1,y0,y1,xl,yl,xticks,yticks){
-  function PX(x){return box.l+(x-x0)/(x1-x0)*(box.r-box.l);}
-  function PY(y){return box.b-(y-y0)/(y1-y0)*(box.b-box.t);}
-  c.strokeStyle='#eceff3';c.lineWidth=1;
-  xticks.forEach(function(v){c.beginPath();c.moveTo(PX(v),box.t);c.lineTo(PX(v),box.b);c.stroke();});
-  yticks.forEach(function(v){c.beginPath();c.moveTo(box.l,PY(v));c.lineTo(box.r,PY(v));c.stroke();});
-  c.strokeStyle='#94a3b8';c.lineWidth=1.1;c.beginPath();
-  c.moveTo(box.l,box.t);c.lineTo(box.l,box.b);c.lineTo(box.r,box.b);c.stroke();
-  c.fillStyle=TXT;c.font='14px KaTeX_Main,serif';
-  c.textAlign='right';c.textBaseline='middle';
-  yticks.forEach(function(v){c.fillText(nice(v),box.l-5,PY(v));});
-  c.textAlign='center';c.textBaseline='top';
-  xticks.forEach(function(v){c.fillText(nice(v),PX(v),box.b+4);});
-  c.fillText(xl,(box.l+box.r)/2,box.b+19);
-  c.save();c.translate(box.l-34,(box.t+box.b)/2);c.rotate(-Math.PI/2);
-  c.textAlign='center';c.textBaseline='bottom';c.fillText(yl,0,0);c.restore();
-  return {PX:PX,PY:PY};}
-function dot(c,x,y,col,r,a){c.fillStyle=col;c.globalAlpha=a;
-  c.beginPath();c.arc(x,y,r,0,6.284);c.fill();c.globalAlpha=1;}
+/* ---------------- KaTeX ---------------- */
+var MT={'h1':'\\text{Introduction to RUL}','hd-pump':'\\text{Pump}',
+  'hd-view':'\\text{Health indicator}','vb-raw':'\\text{mm/s}','vb-hi':'z\\text{ vs baseline}',
+  'hd-now':'\\text{Testing hour}','lbl-now':'t'};
+var KXC={};
+function kx(t){if(KXC[t]!==undefined)return KXC[t];var r;
+  try{r=window.katex?katex.renderToString(t,{throwOnError:false}):t;}catch(e){r=t;}
+  if(t.length<26&&window.katex)KXC[t]=r;return r;}
+function K(t,el){if(!el)return;try{katex.render(t,el,{throwOnError:false});}catch(e){el.textContent=t;}}
+function renderTexts(){if(!window.katex)return;for(var id in MT)K(MT[id],document.getElementById(id));}
+function fx(v,d){return (Math.abs(v)<Math.pow(10,-d)/2?0:v).toFixed(d);}
+function pn(pid){return pid.replace('PUMP-0','P0');}
 
-function drawLeft(){
-  var q=ctxOf(document.getElementById('cvL')),c=q.c;
-  c.clearRect(0,0,q.W,q.H);
-  var box={l:48,r:q.W-18,t:8,b:q.H-38};
-  var xmax=0,ylo=Infinity,yhi=-Infinity;
-  SIX.forEach(function(p){
-    var d=BYID[p],x=X(ind,p);
+/* ---------------- canvas + KaTeX label overlay (the intro pages' own helper) ---------------- */
+var cv=document.getElementById('cv'),ctx=cv.getContext('2d'),SC=2,CW=640,CH=260;
+function sizeCanvas(){var w=Math.round(cv.clientWidth)||640,h=Math.round(cv.clientHeight)||260,
+  dpr=window.devicePixelRatio||1;CW=w;CH=h;SC=dpr;cv.width=Math.round(w*dpr);cv.height=Math.round(h*dpr);}
+function labs(c){var p=c.parentElement,Ly=p.querySelector('.cvlab');
+  if(!Ly){Ly=document.createElement('div');Ly.className='cvlab';p.appendChild(Ly);}
+  Ly.innerHTML='';
+  var ox=c.clientLeft||0,oy=c.clientTop||0;
+  return function(tex,x,y,o){o=o||{};var s=document.createElement('span');K(tex,s);
+    if(o.color)s.style.color=o.color;
+    if(o.bg){s.style.background=o.bg;s.style.borderRadius='4px';s.style.padding='1px 3px';}
+    var pr=document.createElement('span');pr.style.cssText='display:inline-block;width:0;height:0;vertical-align:baseline';s.appendChild(pr);
+    s.style.left=(x+ox)+'px';s.style.top='0px';
+    s.style.transform='translateX('+(o.align==='right'?'-100%':o.align==='center'?'-50%':'0')+')';
+    Ly.appendChild(s);
+    var sr=s.getBoundingClientRect(),base=pr.getBoundingClientRect().top-sr.top;
+    s.style.top=(oy+(o.vt==='middle'?y-sr.height/2:y-base))+'px';};}
+function niceStep(lo,hi,nt){var raw=(hi-lo)/(nt||6),p=Math.pow(10,Math.floor(Math.log10(raw))),
+  m=raw/p,s=(m<1.5?1:m<3.5?2:m<7.5?5:10)*p;
+  return {step:s,dec:Math.max(0,-Math.floor(Math.log10(s)+1e-9))};}
+function frame(L,TOP,pw,ph,x0,x1,y0,y1){
+  function px(x){return L+(x-x0)/(x1-x0)*pw;} function py(v){return TOP+(y1-v)/(y1-y0)*ph;}
+  ctx.font='14px KaTeX_Main,serif';
+  var nx=niceStep(x0,x1),ny=niceStep(y0,y1,5),a;
+  ctx.strokeStyle='rgba(128,128,128,0.16)';ctx.lineWidth=1;
+  for(a=Math.ceil(y0/ny.step)*ny.step;a<=y1+1e-9;a+=ny.step){ctx.beginPath();ctx.moveTo(L,py(a));ctx.lineTo(L+pw,py(a));ctx.stroke();}
+  ctx.fillStyle='rgba(90,90,90,0.9)';
+  ctx.textAlign='center';ctx.textBaseline='alphabetic';
+  for(a=Math.ceil(x0/nx.step)*nx.step;a<=x1+1e-9;a+=nx.step)ctx.fillText(a.toFixed(nx.dec),px(a),TOP+ph+16);
+  ctx.textAlign='right';ctx.textBaseline='middle';
+  for(a=Math.ceil(y0/ny.step)*ny.step;a<=y1+1e-9;a+=ny.step)ctx.fillText(a.toFixed(ny.dec),L-6,py(a));
+  ctx.textBaseline='alphabetic';
+  ctx.strokeStyle='rgba(128,128,128,0.45)';ctx.lineWidth=1;ctx.strokeRect(L,TOP,pw,ph);
+  return {px:px,py:py};}
+function poly(arr,P,col,w,al){ctx.strokeStyle=col;ctx.lineWidth=w;
+  ctx.globalAlpha=al===undefined?1:al;ctx.beginPath();
+  for(var i=0;i<arr.length;i++){var X=P.px(i),Y=P.py(arr[i]);
+    i===0?ctx.moveTo(X,Y):ctx.lineTo(X,Y);}
+  ctx.stroke();ctx.globalAlpha=1;}
+function testDot(x,y){ctx.fillStyle='#222630';ctx.beginPath();ctx.arc(x,y,6,0,7);ctx.fill();
+  ctx.strokeStyle='#fff';ctx.lineWidth=2;ctx.stroke();}
+
+/* ============ tab 1 · the label: count backwards from the failure ============ */
+function draw1(lb){
+  var d=BYID[pump],t=nowOf(pump),cens=d.role==='censored';
+  var L=48,Rm=14,TOP=40,BOT=38,pw=CW-L-Rm,ph=CH-TOP-BOT;
+  var lo=Infinity,hi=-Infinity,i;
+  for(i=0;i<d.n;i++){if(d.vib[i]<lo)lo=d.vib[i];if(d.vib[i]>hi)hi=d.vib[i];}
+  var pad=(hi-lo)*0.08,xmax=Math.round(d.n*1.04);
+  var P=frame(L,TOP,pw,ph,0,xmax,lo-pad,hi+pad);
+  ctx.save();ctx.beginPath();ctx.rect(L,TOP,pw,ph);ctx.clip();
+  poly(d.vib,P,PCOL[pump],1.2,0.75);
+  ctx.restore();
+  /* now: the hour being asked about */
+  ctx.strokeStyle=GREY;ctx.setLineDash([4,4]);ctx.lineWidth=1.4;
+  ctx.beginPath();ctx.moveTo(P.px(t),TOP);ctx.lineTo(P.px(t),TOP+ph);ctx.stroke();ctx.setLineDash([]);
+  var rt=P.px(t)>L+pw/2;
+  lb('t='+t,P.px(t)+(rt?-8:8),TOP+ph-8,
+     {align:rt?'right':'left',color:'#5b616e',bg:'rgba(255,255,255,0.85)'});
+  if(!cens){
+    /* the failure that DID happen, and the span between now and it IS the label */
+    ctx.strokeStyle=FAILC;ctx.lineWidth=2;
+    ctx.beginPath();ctx.moveTo(P.px(d.n),TOP);ctx.lineTo(P.px(d.n),TOP+ph);ctx.stroke();
+    lb('\\text{failure}',P.px(d.n)-6,TOP+14,{align:'right',color:FAILC,bg:'rgba(255,255,255,0.85)'});
+    var ay=TOP-14;
+    ctx.strokeStyle=NAVY;ctx.lineWidth=2;
+    ctx.beginPath();ctx.moveTo(P.px(t),ay);ctx.lineTo(P.px(d.n),ay);ctx.stroke();
+    ctx.beginPath();ctx.moveTo(P.px(t),ay-5);ctx.lineTo(P.px(t),ay+5);ctx.stroke();
+    ctx.beginPath();ctx.moveTo(P.px(d.n),ay-5);ctx.lineTo(P.px(d.n),ay+5);ctx.stroke();
+    lb('RUL='+(d.n-t)+'\\text{ h}',(P.px(t)+P.px(d.n))/2,ay-4,
+       {align:'center',color:NAVY,bg:'rgba(255,255,255,0.9)'});
+  }else{
+    /* still running: the span has no right end yet, so the label does not exist yet */
+    var ay2=TOP-14;
+    ctx.strokeStyle=NAVY;ctx.lineWidth=2;ctx.setLineDash([5,4]);
+    ctx.beginPath();ctx.moveTo(P.px(t),ay2);ctx.lineTo(L+pw,ay2);ctx.stroke();ctx.setLineDash([]);
+    ctx.beginPath();ctx.moveTo(P.px(t),ay2-5);ctx.lineTo(P.px(t),ay2+5);ctx.stroke();
+    lb('RUL=\\text{?}',(P.px(t)+L+pw)/2,ay2-4,{align:'center',color:NAVY,bg:'rgba(255,255,255,0.9)'});
+    lb('\\text{still running}',L+pw-6,TOP+14,{align:'right',color:'#5b616e',bg:'rgba(255,255,255,0.85)'});}
+  lb('\\text{mm/s}',L+4,TOP-28);
+  lb('\\text{hour}',L+pw,TOP+ph+32,{align:'right'});
+}
+
+/* ============ tab 2 · the health indicator: the pump's own baseline ============ */
+function draw2(lb){
+  var L=48,Rm=14,TOP=26,BOT=38,pw=CW-L-Rm,ph=CH-TOP-BOT;
+  var xmax=0,lo=Infinity,hi=-Infinity;
+  T1P.forEach(function(p){var d=BYID[p],arr=d[view];
     if(d.n>xmax)xmax=d.n;
-    for(var i=0;i<x.length;i++){if(x[i]<ylo)ylo=x[i];if(x[i]>yhi)yhi=x[i];}});
-  var pad=(yhi-ylo)*0.06;ylo-=pad;yhi+=pad;
-  var xt=[0,300,600,900,1200].filter(function(v){return v<=xmax+40;});
-  var ys=(yhi-ylo)/4,yt=[0,1,2,3,4].map(function(i){return Math.round((ylo+i*ys)*10)/10;});
-  var A=axes(c,box,0,xmax+30,ylo,yhi,
-             'hours left before failure',
-             ind==='raw'?'mm/s, 24-hour mean':'HI  (z vs baseline)',xt,yt);
-  c.save();c.beginPath();c.rect(box.l,box.t,box.r-box.l,box.b-box.t);c.clip();
-  /* the 720-hour ceiling the target is capped at -- structure, so it is grey */
-  c.strokeStyle=GREY;c.lineWidth=1.2;c.setLineDash([5,4]);
-  c.beginPath();c.moveTo(A.PX(CAP),box.t);c.lineTo(A.PX(CAP),box.b);c.stroke();c.setLineDash([]);
-  var used={};
-  if(ev==='holdout')current().pumps.forEach(function(p){used[p]=1;});
-  SIX.forEach(function(p){
-    var d=BYID[p],x=X(ind,p);
-    var a=(ev==='holdout'&&d.role==='train'&&!used[p])?0.12:0.55;
-    for(var i=0;i<x.length;i++)dot(c,A.PX(d.rul[i]),A.PY(x[i]),PCOL[p],1.8,a);});
-  /* the model, drawn where it lives: RUL = a + b x  =>  x = (RUL - a)/b, over 0..720 */
-  function line(w,lw,al){c.strokeStyle=NAVY;c.lineWidth=lw;c.globalAlpha=al;
-    c.beginPath();c.moveTo(A.PX(0),A.PY(-w[0]/w[1]));c.lineTo(A.PX(CAP),A.PY((CAP-w[0])/w[1]));
-    c.stroke();c.globalAlpha=1;}
-  if(ev==='holdout')line(current().coef,2.2,0.9);
-  else STATS[ind].lopo.folds.forEach(function(f){line(f.coef,1.2,0.5);});
-  c.restore();}
+    for(var i=0;i<arr.length;i++){if(arr[i]<lo)lo=arr[i];if(arr[i]>hi)hi=arr[i];}});
+  var pad=(hi-lo)*0.06;
+  var P=frame(L,TOP,pw,ph,0,Math.round(xmax*1.02),lo-pad,hi+pad);
+  /* the reference window: hours 23-222, when every pump was new */
+  ctx.fillStyle=BAND;ctx.globalAlpha=0.6;
+  ctx.fillRect(P.px(B0),TOP,P.px(B1-1)-P.px(B0),ph);ctx.globalAlpha=1;
+  ctx.save();ctx.beginPath();ctx.rect(L,TOP,pw,ph);ctx.clip();
+  T1P.forEach(function(p){if(p!==pump)poly(BYID[p][view],P,PCOL[p],1.2,0.55);});
+  poly(BYID[pump][view],P,PCOL[pump],2.6,1);
+  ctx.restore();
+  var t=nowOf(pump),val=BYID[pump][view][t];
+  ctx.strokeStyle=GREY;ctx.setLineDash([4,4]);ctx.lineWidth=1.4;
+  ctx.beginPath();ctx.moveTo(P.px(t),TOP);ctx.lineTo(P.px(t),TOP+ph);ctx.stroke();ctx.setLineDash([]);
+  testDot(P.px(t),P.py(Math.max(lo-pad,Math.min(hi+pad,val))));
+  lb('\\text{baseline}',(P.px(B0)+P.px(B1-1))/2,TOP+14,{align:'center',color:'#5b616e'});
+  lb(view==='raw'?'\\text{mm/s, 24-h mean}':'HI\\ (z)',L+4,TOP-8);
+  lb('\\text{hour}',L+pw,TOP+ph+32,{align:'right'});
+}
 
-function drawRight(){
-  var q=ctxOf(document.getElementById('cvR')),c=q.c;
-  c.clearRect(0,0,q.W,q.H);
-  var box={l:48,r:q.W-18,t:8,b:q.H-38};
-  var pts=[];
-  if(ev==='holdout'){
-    var w=current().coef;
-    DEPLOYP.forEach(function(p){
-      var x=X(ind,p),y=BYID[p].y;
-      for(var i=0;i<x.length;i++)pts.push([y[i],w[0]+w[1]*x[i],p]);});
+/* ============ tab 3 · predict: hours left from the indicator ============ */
+function draw3(lb){
+  var kind=view,w=COEF[kind];
+  var L=48,Rm=14,TOP=26,BOT=38,pw=CW-L-Rm,ph=CH-TOP-BOT;
+  var lo=Infinity,hi=-Infinity;
+  TRAINP.concat([pump]).forEach(function(p){var arr=BYID[p][kind];
+    for(var i=0;i<arr.length;i++){if(arr[i]<lo)lo=arr[i];if(arr[i]>hi)hi=arr[i];}});
+  var pad=(hi-lo)*0.05;lo-=pad;hi+=pad;
+  var P=frame(L,TOP,pw,ph,lo,hi,0,CAP+45);
+  ctx.save();ctx.beginPath();ctx.rect(L,TOP,pw,ph);ctx.clip();
+  /* every hour of the four failed training pumps -- the rows the line was fitted on */
+  TRAINP.forEach(function(p){var d=BYID[p],arr=d[kind];
+    ctx.fillStyle=PCOL[p];ctx.globalAlpha=0.28;
+    for(var i=0;i<arr.length;i++){
+      ctx.beginPath();ctx.arc(P.px(arr[i]),P.py(Math.min(d.n-i,CAP)),1.7,0,7);ctx.fill();}
+    ctx.globalAlpha=1;});
+  /* the chosen new pump */
+  var d2=BYID[pump],arr2=d2[kind];
+  ctx.fillStyle=PCOL[pump];ctx.globalAlpha=0.55;
+  for(var i2=0;i2<arr2.length;i2++){
+    ctx.beginPath();ctx.arc(P.px(arr2[i2]),P.py(Math.min(d2.n-i2,CAP)),2.1,0,7);ctx.fill();}
+  ctx.globalAlpha=1;
+  /* the model */
+  ctx.strokeStyle=NAVY;ctx.lineWidth=2.4;ctx.beginPath();
+  ctx.moveTo(P.px(lo),P.py(w[0]+w[1]*lo));ctx.lineTo(P.px(hi),P.py(w[0]+w[1]*hi));ctx.stroke();
+  ctx.restore();
+  /* the testing hour: its indicator value, the prediction ON the line, the actual as a ring */
+  var t=nowOf(pump),xq=BYID[pump][kind][t],yh=w[0]+w[1]*xq,
+      ya=Math.min(BYID[pump].n-t,CAP);
+  var Xq=P.px(xq),Yh=Math.max(TOP,Math.min(TOP+ph,P.py(yh)));
+  ctx.strokeStyle=INK;ctx.setLineDash([4,4]);ctx.lineWidth=1.3;
+  ctx.beginPath();ctx.moveTo(Xq,TOP+ph);ctx.lineTo(Xq,Yh);ctx.stroke();ctx.setLineDash([]);
+  ctx.strokeStyle='rgba(255,255,255,0.9)';ctx.lineWidth=4;
+  ctx.beginPath();ctx.arc(Xq,P.py(ya),9,0,7);ctx.stroke();
+  ctx.strokeStyle=INK;ctx.lineWidth=2;ctx.beginPath();ctx.arc(Xq,P.py(ya),9,0,7);ctx.stroke();
+  testDot(Xq,Yh);
+  var rt=Xq>L+pw/2;
+  lb('\\widehat{RUL}='+fx(yh,0)+'\\text{ h}',Xq+(rt?-12:12),Yh-10,
+     {align:rt?'right':'left',color:NAVY,bg:'rgba(255,255,255,0.9)'});
+  lb('\\text{actual }'+fx(ya,0),Xq+(rt?-12:12),P.py(ya)+18,
+     {align:rt?'right':'left',color:INK,bg:'rgba(255,255,255,0.9)'});
+  lb('\\text{hours left}',L+4,TOP-8);
+  lb(kind==='raw'?'\\text{mm/s, 24-h mean}':'HI\\ (z)',L+pw,TOP+ph+32,{align:'right'});
+}
+
+function draw(){try{ctx.setTransform(SC,0,0,SC,0,0);ctx.clearRect(0,0,CW,CH);
+  var lb=labs(cv);
+  (curTab===0?draw1:curTab===1?draw2:draw3)(lb);}
+  catch(e){ctx.setTransform(SC,0,0,SC,0,0);ctx.fillStyle='#B0503A';
+    ctx.font='15px KaTeX_Main,serif';ctx.textAlign='left';ctx.fillText('draw err: '+e.message,10,20);}}
+
+/* ---------------- legend ---------------- */
+function leg(style,tex){return '<span class="cli"><i class="ln" style="'+style+'"></i><span>'+kx(tex)+'</span></span>';}
+function fillLegend(){
+  var el=document.getElementById('classleg'),h='<div class="clrow">';
+  if(curTab===0){
+    var cens0=BYID[pump].role==='censored';
+    h+=leg('background:'+PCOL[pump],'\\text{Vibration, hour by hour}')
+      +(cens0?'':leg('background:'+FAILC,'\\text{Failure}'))
+      +leg('background:'+NAVY,cens0?'RUL\\text{: unknown yet}':'RUL\\text{: hours left}')
+      +leg('background:'+GREY,'\\text{Testing hour}');
+  }else if(curTab===1){
+    T1P.forEach(function(p){h+=leg('background:'+PCOL[p],'\\text{'+pn(p)+(BYID[p].role==='censored'?' (running)':'')+'}');});
+    h+=leg('background:'+BAND,'\\text{Baseline window}');
   }else{
-    var M=lopoModels();
-    SIX.forEach(function(p){
-      var x=X(ind,p),y=BYID[p].y,w2=M[p];
-      for(var i=0;i<x.length;i++)pts.push([y[i],w2[0]+w2[1]*x[i],p]);});}
-  var ylo=0,yhi=CAP;
-  pts.forEach(function(t){if(t[1]<ylo)ylo=t[1];if(t[1]>yhi)yhi=t[1];});
-  ylo=Math.floor(ylo/100)*100;yhi=Math.ceil(yhi/100)*100;
-  var yt=[0,1,2,3,4].map(function(i){return Math.round(ylo+i*(yhi-ylo)/4);});
-  var A=axes(c,box,0,CAP,ylo,yhi,'actual hours left  (capped 720)','predicted hours left',
-             [0,240,480,720],yt);
-  c.save();c.beginPath();c.rect(box.l,box.t,box.r-box.l,box.b-box.t);c.clip();
-  c.strokeStyle=IDN;c.lineWidth=1.4;c.setLineDash([5,4]);
-  c.beginPath();c.moveTo(A.PX(Math.max(0,ylo)),A.PY(Math.max(0,ylo)));
-  c.lineTo(A.PX(Math.min(CAP,yhi)),A.PY(Math.min(CAP,yhi)));c.stroke();c.setLineDash([]);
-  pts.forEach(function(t){dot(c,A.PX(t[0]),A.PY(t[1]),PCOL[t[2]],1.8,0.5);});
-  c.restore();}
+    TRAINP.forEach(function(p){h+=leg('background:'+PCOL[p],'\\text{'+pn(p)+'}');});
+    h+=leg('background:'+PCOL[pump],'\\text{'+pn(pump)+' (new)}')
+      +leg('background:'+NAVY,'\\text{Model}')
+      +leg('background:'+INK,'\\text{Actual at }t');
+  }
+  el.innerHTML=h+'</div>';}
 
-/* ---------------- legend + metrics ---------------- */
-function kx(t){try{return window.katex?katex.renderToString(t,{throwOnError:false}):t;}catch(e){return t;}}
-function legend(){
-  var el=document.getElementById('legend'),h='';
-  SIX.forEach(function(p){
-    var nm=p.replace('PUMP-0','P0');
-    h+='<span><i style="background:'+PCOL[p]+';height:9px;width:9px;border-radius:50%"></i>'+
-       kx('\\text{'+nm+(BYID[p].role==='deploy'?' (new)':'')+'}')+'</span>';});
-  h+='<span><i style="background:'+NAVY+'"></i>'+kx('\\text{model}')+'</span>';
-  h+='<span><i style="background:'+IDN+'"></i>'+kx('y=x')+'</span>';
+/* ---------------- data table: the real rows, one per day, the testing hour highlighted ---------------- */
+function fillTable(){
+  var d=BYID[pump],t=nowOf(pump),cens=d.role==='censored';
+  var hd=document.getElementById('mthead'),tb=document.getElementById('mtbody');
+  var Wt=function(x){return '\\textcolor{#fff}{'+x+'}';};
+  var cols,val,ycol;
+  if(curTab===0){cols=['\\text{Hour }(t)','\\text{Vib, mm/s}','RUL\\text{, h }(y)'];ycol=2;
+    val=function(i){return [String(i),fx(d.vib[i],3),cens?'\\text{?}':String(d.n-i)];};}
+  else if(curTab===1){cols=['\\text{Hour }(t)','\\text{Vib}','\\text{Mean 24 h}','HI'];ycol=-1;
+    val=function(i){return [String(i),fx(d.vib[i],3),fx(d.raw[i],3),fx(d.hi[i],2)];};}
+  else{var kind=view,w=COEF[kind];ycol=2;
+    cols=['\\text{Hour}',kind==='raw'?'\\text{Mean 24 h}':'HI','RUL\\text{, h }(y)','\\widehat{RUL}','y-\\widehat{RUL}'];
+    val=function(i){var f=d[kind][i],p2=w[0]+w[1]*f,ya=Math.min(d.n-i,CAP);
+      return [String(i),fx(f,kind==='raw'?3:2),String(ya),fx(p2,0),fx(ya-p2,0)];};}
+  hd.innerHTML=cols.map(function(c){return '<th>'+kx(Wt(c))+'</th>';}).join('');
+  document.getElementById('dtcap').innerHTML=
+    kx('\\text{'+pn(pump)+': '+d.n+' hourly rows, one shown per day}');
+  var rows=[],i;
+  for(i=0;i<d.n;i+=24)rows.push(i);
+  if(rows.indexOf(t)<0){rows.push(t);rows.sort(function(a,b){return a-b;});}
+  var h='';
+  rows.forEach(function(i2){
+    h+='<tr'+(i2===t?' class="hl"':'')+'>'+val(i2).map(function(v,j){
+      return '<td'+(j===ycol?' class="ycol"':'')+'>'+kx(v)+'</td>';}).join('')+'</tr>';});
+  tb.innerHTML=h;
+  /* the table column is as tall as the figure column, and the testing hour stays in view */
+  var dl=document.getElementById('dleft'),hlr=tb.querySelector('tr.hl');
+  var mn=document.getElementById('main');
+  if(innerWidth>820)dl.style.maxHeight=Math.max(260,Math.round(mn.getBoundingClientRect().height))+'px';
+  else dl.style.maxHeight='300px';
+  if(hlr)dl.scrollTop=Math.max(0,hlr.offsetTop-dl.clientHeight/2);}
+
+/* ---------------- calc box: the arithmetic, with the real numbers in it ---------------- */
+function lline(t,parts){
+  return '<span class="ln"><span class="lb">'+(t?kx('\\textbf{'+t+'}'):'')+'</span><span class="bd">'
+    +parts.map(function(p){return '<span>'+kx(p)+'</span>';}).join('')+'</span></span>';}
+function fillCalc(){
+  var el=document.getElementById('mcalc'),d=BYID[pump],t=nowOf(pump),h='';
+  if(curTab===0){
+    if(d.role==='censored'){
+      h+=lline('Label',['\\text{'+pn(pump)+' is still running -- no failure to count back from}']);
+      h+=lline('Testing hour',['RUL('+t+')=\\text{?}','\\text{(unknown until the pump fails)}']);
+      h+=lline('So',['\\text{no label yet}\\ \\Rightarrow\\ \\text{these hours cannot train the model}']);
+    }else{
+      var r=d.n-t,c=Math.min(r,CAP);
+      h+=lline('Label',['\\text{'+pn(pump)+' failed at hour }'+d.n,'\\Rightarrow\\ RUL(t)='+d.n+'-t']);
+      h+=lline('Testing hour',['RUL('+t+')='+d.n+'-'+t+'='+r+'\\text{ h}']);
+      h+=lline('Cap',['y=\\min('+r+',720)='+fx(c,0)+'\\text{ h}',
+        '\\text{(beyond 30 days the maintenance plan is the same)}']);}
+  }else if(curTab===1){
+    var w0=Math.min(t+1,W);
+    h+=lline('Smooth',['\\bar x_{24}('+t+')=\\text{mean of hours }'+Math.max(0,t-W+1)+'\\text{..}'+t,
+      '='+fx(d.raw[t],3)+'\\text{ mm/s}'+(w0<W?'\\ \\text{('+w0+'-hour window so far)}':'')]);
+    if(view==='raw'){
+      /* one span per pump so the line can wrap instead of being clipped at the card edge */
+      var bl=T1P.map(function(p){return '\\text{'+pn(p)+' }'+fx(BYID[p].mu,2);});
+      h+=lline('Baselines',['\\text{healthy means differ:}'].concat(bl)
+        .concat(['\\text{-- mm/s cannot be compared across pumps}']));
+      h+=lline('So',['\\text{measure each pump against its own baseline}\\ \\Rightarrow\\ z']);
+    }else{
+      h+=lline('Baseline',['\\text{hours }'+B0+'\\text{--}'+(B1-1)+'\\text{ of '+pn(pump)+' itself:}',
+        '\\mu='+fx(d.mu,3)+',\\ \\sigma='+fx(d.sd,3)]);
+      h+=lline('Indicator',['HI('+t+')=(\\bar x_{24}-\\mu)/\\sigma',
+        '=('+fx(d.raw[t],3)+'-'+fx(d.mu,3)+')/'+fx(d.sd,3),'='+fx(d.hi[t],2)]);}
+  }else{
+    var kind=view,w=COEF[kind],f=d[kind][t],yh=w[0]+w[1]*f,ya=Math.min(d.n-t,CAP);
+    var FN=kind==='raw'?'\\bar x_{24}':'HI';
+    h+=lline('Model',['\\widehat{RUL}('+FN+')='+fx(w[0],2)+'-'+fx(-w[1],2)+'\\,'+FN]);
+    h+=lline('Fitting',['\\text{least squares on every hour of }'+
+      TRAINP.map(function(q){return '\\text{'+pn(q)+'}';}).join(',\\ ')]);
+    h+=lline('Testing hour',[FN+'('+t+')='+fx(f,2),
+      '\\widehat{RUL}='+fx(w[0],2)+'-'+fx(-w[1],2)+'\\cdot'+fx(f,2)+'='+fx(yh,0)+'\\text{ h}',
+      '\\text{actual }'+fx(ya,0)+'\\text{ h}','\\text{error }'+fx(ya-yh,0)+'\\text{ h}']);
+    h+=lline('All hours',['\\text{mean }|\\text{error}|\\text{ over both new pumps}',
+      '='+fx(MAED[kind],2)+'\\text{ h}',
+      kind==='hi'?'\\text{(mm/s: '+fx(MAED.raw,2)+' h)}':'\\text{(}z\\text{: '+fx(MAED.hi,2)+' h)}']);}
   el.innerHTML=h;}
-function fmt(v){return v.toFixed(2);}
-function metrics(){
-  var m,spread,slab;
-  if(ev==='holdout'){
-    var s=current();
-    m={tr:s.maeTrain,te:s.maeTest,r2:s.r2Test};
-    spread=STATS[ind].holdoutSpread[K];slab='\\text{MAE across draws, h}';
-  }else{
-    var L=STATS[ind].lopo;
-    m={tr:L.maeTrainMean,te:L.mean,r2:L.r2Pooled};
-    spread={lo:L.lo,hi:L.hi};slab='\\text{MAE across pumps, h}';}
-  var sv=(Math.abs(spread.hi-spread.lo)<1e-9)?fmt(spread.lo)
-        :(spread.lo.toFixed(1)+'\\text{ – }'+spread.hi.toFixed(1));
-  document.getElementById('mbox').innerHTML=
-    '<div class="metric"><div class="k">'+kx('\\mathrm{MAE}\\ \\text{train, h}')+'</div><div class="v">'+kx(fmt(m.tr))+'</div></div>'+
-    '<div class="metric"><div class="k">'+kx('\\mathrm{MAE}\\ \\text{test, h}')+'</div><div class="v">'+kx(fmt(m.te))+'</div></div>'+
-    '<div class="metric"><div class="k">'+kx('R^2\\ \\text{test}')+'</div><div class="v">'+kx(m.r2.toFixed(3))+'</div></div>'+
-    '<div class="metric"><div class="k">'+kx(slab)+'</div><div class="v">'+kx(sv)+'</div></div>';}
 
-/* ---------------- wiring ---------------- */
-function paintSeg(id,v){document.querySelectorAll('#'+id+' button').forEach(function(b){
-  b.className=b.getAttribute('data-val')===v?'on':'';});}
-function syncRows(){
-  var off=(ev!=='holdout');
-  document.getElementById('c-k').className='drow'+(off?' off':'');
-  document.getElementById('c-draw').className='row'+(off?' off':'');
-  document.getElementById('kR').disabled=off;
-  document.getElementById('kN').disabled=off;
-  document.getElementById('drawBtn').disabled=off||subsetsOfK().length<2;}
-function refresh(){syncRows();drawLeft();drawRight();metrics();}
-function setK(v){var k=Math.round(Number(v));
-  if(!isFinite(k))return;
-  k=Math.max(1,Math.min(4,k));
-  document.getElementById('kR').value=String(k);
-  document.getElementById('kN').value=String(k);
-  if(k!==K){K=k;draw=0;}
-  refresh();}
-document.querySelectorAll('#segInd button').forEach(function(b){
-  b.addEventListener('click',function(){ind=b.getAttribute('data-val');paintSeg('segInd',ind);refresh();});});
-document.querySelectorAll('#segEval button').forEach(function(b){
-  b.addEventListener('click',function(){ev=b.getAttribute('data-val');paintSeg('segEval',ev);refresh();});});
-document.getElementById('kR').addEventListener('input',function(){setK(this.value);});
-document.getElementById('kN').addEventListener('input',function(){setK(this.value);});
-document.getElementById('drawBtn').addEventListener('click',function(){draw++;refresh();});
-window.addEventListener('resize',function(){drawLeft();drawRight();});
+/* ---------------- controls ---------------- */
+function buildPumpSeg(){
+  var el=document.getElementById('pumpSeg');el.innerHTML='';
+  pumpsOfTab().forEach(function(p){
+    var b=document.createElement('button');b.type='button';
+    b.setAttribute('data-p',p);K('\\text{'+pn(p)+'}',b);
+    if(p===pump)b.className='on';
+    b.addEventListener('click',function(){pump=p;syncNow();upd();});
+    el.appendChild(b);});}
+function paintSeg(){
+  document.querySelectorAll('#pumpSeg button').forEach(function(b){
+    b.className=b.getAttribute('data-p')===pump?'on':'';});
+  document.querySelectorAll('#viewSeg button').forEach(function(b){
+    b.className=b.getAttribute('data-v')===view?'on':'';});}
+function syncNow(){
+  var d=BYID[pump],t=Math.min(nowOf(pump),d.n-1);NOWM[pump]=t;
+  ['Rnow','Nnow'].forEach(function(id){var e=document.getElementById(id);
+    e.max=d.n-1;e.value=t;});}
+function upd(){paintSeg();sizeCanvas();draw();fillLegend();fillTable();fillCalc();
+  if(Math.round(cv.clientWidth)!==CW||Math.round(cv.clientHeight)!==CH){sizeCanvas();draw();}}
+function applyTab(i){curTab=i;
+  document.querySelectorAll('.tabbtn').forEach(function(b,j){b.className='tabbtn'+(j===i?' on':'');});
+  if(pumpsOfTab().indexOf(pump)<0)pump=pumpsOfTab()[0];
+  document.getElementById('grp-view').style.display=curTab===0?'none':'';
+  buildPumpSeg();syncNow();renderTexts();upd();}
+var tb2=document.getElementById('tabs');
+TABS.forEach(function(t,i){var el=document.createElement('button');el.className='tabbtn';
+  K('\\text{'+t.n+'}',el);el.addEventListener('click',function(){applyTab(i);});tb2.appendChild(el);});
+document.querySelectorAll('#viewSeg button').forEach(function(b){
+  b.addEventListener('click',function(){view=b.getAttribute('data-v');upd();});});
+['Rnow','Nnow'].forEach(function(id){
+  document.getElementById(id).addEventListener('input',function(){
+    var v=Math.max(0,Math.min(BYID[pump].n-1,Math.round(+this.value||0)));
+    NOWM[pump]=v;
+    document.getElementById('Rnow').value=v;document.getElementById('Nnow').value=v;
+    upd();});});
+window.addEventListener('resize',function(){sizeCanvas();upd();});
 
 window.LAB={
   read:function(){
+    var d=BYID[pump],t=nowOf(pump);
     var cs={};
-    SIX.forEach(function(p){cs[p]={n:BYID[p].n,vibSum:BYID[p].vibSum};});
-    var cur=(ev==='holdout')?current():null;
-    return {indicator:ind,evaluation:ev,k:K,draw:draw%subsetsOfK().length,
-            subset:cur?cur.pumps.slice():SIX.slice(),
-            metrics:(function(){var m={};
-              if(cur){m.maeTrain=cur.maeTrain;m.maeTest=cur.maeTest;m.r2Test=cur.r2Test;}
-              else{var L=STATS[ind].lopo;
-                m.maeTrain=L.maeTrainMean;m.maeTest=L.mean;m.r2Test=L.r2Pooled;}
-              return m;})(),
-            stats:JSON.parse(JSON.stringify(STATS)),checksums:cs,
-            cap:CAP,window:W,base0:B0,base1:B1-1};},
+    RULDATA.pumps.forEach(function(p){var q=BYID[p.id];
+      cs[p.id]={n:q.n,vibSum:q.vibSum,role:q.role,
+                baseMu:+q.mu.toFixed(6),baseSd:+q.sd.toFixed(6)};});
+    var probes={};
+    RULDATA.pumps.forEach(function(p){
+      probes[p.id]=[30,260,560].map(function(hh){
+        var q=BYID[p.id],t2=Math.min(hh,q.n-1);
+        var lab2=q.role==='censored'?null:q.n-t2;
+        return {t:t2,smooth:+q.raw[t2].toFixed(6),hi:+q.hi[t2].toFixed(6),
+                rul:lab2,rulCap:lab2===null?null:Math.min(lab2,CAP)};});});
+    var kind=view,f=d[kind]?d[kind][t]:null,w=COEF[kind];
+    return {tab:curTab,pump:pump,now:t,view:view,
+      cap:CAP,window:W,base0:B0,base1:B1-1,
+      label:d.role==='censored'?null:d.n-t,
+      labelCap:d.role==='censored'?null:Math.min(d.n-t,CAP),
+      smoothNow:+d.raw[t].toFixed(6),hiNow:+d.hi[t].toFixed(6),
+      pred:(curTab===2&&f!==null)?+(w[0]+w[1]*f).toFixed(6):null,
+      coef:{raw:[+COEF.raw[0].toFixed(6),+COEF.raw[1].toFixed(6)],
+            hi:[+COEF.hi[0].toFixed(6),+COEF.hi[1].toFixed(6)]},
+      maeDeploy:{raw:+MAED.raw.toFixed(6),hi:+MAED.hi.toFixed(6)},
+      checksums:cs,probes:probes,
+      pumpChoices:pumpsOfTab().slice()};},
   set:function(o){
-    if(o.indicator&&STATS[o.indicator]){ind=o.indicator;paintSeg('segInd',ind);}
-    if(o.evaluation==='holdout'||o.evaluation==='lopo'){ev=o.evaluation;paintSeg('segEval',ev);}
-    if(o.k!=null){var k=Math.max(1,Math.min(4,Math.round(+o.k)));K=k;draw=0;
-      document.getElementById('kR').value=String(k);
-      document.getElementById('kN').value=String(k);}
-    if(o.draw!=null)draw=+o.draw;
-    refresh();}};
+    if(o.tab!=null){applyTab(Math.max(0,Math.min(2,+o.tab)));}
+    if(o.pump&&BYID[o.pump]&&pumpsOfTab().indexOf(o.pump)>=0){pump=o.pump;syncNow();}
+    if(o.view==='raw'||o.view==='hi'){view=o.view;}
+    if(o.now!=null){NOWM[pump]=Math.max(0,Math.min(BYID[pump].n-1,Math.round(+o.now)));syncNow();}
+    upd();}};
 
-function renderAll(){
-  if(!window.renderMathInElement)return;
-  renderMathInElement(document.body,{delimiters:[{left:"\\(",right:"\\)",display:false}],throwOnError:false});}
-legend();paintSeg('segInd',ind);paintSeg('segEval',ev);refresh();renderAll();
-requestAnimationFrame(function(){refresh();renderAll();});
-setTimeout(function(){refresh();},250);
+renderTexts();applyTab(0);
+requestAnimationFrame(function(){renderTexts();upd();});
+setTimeout(function(){renderTexts();upd();},250);
+setTimeout(function(){renderTexts();upd();},800);
+if(document.fonts&&document.fonts.ready)document.fonts.ready.then(function(){upd();});
 })();
 </script>
-<script>(function(){if(!window.katex)return;var t=document.getElementById("__pgt");if(t)try{katex.render(t.getAttribute("data-tex"),t,{throwOnError:false});}catch(e){}})();</script>
 </body>
 </html>
