@@ -15,6 +15,8 @@
   .eqbox{background:#fff;border:1px solid var(--line);border-radius:12px;padding:8px 14px;box-shadow:0 1px 3px rgba(0,0,0,.04);margin-top:2px;text-align:center;overflow:visible}   /* UD §1: no-scroll — ห้ามมี scrollbar */
   .qbar{text-align:center;font-size:14px;color:#1e3a8a;font-weight:600;margin:0 0 8px}
   .runinfo{text-align:center;font-size:13.5px;color:#334155;margin-top:6px}
+  /* UD 2.2: ทุกแถว control สูงเท่ากัน — ปุ่ม segd เคยดันแถวเป็น 39px เทียบแถว slider 33px */
+  .segd button{line-height:1.2!important;padding-top:6px!important;padding-bottom:6px!important}
   .pg .stage.grid4{display:grid;gap:12px}
   .pg .stage.grid4 .canvasbox{height:auto;min-height:0;min-width:0}
   .pg .stage.grid4.two{grid-template-columns:1fr 1fr;grid-template-rows:clamp(260px,40vh,360px) auto}
@@ -47,7 +49,7 @@
       <!-- class="diagram" = แผนภาพ ไม่ใช่กราฟข้อมูล → ความสูงต้องพอดีเนื้อหา (ยกเว้นจาก clamp กราฟ) -->
       <div class="canvasbox diagram" id="boxEst"><canvas id="estC"></canvas></div>
       <!-- UD §1: no-scroll — ห้ามมี scrollbar -->
-      <div class="canvasbox" id="tblBox" style="display:flex;align-items:center;justify-content:center;overflow:visible"><table id="estTable" style="margin:auto;border-collapse:collapse;font-size:14px;font-variant-numeric:tabular-nums"></table></div>
+      <div class="canvasbox diagram" id="tblBox" style="display:flex;align-items:center;justify-content:center;overflow:visible"><table id="estTable" style="margin:auto;border-collapse:collapse;font-size:14px;font-variant-numeric:tabular-nums"></table></div>
     </div>
     <div class="panel">
       <div class="drow" id="c-target" style="display:flex;align-items:center;gap:10px;margin:9px 0">
@@ -82,7 +84,7 @@
 const C={train:'#5B8FB9',test:'#E07A5F',fit:'#5B8FB9',truth:'#6BA38C',resub:'#334155',hold:'#E07A5F',cv:'#6B5B95'};
 // WCAG AA text variants: pastels fail 4.5:1 on white as text, so darken (same hue) wherever a colour
 // is drawn as TEXT (labels, titles, table cells). Fills (dots/bands/regions) keep the pastel.
-const TXMAP={'#E07A5F':'#B0503A','#6BA38C':'#3F7D63','#5B8FB9':'#3F6E99','#B07AAE':'#7E5A93','#E3B23C':'#8A6510'};
+const TXMAP={'#E07A5F':'#B0503A','#6BA38C':'#35705A','#5B8FB9':'#3F6E99','#B07AAE':'#7E5A93','#E3B23C':'#8A6510'};
 const tx=c=>TXMAP[c]||c;C.testTx=tx(C.hold);C.truthTx=tx(C.truth);
 const GC=80,REF_T=1200;
 function K(t,el,d){if(!el)return;if(window.katex){try{katex.render(String(t),el,{throwOnError:false,displayMode:!!d});return;}catch(e){}}el.textContent=t;}
@@ -128,10 +130,10 @@ function renderTable(){const T=document.getElementById('estTable');const wrap=s=
     const td=(v,col)=>'<td style="text-align:right;padding:2px 16px;'+(col?'color:'+col:'')+'">'+(v===''?'':wrap(v))+'</td>';
     const th=(t,col)=>'<th style="text-align:right;padding:3px 16px;color:'+(col||'#64748b')+';font-weight:600">'+wrap(t)+'</th>';
     let h='<tr>'+th('\\text{step}')+th('E_\\text{in}',c1)+th('E_\\text{test}',c2)+th('E_\\text{out}',c3)+'</tr>';
-    for(let i=start;i<N;i++){const op=(N-start>1)?(0.3+0.7*(i-start)/(N-start-1)):1;h+='<tr style="opacity:'+op.toFixed(2)+'">'+td(i+1,'#94a3b8')+td(ein[i].toFixed(2),c1)+td(et[i].toFixed(2),c2)+td('','')+'</tr>';}
+    for(let i=start;i<N;i++){const op=(N-start>1)?(0.3+0.7*(i-start)/(N-start-1)):1;h+='<tr style="opacity:'+op.toFixed(2)+'">'+td(i+1,'#64748b')+td(ein[i].toFixed(2),c1)+td(et[i].toFixed(2),c2)+td('','')+'</tr>';}
     if(N){const mi=meanSD(ein),mt=meanSD(et);
       h+='<tr style="border-top:2px solid #e6e6e0;font-weight:700">'+td('\\text{avg}','#334155')+td(mi[0].toFixed(2),c1)+td(mt[0].toFixed(2),c2)+td(trueE.toFixed(2),c3)+'</tr>';
-      h+='<tr style="color:#94a3b8">'+td('\\pm\\,\\text{SD}','#94a3b8')+td(mi[1].toFixed(2),c1)+td(mt[1].toFixed(2),c2)+td('','')+'</tr>';}
+      h+='<tr style="color:#64748b">'+td('\\pm\\,\\text{SD}','#64748b')+td(mi[1].toFixed(2),c1)+td(mt[1].toFixed(2),c2)+td('','')+'</tr>';}
     T.innerHTML=h;done();return;}
   const R=acc.resub,H=acc.hold,V=acc.cv,N=Math.min(R.length,H.length,V.length),cR=C.resub,cH=C.testTx,cV=C.cv,cG=C.truthTx;
   const td=(v,col)=>'<td style="text-align:right;padding:2px 14px;'+(col?'color:'+col:'')+'">'+(v===''?'':wrap(v))+'</td>';
@@ -141,7 +143,7 @@ function renderTable(){const T=document.getElementById('estTable');const wrap=s=
   let h=EOUTROW(trueE,2,3,cG);
   h+='<tr>'+th('\\text{trial}')+'<th style="text-align:left;padding:2px 14px;color:#64748b;font-weight:600">'+wrap('\\text{measure}')+'</th>'+th('\\text{resubstitution}',cR)+th('\\text{holdout }'+frac.value+'\\%',cH)+th('\\text{CV }'+kf+'\\text{-fold}',cV)+'</tr>';
   if(N){const i=N-1,mR=meanSD(R),mH=meanSD(H),mV=meanSD(V),sgn=x=>(x>=0?'+':'-')+Math.abs(x).toFixed(2);
-    h+='<tr>'+td(i+1,'#94a3b8')+lb('E_\\text{test}')+td(R[i].toFixed(2),cR)+td(H[i].toFixed(2),cH)+td(V[i].toFixed(2),cV)+'</tr>';
+    h+='<tr>'+td(i+1,'#64748b')+lb('E_\\text{test}')+td(R[i].toFixed(2),cR)+td(H[i].toFixed(2),cH)+td(V[i].toFixed(2),cV)+'</tr>';
     const srow=(lab,fn,top)=>'<tr'+(top?' style="border-top:2px solid #e6e6e0"':'')+'>'+td('')+lb(lab)+td(fn(mR),cR)+td(fn(mH),cH)+td(fn(mV),cV)+'</tr>';
     h+=srow('\\bar E_\\text{test}',m=>m[0].toFixed(2),true);
     h+=srow('\\text{bias}=\\bar E_\\text{test}-E_\\text{out}',m=>sgn(m[0]-trueE));
@@ -432,6 +434,9 @@ document.getElementById('stepBtn').addEventListener('click',()=>{addTrial();rend
 document.getElementById('resetBtn').addEventListener('click',()=>{if(mode==='one'){baseSeed++;computeOne();render();}else if(mode==='split'){baseSeed++;split=null;computeSplit();render();}else{resetAcc(true);addTrial();render();}});
 window.addEventListener('resize',render);
 function syncSegNS(){document.querySelectorAll('.segd').forEach(seg=>{const cur=document.getElementById(seg.getAttribute('data-set')).value;seg.querySelectorAll('button').forEach(b=>{const on=b.getAttribute('data-v')===cur;b.style.background=on?'#1e3a8a':'#fff';b.style.color=on?'#fff':'#555';});});}
+/* UD 2.4 ทุกข้อความผ่าน KaTeX — ปุ่ม 50%/67%/... เคยเป็น plain text */
+document.querySelectorAll('.segd button').forEach(b=>{const t0=b.textContent.trim();
+  if(window.katex)try{katex.render('\\text{'+t0.replace(/%/g,'\\%')+'}',b,{throwOnError:false});}catch(e){}});
 document.querySelectorAll('.segd button').forEach(b=>b.addEventListener('click',()=>{const seg=b.parentElement;document.getElementById(seg.getAttribute('data-set')).value=b.getAttribute('data-v');reReset();syncSegNS();}));
 function syncSeg(){document.querySelectorAll('.seg').forEach(seg=>{const el=document.getElementById(seg.getAttribute('data-for'));if(!el)return;seg.querySelectorAll('button').forEach(b=>{const on=b.getAttribute('data-val')===el.value;b.style.background=on?'#1e3a8a':'#fff';b.style.color=on?'#fff':'#555';});});}
 document.querySelectorAll('.seg button').forEach(b=>b.addEventListener('click',()=>{const seg=b.parentElement,el=document.getElementById(seg.getAttribute('data-for'));if(!el)return;el.value=b.getAttribute('data-val');el.dispatchEvent(new Event('change'));syncSeg();}));

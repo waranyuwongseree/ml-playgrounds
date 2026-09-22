@@ -203,3 +203,19 @@ body.distcls .wrap{height:auto;max-height:900px}   /* เนื้อหาส�
 .distcls .drow .dlab{width:38px;text-align:left;color:#475569;font-size:15px}   /* สัญลักษณ์สั้น (μ₋ σ₊ …) → label แคบ slider ยาวเท่าทุก playground */
 .distcls .dgrid input[type=range]{max-width:none}   /* slider ยาวเต็มแถวเท่าทุก playground (เลิก cap 100px) */
 @media(max-width:760px){.distcls .below{flex-direction:column}.distcls .lcol{width:auto;border-right:0;border-bottom:1px solid var(--line);padding-right:0;padding-bottom:8px}}
+
+/* U34b (verify.html · UD observe→adjust→read): บนจอโทรศัพท์ control ต้องปักล่างจอ ไม่งั้นเลื่อน
+   ลงไปหาคันโยกแล้วรูปหลุดจอ — bottom sheet เลื่อนในตัวเองได้ ไม่บังรูปเกินครึ่งจอ
+   ใช้เฉพาะจอแคบจริง (<=600) — iPad แนวตั้ง (768-820) ยังใช้การเรียงเป็นบล็อกแบบเดิม */
+@media(max-width:600px){
+  body.pg .panel{position:fixed;left:0;right:0;bottom:0;margin:0;max-height:46vh;overflow-y:auto;
+    border-radius:14px 14px 0 0;border-bottom:0;box-shadow:0 -3px 14px rgba(0,0,0,.10);z-index:50}
+  body.pg .stage{padding-bottom:10px}
+}
+
+/* จอเตี้ย (ผู้ใช้ zoom 125-150% → viewport 585): --panel-h ที่ตรึงไว้กัน rail เด้งระหว่าง tab
+   กลายเป็นตัวดัน layout เกินจอเสียเอง — บนจอเตี้ยให้ rail ยอมจำนนต่อจอ (เนื้อหาจริงสั้นกว่านั้น)
+   หลักเดียวกับหน้า pdm ที่ใช้ min(var(--panel-h), 100vh-150) ต่อไฟล์อยู่แล้ว */
+@media(max-height:620px){
+  .pg .panel{min-height:min(var(--panel-h,0px),calc(100vh - 165px))}
+}

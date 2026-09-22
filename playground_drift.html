@@ -27,6 +27,11 @@
   .below .mbar .barrow{display:flex;align-items:center;gap:9px}
   .below .mbar .barrow .track{flex:0 1 58%;min-width:0}   /* bar สั้นลง */
   .below .mbar .trn{font-size:11.5px;color:#6b7280;white-space:nowrap;margin-left:auto}   /* train อยู่ใต้ test แถวเดียวกับ bar */
+  /* จอเตี้ย (ผู้ใช้ zoom): เนื้อหาเคยเกินจอ 17px — รูปหด 20px แลกให้แถวตัวเลขทั้งสามยังอยู่บนจอ */
+  @media(max-height:620px){.distcls .canvasbox{height:240px}
+    /* คอลัมน์ control สูง 521px เท่าเนื้อหาจริง (11 คันโยก) หดไม่ได้แล้ว — เหลือแค่ padding
+       ล่างของ .wrap ที่ดันความสูงหน้าเกินเกณฑ์ no-scroll ของจอเตี้ย */
+    .wrap{padding-bottom:0}}
 </style>
 </head>
 <body class="pg distcls">
@@ -84,7 +89,10 @@
    {n:'Mean shift',en:['dmu0','dmu1'],pre:{}},
    {n:'Variance shift',en:['ds0','ds1'],pre:{}},
    {n:'Prior shift',en:['pNGd'],pre:{}},
-   {n:'Data drift',en:bases.slice(),pre:{}}
+   /* §4 Hick: no more than six usable levers at once. The train distribution is tab 1's
+      subject and every tab resets it to BASE anyway -- so this tab exposes only the six
+      levers that ARE drift: the four deploy deltas, the deploy prior and n. */
+   {n:'Data drift',en:['dmu0','ds0','dmu1','ds1','pNGd','n'],pre:{}}
   ];
   function gv(b){return parseFloat(document.getElementById('R'+b).value);}
   function erf(x){var s=x<0?-1:1;x=Math.abs(x);var t=1/(1+0.3275911*x);var y=1-(((((1.061405429*t-1.453152027)*t)+1.421413741)*t-0.284496736)*t+0.254829592)*t*Math.exp(-x*x);return s*y;}

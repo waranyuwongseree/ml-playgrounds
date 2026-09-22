@@ -12,7 +12,7 @@
   :root{--panel-h:393px}   /* UD §1.2: ตรึงความสูง Control = tab ที่ยาวสุด */
   .lcol .estep{font-size:14px;overflow:visible;min-height:0}   /* UD §1: no-scroll — ห้ามมี scrollbar */
   .tgls{display:flex;flex-direction:column;gap:9px;margin-top:10px}
-  .tgl{display:flex;align-items:center;justify-content:space-between;gap:8px;font-size:var(--fs-label);color:#444}
+  .tgl{display:flex;align-items:center;justify-content:space-between;gap:8px;font-size:var(--fs-label);color:#334155}
   /* summary tab */
   .summary{display:none;flex-direction:column;gap:16px;min-height:0;overflow:visible}   /* UD §1: no-scroll — ห้ามมี scrollbar */
   .summary.on{display:flex;flex:1}
@@ -28,7 +28,9 @@
   .found{display:flex;flex-direction:column;gap:9px;background:#fff;border:1px solid var(--line);border-radius:12px;padding:12px 16px}
   .frow{display:flex;align-items:center;gap:16px}
   .frow .fl{flex:0 0 176px;font-size:14px;color:var(--muted);text-align:right}
-  .frow .fe{flex:1;font-size:15px;overflow-x:auto;overflow-y:hidden}
+  /* rac แบบบรรทัดเดียวยังสูงกว่ากรอบบรรทัด 3-4px — overflow ซ่อนแล้วหัว/หางสูตรโดนตัด
+     (verify: 33>29) · ปล่อย visible: สูตรถูกย่อเป็นบรรทัดเดียวแล้ว ไม่มีอะไรให้เลื่อนอีก */
+  .frow .fe{flex:1;font-size:15px;overflow:visible}
   @media(max-width:640px){.frow{flex-direction:column;align-items:flex-start;gap:2px}.frow .fl{text-align:left;flex:none}}
   .secttl{font-size:16px;font-weight:600;color:var(--navy)}
   .tree{display:flex;flex-direction:column;align-items:center;background:#fff;border:1px solid var(--line);border-radius:12px;padding:16px 10px}
@@ -229,10 +231,10 @@
     'tr-qda-e':'\\pi=\\tfrac12:\\ \\text{2 boundaries}',
     'tr-qda-f':'\\pi\\neq\\tfrac12:\\ \\text{2 shifted boundaries}',
     's-found':'\\text{1) Bayes rule: posterior}\\propto\\text{prior}\\times\\text{likelihood}',
-    'fl-post':'\\text{posterior}','fe-post':'P(c\\mid x)=\\dfrac{\\pi_c\\,p(x\\mid c)}{\\sum_k \\pi_k\\,p(x\\mid k)}',
+    'fl-post':'\\text{posterior}','fe-post':'P(c\\mid x)=\\frac{\\pi_c\\,p(x\\mid c)}{\\sum_k \\pi_k\\,p(x\\mid k)}',
     'fl-prior':'\\text{prior (base rate)}','fe-prior':'\\pi_c=P(c),\\quad \\pi_-+\\pi_+=1',
-    'fl-lik':'\\text{likelihood (normal)}','fe-lik':'p(x\\mid c)=\\mathcal{N}(x;\\mu_c,\\sigma_c^2)=\\dfrac{1}{\\sigma_c\\sqrt{2\\pi}}\\,e^{-\\frac{(x-\\mu_c)^2}{2\\sigma_c^2}}',
-    'fl-disc':'\\text{decide}\\ +\\ \\text{if}\\ g(x)>0','fe-disc':'g(x)=\\ln\\dfrac{\\pi_+}{\\pi_-}+\\ln\\dfrac{\\sigma_-}{\\sigma_+}-\\dfrac{(x-\\mu_+)^2}{2\\sigma_+^2}+\\dfrac{(x-\\mu_-)^2}{2\\sigma_-^2}',
+    'fl-lik':'\\text{likelihood (normal)}','fe-lik':'p(x\\mid c)=\\mathcal{N}(x;\\mu_c,\\sigma_c^2)=\\frac{1}{\\sigma_c\\sqrt{2\\pi}}\\,e^{-\\frac{(x-\\mu_c)^2}{2\\sigma_c^2}}',
+    'fl-disc':'\\text{decide}\\ +\\ \\text{if}\\ g(x)>0','fe-disc':'g(x)=\\ln\\frac{\\pi_+}{\\pi_-}+\\ln\\frac{\\sigma_-}{\\sigma_+}-\\frac{(x-\\mu_+)^2}{2\\sigma_+^2}+\\frac{(x-\\mu_-)^2}{2\\sigma_-^2}',
     's-split':'\\text{2) Equal}\\ \\sigma\\Rightarrow\\text{LDA (linear)};\\quad \\text{unequal}\\ \\sigma\\Rightarrow\\text{QDA (quadratic)}',
     'n-ee':'\\text{single boundary at the midpoint of the means}',
     'n-ef':'\\text{single boundary, shifted by the log prior-ratio}',
@@ -380,7 +382,7 @@
       ctxe.strokeStyle='#E07A5F';ctxe.lineWidth=3;ctxe.beginPath();ctxe.moveTo(xT,yT);ctxe.lineTo(xT,yF);ctxe.stroke();
       ctxe.fillStyle='#E07A5F';ctxe.beginPath();ctxe.arc(xT,yT,4.5,0,7);ctxe.fill();
       // readout row in the reserved top band (left-aligned, no overlap with curve)
-      ctxe.font='13px KaTeX_Main,serif';ctxe.textBaseline='middle';ctxe.textAlign='left';
+      ctxe.font='14px KaTeX_Main,serif';ctxe.textBaseline='middle';ctxe.textAlign='left';
       var lx=L, ly=13;
       function lbl(txt,col){ctxe.fillStyle=col;ctxe.fillText(txt,lx,ly);lx+=ctxe.measureText(txt).width+18;}
       lbl('total error '+(P.errT*100).toFixed(1)+'%','#1e3a8a');
@@ -432,7 +434,7 @@
       g.fillStyle=fill;g.fill();g.strokeStyle=stroke;g.lineWidth=1.8;g.beginPath();for(i=0;i<=N;i++){var x2=xmin+i*dx;i===0?g.moveTo(px(x2),py(f(x2))):g.lineTo(px(x2),py(f(x2)));}g.stroke();}
     curve(EX.fn,'rgba(91,143,185,0.25)','#5B8FB9');curve(EX.fp,'rgba(224,122,95,0.25)','#E07A5F');
     g.strokeStyle='rgba(128,128,128,0.6)';g.lineWidth=1;g.beginPath();g.moveTo(L,base);g.lineTo(L+pw,base);g.stroke();
-    g.fillStyle='rgba(128,128,128,0.9)';g.font='13px KaTeX_Main,serif';g.textAlign='center';g.textBaseline='alphabetic';
+    g.fillStyle='rgba(128,128,128,0.9)';g.font='14px KaTeX_Main,serif';g.textAlign='center';g.textBaseline='alphabetic';
     for(var a=Math.ceil(xmin);a<=xmax;a+=1)g.fillText(a,px(a),base+15);
     var lb=labs(c.c);lb(EX.ax,L+pw,base+29,{align:'right'});
     lb('f(x\\mid c)',L+4,TOP-9);   // สัญลักษณ์เดียวกับสมการในกล่องคำนวณ
@@ -440,14 +442,14 @@
     EX.pos.forEach(function(x){g.fillStyle='rgba(224,122,95,0.9)';g.beginPath();g.arc(px(x),base-5,4.5,0,7);g.fill();});
     lb('\\bar x_-='+EX.sn[0].toFixed(1)+',\\ s_-='+EX.sn[1].toFixed(2),px(EX.sn[0]),py(EX.fn(EX.sn[0]))-6,{align:'center',color:'#3F6E99'});
     lb('\\bar x_+='+EX.sp[0].toFixed(1)+',\\ s_+='+EX.sp[1].toFixed(2),px(EX.sp[0]),py(EX.fp(EX.sp[0]))-6,{align:'center',color:'#B0503A'});
-    var xq=px(x0);g.strokeStyle='#444';g.setLineDash([5,4]);g.lineWidth=1.4;g.beginPath();g.moveTo(xq,TOP-2);g.lineTo(xq,base);g.stroke();g.setLineDash([]);
-    g.fillStyle='#444';g.beginPath();g.arc(xq,base-5,5.5,0,7);g.fill();g.strokeStyle='#fff';g.lineWidth=1.5;g.stroke();
+    var xq=px(x0);g.strokeStyle='#334155';g.setLineDash([5,4]);g.lineWidth=1.4;g.beginPath();g.moveTo(xq,TOP-2);g.lineTo(xq,base);g.stroke();g.setLineDash([]);
+    g.fillStyle='#334155';g.beginPath();g.arc(xq,base-5,5.5,0,7);g.fill();g.strokeStyle='#fff';g.lineWidth=1.5;g.stroke();
     [[EX.fp,'#B0503A'],[EX.fn,'#3F6E99']].forEach(function(q){g.fillStyle=q[1];g.beginPath();g.arc(xq,py(q[0](x0)),4,0,7);g.fill();});
-    lb('x_{\\text{test}}='+x0.toFixed(1),xq,base+29,{align:'center',color:'#444'});}
+    lb('x_{\\text{test}}='+x0.toFixed(1),xq,base+29,{align:'center',color:'#334155'});}
   function drawExPost(x0){var c=prep(document.getElementById('cvpost')),g=c.g,W=c.W,H=c.H;
     var L=40,Rm=14,pw=W-L-Rm,TOP=22,BOT=34,ph=H-TOP-BOT,xmin=EX.xmin,xmax=EX.xmax,i;
     function px(x){return L+(x-xmin)/(xmax-xmin)*pw;} function py(p){return TOP+(1-p)*ph;}
-    g.font='12px KaTeX_Main,serif';g.textBaseline='middle';
+    g.font='14px KaTeX_Main,serif';g.textBaseline='middle';
     [0,0.5,1].forEach(function(p){g.strokeStyle=p===0.5?'rgba(17,17,17,0.55)':'rgba(128,128,128,0.35)';g.lineWidth=1;if(p===0.5)g.setLineDash([5,4]);
       g.beginPath();g.moveTo(L,py(p));g.lineTo(L+pw,py(p));g.stroke();g.setLineDash([]);g.fillStyle='rgba(90,90,90,0.9)';g.textAlign='right';g.fillText(p===0.5?'0.5':String(p),L-6,py(p));});
     g.textBaseline='alphabetic';g.textAlign='center';g.fillStyle='rgba(128,128,128,0.9)';for(var a=Math.ceil(xmin);a<=xmax;a+=1)g.fillText(a,px(a),py(0)+14);
@@ -457,10 +459,10 @@
     // threshold = จุดที่ P(cancer|x) = 0.5 (ป้ายไว้ด้านบน ไม่ชนป้าย x0 ด้านล่าง)
     var xs=crossings1(EX.post,xmin,xmax);g.strokeStyle='#111';g.fillStyle='#111';g.lineWidth=1.6;g.textAlign='center';
     xs.forEach(function(r){g.setLineDash([5,4]);g.beginPath();g.moveTo(px(r),py(1));g.lineTo(px(r),py(0));g.stroke();g.setLineDash([]);lb('\\text{threshold}='+r.toFixed(2),px(r),TOP-8,{align:'center',color:'#111'});});
-    var xq=px(x0),p0=EX.post(x0);g.strokeStyle='#444';g.setLineDash([5,4]);g.lineWidth=1.4;g.beginPath();g.moveTo(xq,TOP);g.lineTo(xq,py(0));g.stroke();g.setLineDash([]);
+    var xq=px(x0),p0=EX.post(x0);g.strokeStyle='#334155';g.setLineDash([5,4]);g.lineWidth=1.4;g.beginPath();g.moveTo(xq,TOP);g.lineTo(xq,py(0));g.stroke();g.setLineDash([]);
     g.fillStyle=Navy;g.beginPath();g.arc(xq,py(p0),4.5,0,7);g.fill();
     lb('P(\\text{cancer}\\mid x_{\\text{test}})='+p0.toFixed(2),xq+(xq>W/2?-8:8),py(p0)-8,{align:xq>W/2?'right':'left',color:Navy});
-    lb('x_{\\text{test}}='+x0.toFixed(1),xq,py(0)+28,{align:'center',color:'#444'});}
+    lb('x_{\\text{test}}='+x0.toFixed(1),xq,py(0)+28,{align:'center',color:'#334155'});}
   function fillDtab(){var tb=document.getElementById('dtbody');if(!tb)return;var h='';
     function rows(arr,cls,color){arr.forEach(function(x,i){h+='<tr class="'+((i%2)?'alt':'')+'"><td>'+kx(x.toFixed(1))+'</td><td>'+kx('\\textcolor{'+color+'}{\\text{'+cls+'}}')+'</td></tr>';});}
     rows(EX.pos,'Cancer',Rd);rows(EX.neg,'Healthy',Bl);
@@ -470,10 +472,10 @@
     tb.innerHTML=h;}
   function fillCalc(x0){var el=document.getElementById('excalc');if(!el)return;var fp=EX.fp(x0),fn=EX.fn(x0),pip=EX.pip,post=EX.post(x0),x=x0.toFixed(1);
     function line(parts){return '<span class="ln">'+parts.map(function(p){return '<span>'+kx(p)+'</span>';}).join('')+'</span>';}   // ชิ้นละสมการย่อย ตัดบรรทัดระหว่างชิ้นได้
-    el.innerHTML=line(['f(x\\mid c)=\\dfrac{1}{s_c\\sqrt{2\\pi}}\\,e^{-\\frac{(x-\\bar x_c)^2}{2s_c^2}}'])
-      +line(['f(x_{\\text{test}}{=}'+x+'\\mid\\text{cancer})','=\\dfrac{1}{'+EX.sp[1].toFixed(2)+'\\sqrt{2\\pi}}\\,e^{-\\frac{('+x+'-'+EX.sp[0].toFixed(1)+')^2}{2\\cdot '+EX.sp[1].toFixed(2)+'^2}}','='+fp.toFixed(2)])
-      +line(['f(x_{\\text{test}}{=}'+x+'\\mid\\text{healthy})','=\\dfrac{1}{'+EX.sn[1].toFixed(2)+'\\sqrt{2\\pi}}\\,e^{-\\frac{('+x+'-'+EX.sn[0].toFixed(1)+')^2}{2\\cdot '+EX.sn[1].toFixed(2)+'^2}}','='+fn.toFixed(2)])
-      +line(['P(\\text{cancer}\\mid x_{\\text{test}})=\\dfrac{\\pi_+ f_+}{\\pi_+ f_+ + \\pi_- f_-}','=\\dfrac{'+pip.toFixed(2)+'\\cdot '+fp.toFixed(2)+'}{'+pip.toFixed(2)+'\\cdot '+fp.toFixed(2)+'+'+(1-pip).toFixed(2)+'\\cdot '+fn.toFixed(2)+'}','='+post.toFixed(2)]);}
+    el.innerHTML=line(['f(x\\mid c)=\\frac{1}{s_c\\sqrt{2\\pi}}\\,e^{-\\frac{(x-\\bar x_c)^2}{2s_c^2}}'])
+      +line(['f(x_{\\text{test}}{=}'+x+'\\mid\\text{cancer})','=\\frac{1}{'+EX.sp[1].toFixed(2)+'\\sqrt{2\\pi}}\\,e^{-\\frac{('+x+'-'+EX.sp[0].toFixed(1)+')^2}{2\\cdot '+EX.sp[1].toFixed(2)+'^2}}','='+fp.toFixed(2)])
+      +line(['f(x_{\\text{test}}{=}'+x+'\\mid\\text{healthy})','=\\frac{1}{'+EX.sn[1].toFixed(2)+'\\sqrt{2\\pi}}\\,e^{-\\frac{('+x+'-'+EX.sn[0].toFixed(1)+')^2}{2\\cdot '+EX.sn[1].toFixed(2)+'^2}}','='+fn.toFixed(2)])
+      +line(['P(\\text{cancer}\\mid x_{\\text{test}})=\\frac{\\pi_+ f_+}{\\pi_+ f_+ + \\pi_- f_-}','=\\frac{'+pip.toFixed(2)+'\\cdot '+fp.toFixed(2)+'}{'+pip.toFixed(2)+'\\cdot '+fp.toFixed(2)+'+'+(1-pip).toFixed(2)+'\\cdot '+fn.toFixed(2)+'}','='+post.toFixed(2)]);}
 
   // ---------- main update ----------
   function upd(){
@@ -567,6 +569,12 @@
   setTimeout(function(){sizeCanvas();renderTexts();if(!TABS[curTab].summary)upd();},250);
   setTimeout(function(){sizeCanvas();renderTexts();if(!TABS[curTab].summary)upd();},800);
 })();
+</script>
+<script>(function(){if(!window.katex)return;
+/* UD 2.4: ALL text = KaTeX — the LDA/QDA pills in the summary table were plain text */
+document.querySelectorAll('.stab .tag').forEach(function(e){
+  var t=e.textContent.trim();
+  try{katex.render('\mathrm{'+t+'}',e,{throwOnError:false});}catch(err){}});})();
 </script>
 </body>
 </html>

@@ -37,6 +37,13 @@
   .rail>.calc{background:#fff;border:1px solid var(--line);border-top:1px solid var(--line);border-radius:0 0 12px 12px;padding:8px 16px 12px}
   @media(max-width:1000px){
     .layout{grid-template-columns:1fr;grid-template-areas:"graph" "rail"}}
+  /* short screens: the worked-equation card is supplementary and folds first; the grid row is
+     pinned to the height the layout really has, and both columns are capped by the viewport
+     (100% of an auto row resolves to nothing, so the cap is written against 100vh) */
+  @media(max-height:620px){
+    .rail .calc{display:none}
+    .layout{grid-template-rows:minmax(0,1fr)}
+    .gbox,.rail{max-height:calc(100vh - 68px);min-height:0}}
   /* body.pg specificity so this grid beats pg_style's .pg .plots{display:flex} (which made the 3rd plot overflow into the rail) */
   /* หลักกว้างเท่ารูป (max-content) + จัดกึ่งกลาง → กราฟ E–iteration ที่กินสองหลัก
      จะกว้าง = รูปบนสองรูป + gap พอดี (ขอบซ้าย-ขวาตรงกันเป๊ะ) */
@@ -59,11 +66,15 @@
   /* UD §1.2 ตรึงความสูงคอลัมน์ควบคุม — ที่นี่ panel กับ calc เป็น "การ์ดใบเดียว" (เชื่อมขอบกัน)
      ถ้าไปตรึงที่ .panel จะเกิดแถบขาวเปล่า ๆ คั่นกลางระหว่าง control กับสมการ → ตรึงที่ .rail (โปร่งใส) แทน
      544px = ความสูง rail ตอน tab ที่เนื้อหาเยอะสุด (Simple linear regression, สมการ 15px) */
-  .rail{min-height:544px}
+  .rail{min-height:min(544px,calc(100vh - 68px))}   /* จอเตี้ย: ค่าตรึงกัน rail เด้งต้องยอมจำนน
+     ต่อจอ ไม่งั้น min-height ชนะ max-height แล้วดันหน้าเกินจอ (verify 585) */
   .rail>.panel{min-height:0}
   /* ป้ายในการ์ดสมการ = ตัวรอง 13px muted ตัวพิมพ์ปกติ (เดิม uppercase ทั้งหมด → ตะโกนกว่าสมการเอง) */
   .crow .lbl{display:block;font-size:13px;color:var(--muted);text-transform:none;letter-spacing:0;font-weight:600;margin-bottom:1px}
-  .crow .eqn{display:block;padding-left:8px}   /* เผื่อที่ให้สมการ 15px ไม่ล้นการ์ด (UD §1 no-scroll) */
+  .crow .eqn{display:block;padding-left:8px}
+  /* the widest worked-example equation measured 293px on a 286px card (verify 2.4) --
+     scaled to fit one line; 14.4px stays above the 13px secondary floor */
+  .crow .eqn .katex{font-size:.96em}   /* เผื่อที่ให้สมการ 15px ไม่ล้นการ์ด (UD §1 no-scroll) */
   .calc .katex-display{text-align:left;margin:.12em 0}
   .note2{font-size:15px;color:var(--muted);margin-top:6px}
   .legend{position:absolute;right:6px;top:6px;display:flex;flex-wrap:wrap;gap:9px;font-size:15px;color:var(--muted);background:rgba(255,255,255,.74);padding:2px 7px;border-radius:6px;pointer-events:none;max-width:calc(100% - 12px)}
@@ -109,18 +120,20 @@
         <input type="range" id="lr" min="0" max="100" value="50" step="1">
         <input type="text" class="num" id="lrNum" inputmode="decimal"></div>
 
-      <div class="row">
-        <button class="primary" id="play">Play</button>
-        <button id="step">Step</button>
-        <button id="reset">Restart</button>
-      </div>
-
+      <!-- UD 1.2: buttons always LAST -- the Play row used to sit between the levers, so the
+           regression tabs had a lever below a button row (verify flagged it) -->
       <div class="drow" id="c-noise"><span class="dlab" id="noiselab"></span>
         <input type="range" id="noise" min="0" max="80" value="18" step="1">
         <input type="text" class="num" id="noiseNum" inputmode="decimal"></div>
       <div class="drow" id="c-n"><span class="dlab" id="nlab"></span>
         <input type="range" id="n" min="4" max="60" value="20" step="1">
         <input type="text" class="num" id="nNum" inputmode="numeric"></div>
+
+      <div class="row">
+        <button class="primary" id="play">Play</button>
+        <button id="step">Step</button>
+        <button id="reset">Restart</button>
+      </div>
       <div class="row" id="c-regen"><button class="primary" id="regen">Resample</button></div>
     </div>
     <div class="calc" id="calc"></div>
@@ -237,7 +250,10 @@ function gH(){
 /* วัด "พื้นที่ที่เหลือจริง" จากกล่องกราฟ ไม่ใช่เดาจาก window (เดาแล้วเหลือขาว/ล้นทุกที) */
 function availH(){ const g=document.querySelector('.gbox');
   const h=g?g.clientHeight:0;
-  return Math.max(260, h||((window.innerHeight||700)-104)); }
+  /* short screens (user zoom 125-150%): the box measures itself circularly (it is as tall as
+     what was just drawn) and sinks below the fold -- the real viewport caps it */
+  const capv=(window.innerHeight||700)-104;
+  return Math.max(260, Math.min(h||capv, capv)); }
 function twoRows(){ const f=document.getElementById('lcFig'); return !!f && f.style.display!=='none'; }
 /* 1 แถว → กราฟกินพื้นที่ที่เหลือทั้งหมด (สูงสุดเท่าที่กว้างให้ = จัตุรัส)
    2 แถว → บน 62% / ล่าง 34% ของพื้นที่ที่เหลือ (รวม gap แล้วพอดีจอ ไม่เหลือขาว ไม่ล้น) */
