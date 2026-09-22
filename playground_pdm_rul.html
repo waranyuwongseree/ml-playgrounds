@@ -285,20 +285,23 @@ function draw3(lb){
   var pad=(hi-lo)*0.05;lo-=pad;hi+=pad;
   var P=frame(L,TOP,pw,ph,lo,hi,0,CAP+45);
   ctx.save();ctx.beginPath();ctx.rect(L,TOP,pw,ph);ctx.clip();
-  /* every hour of the four failed training pumps -- the rows the line was fitted on */
-  TRAINP.forEach(function(p){var d=BYID[p],arr=d[kind];
-    ctx.fillStyle=PCOL[p];ctx.globalAlpha=0.28;
-    for(var i=0;i<arr.length;i++){
-      ctx.beginPath();ctx.arc(P.px(arr[i]),P.py(Math.min(d.n-i,CAP)),1.7,0,7);ctx.fill();}
-    ctx.globalAlpha=1;});
-  /* the chosen new pump */
-  var d2=BYID[pump],arr2=d2[kind];
-  ctx.fillStyle=PCOL[pump];ctx.globalAlpha=0.55;
-  for(var i2=0;i2<arr2.length;i2++){
-    ctx.beginPath();ctx.arc(P.px(arr2[i2]),P.py(Math.min(d2.n-i2,CAP)),2.1,0,7);ctx.fill();}
-  ctx.globalAlpha=1;
+  /* the 720-hour ceiling, drawn as its own line: the row of points sitting on it is the cap
+     at work (tab 1's lesson), not a glitch */
+  ctx.strokeStyle=GREY;ctx.lineWidth=1.2;ctx.setLineDash([5,4]);
+  ctx.beginPath();ctx.moveTo(L,P.py(CAP));ctx.lineTo(L+pw,P.py(CAP));ctx.stroke();ctx.setLineDash([]);
+  /* ONE POINT PER DAY, the same subsampling the data table declares ("one shown per day") --
+     every hour was the workflow's scatter, and autocorrelated hours draw as tangled worms */
+  function dots(pid,rad,al){var d3=BYID[pid],arr3=d3[kind];
+    ctx.globalAlpha=al;
+    for(var i3=0;i3<arr3.length;i3+=24){
+      var X3=P.px(arr3[i3]),Y3=P.py(Math.min(d3.n-i3,CAP));
+      ctx.fillStyle=PCOL[pid];ctx.beginPath();ctx.arc(X3,Y3,rad,0,7);ctx.fill();
+      ctx.strokeStyle='rgba(255,255,255,0.9)';ctx.lineWidth=1.2;ctx.stroke();}
+    ctx.globalAlpha=1;}
+  TRAINP.forEach(function(p3){dots(p3,3.4,0.5);});   /* the rows the line was fitted on */
+  dots(pump,4.2,0.95);                               /* the chosen new pump, on top */
   /* the model */
-  ctx.strokeStyle=NAVY;ctx.lineWidth=2.4;ctx.beginPath();
+  ctx.strokeStyle=NAVY;ctx.lineWidth=2.6;ctx.beginPath();
   ctx.moveTo(P.px(lo),P.py(w[0]+w[1]*lo));ctx.lineTo(P.px(hi),P.py(w[0]+w[1]*hi));ctx.stroke();
   ctx.restore();
   /* the testing hour: its indicator value, the prediction ON the line, the actual as a ring */
