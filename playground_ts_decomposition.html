@@ -1,0 +1,608 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Decomposition and Baselines</title>
+<link rel="stylesheet" href="pg_style.css?v=24">
+<link rel="stylesheet" href="vendor/katex/katex.min.css">
+<script src="vendor/katex/katex.min.js"></script>
+<script src="vendor/katex/auto-render.min.js"></script>
+<style>
+  :root{--panel-h:429px}
+  .pg .plots .canvasbox{width:100%;height:clamp(260px,44vh,400px)}
+  .pg .layout>.stage{align-self:start}
+  /* UD §1.2: ตรึงความสูงที่คอลัมน์โปร่งใส (.rail) ไม่ใช่การ์ดขาว */
+  .pg .layout>.rail{grid-column:2;min-width:0;align-self:start;display:flex;flex-direction:column;align-items:stretch;min-height:var(--panel-h)}
+  .pg .rail>.panel{width:100%;min-width:0;align-self:stretch;min-height:0}
+  /* every selector = equal-width cells in one row; the pattern selector is a 3×2 grid */
+  .pg .panel .seg{display:grid;grid-auto-flow:column;grid-auto-columns:1fr;width:100%;min-width:0;border:1px solid #e6e6e0;border-radius:8px;overflow:hidden}
+  .pg .panel .seg button{font-size:15px;padding:7px 2px;cursor:pointer;border:0!important;text-align:center;min-width:0;white-space:nowrap}
+  .pg .panel .seg button+button{border-left:1px solid #e6e6e0!important}
+  .pg .panel .seg[data-for="pat"]{grid-auto-flow:row;grid-template-columns:1fr 1fr 1fr}
+  .pg .panel .seg[data-for="pat"] button{border-top:1px solid #e6e6e0!important}
+  .pg .panel .seg[data-for="pat"] button:not(:nth-child(3n+1)){border-left:1px solid #e6e6e0!important}
+  .pg .panel .seg[data-for="pat"] button:nth-child(3n+1){border-left:0!important}
+  .pg .panel .seg[data-for="pat"] button:nth-child(-n+3){border-top:0!important}
+  .pg .panel .drow{margin:4px 0!important}
+  .pg .panel .drow.lock{opacity:.42}
+  .pg .panel .drow.lock input,.pg .panel .drow.lock button{pointer-events:none;cursor:not-allowed}
+  .goal{background:var(--sec);border:1px solid var(--line);border-radius:8px;padding:6px 12px;font-size:15px;color:var(--ink);line-height:1.5;margin:0 0 2px}
+  .goal .q{color:#1e3a8a;font-weight:700}
+  .goal .katex{font-size:1em}
+  .eqbox{background:#fff;border:1px solid var(--line);border-radius:8px;padding:3px 12px;text-align:center;margin:0 0 3px;color:#1f2a44;min-height:26px}
+  .eqbox .katex{font-size:1.06em}
+  .eqbox .eqnum{color:#185fa5;margin-top:1px}
+  /* baseline result table — native table, house colours */
+  .btab{width:100%;border-collapse:collapse;font-size:15px;margin:0}
+  .btab th{text-align:left;font-weight:600;color:#6b7280;padding:6px 10px;border-bottom:1px solid #e6e6e0;font-size:13px;letter-spacing:.03em;white-space:nowrap}
+  .btab td{padding:7px 10px;border-bottom:1px solid #eeeee9;vertical-align:top}
+  .btab td.v{text-align:right;font-variant-numeric:tabular-nums;font-weight:700;color:#1e3a8a;white-space:nowrap;width:1%}
+  .btab td.nm{font-weight:700;white-space:nowrap;width:1%}
+  .btab th.r{text-align:right}
+  .btab td.say{color:#374151}
+  .btab tr.win td.nm,.btab tr.win td.v{color:#2E6B63}
+  .btab .lead{display:block;font-size:13px;color:#6b7280;font-weight:400}
+  /* Learn tab: the deck fills the stage width; the control rail is hidden */
+  .learn{display:none;background:#fff;border:1px solid var(--line);border-radius:10px;overflow:hidden}
+  .learn iframe{width:100%;height:clamp(420px,62vh,720px);border:0;display:block;background:#f6f7f9}
+  .learn .bar{display:flex;justify-content:space-between;align-items:center;gap:10px;padding:8px 12px;border-bottom:1px solid var(--line);font-size:14px;color:#475569}
+  .learn .bar a{color:#185fa5;font-weight:600;text-decoration:none}
+  .pg.mode-learn .layout,.pg.mode-learn .goal{display:none}
+  .pg.mode-learn .learn{display:block}
+  a.tabbtn{text-decoration:none;display:inline-flex;align-items:center}
+  @media(max-width:820px){
+    .pg .plots{flex-direction:column}
+    .pg .plots .canvasbox{max-height:none}
+    .pg .layout>.rail{grid-column:auto;width:auto;min-height:0;display:block}
+    .pg .panel{position:fixed;left:0;right:0;bottom:0;margin:0;max-height:50vh;overflow-y:auto;
+      border:1px solid var(--line);border-bottom:0;border-radius:14px 14px 0 0;box-shadow:0 -3px 14px rgba(0,0,0,.10);z-index:50}
+  }
+</style>
+</head>
+<body class="pg">
+<h2 class="sr-only" style="position:absolute;width:1px;height:1px;overflow:hidden">Hourly electrical load over 14 days. Build sets the level, the trend slope, the daily seasonal shape (sine, square, sawtooth or workday), its amplitude, the noise and how the season behaves, and reports the share of variation each part owns. Window m averages m hours and reports how much of the daily season survives and how far the averaged trend is from the true one. Recover runs Classical decomposition or STL, additive or multiplicative, and scores the recovered seasonal effect against the one that was built. Baselines forecasts 24 or 48 hours ahead from a fixed origin with Naive and Seasonal Naive and reports MAE in kW with a verdict.</h2>
+<div class="wrap">
+  <div class="hdr">
+    <h1 id="__pgt" data-tex="\text{1. Decomposition and Baselines}">1. Decomposition and Baselines</h1>
+    <div class="tabs" id="tabs"></div>
+  </div>
+  <div class="goal" id="hint"></div>
+  <div class="learn" id="learn">
+    <div class="bar"><span id="learnNote"></span><a id="learnFull" href="ts_day1_preview.html" target="_blank" rel="noopener"></a></div>
+    <iframe id="learnFrame" title="Day 1 slides" loading="lazy"></iframe>
+  </div>
+  <div class="layout">
+    <div class="stage">
+      <div class="plots">
+        <div class="canvasbox" id="boxM"><canvas id="mC"></canvas></div>
+      </div>
+      <div id="btabWrap" style="display:none"><table class="btab" id="btab"></table></div>
+      <div class="eqbox" id="eq"></div>
+    </div>
+    <div class="rail">
+    <div class="panel">
+      <div class="drow" id="c-pat" style="display:flex;align-items:center;gap:10px;margin:6px 0">
+        <span class="dlab" style="flex:0 0 auto;color:#475569;font-size:15px;font-weight:600">\(\text{Pattern}\)</span>
+        <div class="seg" data-for="pat">
+          <button type="button" data-val="tr">\(\text{Trend}\)</button>
+          <button type="button" data-val="se">\(\text{Season}\)</button>
+          <button type="button" data-val="ts">\(\text{Trend+season}\)</button>
+          <button type="button" data-val="gr">\(\text{Growing}\)</button>
+          <button type="button" data-val="df">\(\text{Drifting}\)</button>
+          <button type="button" data-val="lv">\(\text{Level}\)</button>
+        </div>
+      </div>
+      <div class="drow" id="c-shape" style="display:flex;align-items:center;gap:10px;margin:6px 0">
+        <span class="dlab" style="flex:0 0 auto;color:#475569;font-size:15px;font-weight:600">\(\text{Shape}\)</span>
+        <div class="seg" data-for="shape">
+          <button type="button" data-val="sine">\(\text{Sine}\)</button>
+          <button type="button" data-val="square">\(\text{Square}\)</button>
+          <button type="button" data-val="saw">\(\text{Sawtooth}\)</button>
+          <button type="button" data-val="work">\(\text{Workday}\)</button>
+        </div>
+      </div>
+      <div class="drow" id="c-tr" style="display:flex;align-items:center;gap:10px;margin:6px 0">
+        <span class="dlab" style="flex:0 0 92px;display:flex;align-items:baseline;gap:5px"><span style="color:#475569;font-size:15px;font-weight:600">\(b\)</span><span style="color:#6b7280;font-size:13px">\(\text{trend, kW/h}\)</span></span>
+        <input type="range" id="trIn" min="0" max="12" value="6" step="1" style="flex:1 1 auto;width:auto;min-width:0;margin:0">
+        <span class="num" id="trV" style="flex:0 0 66px;text-align:right;font-size:15px;padding:4px 7px;border:1px solid #e6e6e0;border-radius:7px;background:#fff;color:#185fa5;font-weight:600;font-variant-numeric:tabular-nums">0.06</span>
+      </div>
+      <div class="drow" id="c-amp" style="display:flex;align-items:center;gap:10px;margin:6px 0">
+        <span class="dlab" style="flex:0 0 92px;display:flex;align-items:baseline;gap:5px"><span style="color:#475569;font-size:15px;font-weight:600">\(A\)</span><span style="color:#6b7280;font-size:13px">\(\text{amplitude, kW}\)</span></span>
+        <input type="range" id="ampIn" min="0" max="25" value="14" step="1" style="flex:1 1 auto;width:auto;min-width:0;margin:0">
+        <span class="num" id="ampV" style="flex:0 0 66px;text-align:right;font-size:15px;padding:4px 7px;border:1px solid #e6e6e0;border-radius:7px;background:#fff;color:#185fa5;font-weight:600;font-variant-numeric:tabular-nums">14</span>
+      </div>
+      <div class="drow" id="c-per" style="display:flex;align-items:center;gap:10px;margin:6px 0">
+        <span class="dlab" style="flex:0 0 auto;display:flex;align-items:baseline;gap:5px"><span style="color:#475569;font-size:15px;font-weight:600">\(P\)</span><span style="color:#6b7280;font-size:13px">\(\text{period}\)</span></span>
+        <div class="seg" data-for="per">
+          <button type="button" data-val="12">\(12\text{ h}\)</button>
+          <button type="button" data-val="24">\(24\text{ h}\)</button>
+          <button type="button" data-val="48">\(48\text{ h}\)</button>
+        </div>
+      </div>
+      <div class="drow" id="c-sig" style="display:flex;align-items:center;gap:10px;margin:6px 0">
+        <span class="dlab" style="flex:0 0 92px;display:flex;align-items:baseline;gap:5px"><span style="color:#475569;font-size:15px;font-weight:600">\(\sigma\)</span><span style="color:#6b7280;font-size:13px">\(\text{noise, kW}\)</span></span>
+        <input type="range" id="sigIn" min="0" max="16" value="4" step="1" style="flex:1 1 auto;width:auto;min-width:0;margin:0">
+        <span class="num" id="sigV" style="flex:0 0 66px;text-align:right;font-size:15px;padding:4px 7px;border:1px solid #e6e6e0;border-radius:7px;background:#fff;color:#185fa5;font-weight:600;font-variant-numeric:tabular-nums">2.0</span>
+      </div>
+      <div class="drow" id="c-beh" style="display:flex;align-items:center;gap:10px;margin:6px 0">
+        <span class="dlab" style="flex:0 0 auto;color:#475569;font-size:15px;font-weight:600">\(\text{Season}\)</span>
+        <div class="seg" data-for="beh">
+          <button type="button" data-val="same">\(\text{Same}\)</button>
+          <button type="button" data-val="grow">\(\text{Grows}\)</button>
+          <button type="button" data-val="drift">\(\text{Drifts}\)</button>
+        </div>
+      </div>
+      <div class="drow" id="c-m" style="display:flex;align-items:center;gap:10px;margin:6px 0">
+        <span class="dlab" style="flex:0 0 92px;display:flex;align-items:baseline;gap:5px"><span style="color:#475569;font-size:15px;font-weight:600">\(m\)</span><span style="color:#6b7280;font-size:13px">\(\text{window, h}\)</span></span>
+        <input type="range" id="mIn" min="2" max="48" value="24" step="1" style="flex:1 1 auto;width:auto;min-width:0;margin:0">
+        <span class="num" id="mV" style="flex:0 0 66px;text-align:right;font-size:15px;padding:4px 7px;border:1px solid #e6e6e0;border-radius:7px;background:#fff;color:#185fa5;font-weight:600;font-variant-numeric:tabular-nums">24</span>
+      </div>
+      <div class="drow" id="c-meth" style="display:flex;align-items:center;gap:10px;margin:6px 0">
+        <span class="dlab" style="flex:0 0 auto;color:#475569;font-size:15px;font-weight:600">\(\text{Method}\)</span>
+        <div class="seg" data-for="meth">
+          <button type="button" data-val="cl">\(\text{Classical}\)</button>
+          <button type="button" data-val="stl">\(\text{STL}\)</button>
+        </div>
+      </div>
+      <div class="drow" id="c-mode" style="display:flex;align-items:center;gap:10px;margin:6px 0">
+        <span class="dlab" style="flex:0 0 auto;color:#475569;font-size:15px;font-weight:600">\(\text{Split}\)</span>
+        <div class="seg" data-for="mode">
+          <button type="button" data-val="add">\(\text{Additive}\)</button>
+          <button type="button" data-val="mul">\(\text{Multiplicative}\)</button>
+        </div>
+      </div>
+      <div class="drow" id="c-ns" style="display:flex;align-items:center;gap:10px;margin:6px 0">
+        <span class="dlab" style="flex:0 0 92px;display:flex;align-items:baseline;gap:5px"><span style="color:#475569;font-size:15px;font-weight:600">\(n_s\)</span><span style="color:#6b7280;font-size:13px">\(\text{season span}\)</span></span>
+        <input type="range" id="nsIn" min="3" max="15" value="7" step="2" style="flex:1 1 auto;width:auto;min-width:0;margin:0">
+        <span class="num" id="nsV" style="flex:0 0 66px;text-align:right;font-size:15px;padding:4px 7px;border:1px solid #e6e6e0;border-radius:7px;background:#fff;color:#185fa5;font-weight:600;font-variant-numeric:tabular-nums">7</span>
+      </div>
+      <div class="drow" id="c-sm" style="display:flex;align-items:center;gap:10px;margin:6px 0">
+        <span class="dlab" style="flex:0 0 auto;display:flex;align-items:baseline;gap:5px"><span style="color:#475569;font-size:15px;font-weight:600">\(m\)</span><span style="color:#6b7280;font-size:13px">\(\text{seasonal naive}\)</span></span>
+        <div class="seg" data-for="sm">
+          <button type="button" data-val="12">\(12\)</button>
+          <button type="button" data-val="24">\(24\)</button>
+          <button type="button" data-val="36">\(36\)</button>
+          <button type="button" data-val="48">\(48\)</button>
+        </div>
+      </div>
+      <div class="drow" id="c-hz" style="display:flex;align-items:center;gap:10px;margin:6px 0">
+        <span class="dlab" style="flex:0 0 auto;display:flex;align-items:baseline;gap:5px"><span style="color:#475569;font-size:15px;font-weight:600">\(h\)</span><span style="color:#6b7280;font-size:13px">\(\text{horizon}\)</span></span>
+        <div class="seg" data-for="hz">
+          <button type="button" data-val="24">\(24\text{ h}\)</button>
+          <button type="button" data-val="48">\(48\text{ h}\)</button>
+        </div>
+      </div>
+      <div class="row" id="rowRun">
+        <button class="primary" id="resetBtn">\(\text{New data}\)</button>
+      </div>
+    </div>
+    </div>
+  </div>
+</div>
+<script src="pg_engine.js?v=5"></script>
+<script>
+/* 1. Decomposition and Baselines — hourly electrical load over 14 days.
+   Build the series from its parts, average it, try to get the parts back, then forecast it with the
+   two baselines every later model has to beat. Every tab has ONE number to read (see OBJECTIVES.md). */
+const C={ser:'#E07A5F',serTx:'#B0503A',trd:'#5B8FB9',trdTx:'#3F6E99',sea:'#E3B23C',seaTx:'#8A6510',
+         rem:'#B07AAE',remTx:'#7E5A93',ok:'#6BA38C',okTx:'#3F7D63',ax:'#94a3b8',axtx:'#64748b',zero:'#9aa3b2',hist:'#7f8fa6'};
+function K(t,el,d){if(!el)return;if(window.katex){try{katex.render(String(t),el,{throwOnError:false,displayMode:!!d});return;}catch(e){}}el.textContent=t;}
+function Keq(sym,num){const el=document.getElementById('eq');if(!el)return;el.textContent='';
+  const d1=document.createElement('div');
+  try{katex.render(sym,d1,{throwOnError:false});}catch(e){d1.textContent=sym;}
+  el.appendChild(d1);
+  (Array.isArray(num)?num:[num]).forEach(line=>{const d2=document.createElement('div');d2.className='eqnum';
+    try{katex.render(line,d2,{throwOnError:false});}catch(e){d2.textContent=line;}el.appendChild(d2);});}
+/* Ktext: a sentence as many small KaTeX pieces (one per word), so the browser can wrap it and
+   §2.4 "every text is KaTeX" still holds. Markup: **bold** · __italic__ · $math$ · [#hex|coloured words] */
+function Ktext(el,str,base){if(!el)return;el.textContent='';
+  const push=(tex,cls)=>{const sp=document.createElement('span');if(cls)sp.className=cls;
+    try{katex.render(tex,sp,{throwOnError:false});}catch(e){sp.textContent=tex;}el.appendChild(sp);el.appendChild(document.createTextNode(' '));};
+  const wrap=(w,st)=>{const esc=w.replace(/[\\{}%#&\$]/g,m=>'\\'+m);
+    let tex='\\text{'+esc+'}';if(st.b)tex='\\textbf{'+esc+'}';if(st.i)tex='\\textit{'+esc+'}';
+    if(st.c)tex='\\textcolor{'+st.c+'}{'+tex+'}';return tex;};
+  const st={b:!!(base&&base.b),i:false,c:base&&base.c||null};
+  const toks=str.split(/(\*\*|__|\$[^$]+\$|\[#[0-9a-fA-F]{6}\||\]|\s+)/).filter(x=>x!==''&&x!==undefined);
+  toks.forEach(tk=>{
+    if(tk==='**'){st.b=!st.b;return;}
+    if(tk==='__'){st.i=!st.i;return;}
+    if(/^\[#/.test(tk)){st.c=tk.slice(1,-1);return;}
+    if(tk===']'){st.c=base&&base.c||null;return;}
+    if(/^\s+$/.test(tk))return;
+    if(/^\$[^$]+\$$/.test(tk)){push((st.c?'\\textcolor{'+st.c+'}{':'')+tk.slice(1,-1)+(st.c?'}':''));return;}
+    push(wrap(tk,st));});}
+function goalHTML(q,aim){const el=document.getElementById('hint');if(!el)return;el.textContent='';
+  const a=document.createElement('span');a.className='q';Ktext(a,q,{b:true,c:'#1e3a8a'});el.appendChild(a);
+  const d=document.createElement('span');Ktext(d,'— '+aim);el.appendChild(d);}
+
+/* ---------- the world: 14 days of hourly load ---------- */
+const N=336,LEVEL=100,BEND=4.0,BPER=120;      /* the trend carries a slow 5-day swing: over-smoothing has to cost something */
+const ORIGIN=288;                             /* Baselines forecast from the start of day 13 */
+let PER=24;
+const BASE={m:24,ns:7,meth:'cl',mode:'add',sm:24,hz:48,shape:'sine',per:24};
+let seed=1,tab=0,mode='add',meth='cl',beh='same',pat='ts',shape='sine',sm=24,hz=48;
+/* the six standard worlds. A preset snaps the sliders there; the sliders stay live afterwards. */
+const PAT={tr:{b:0.08,A:0, sg:2.0,beh:'same'}, se:{b:0,   A:16,sg:1.5,beh:'same'},
+           ts:{b:0.06,A:14,sg:2.0,beh:'same'}, gr:{b:0.06,A:14,sg:2.0,beh:'grow'},
+           df:{b:0.06,A:14,sg:2.0,beh:'drift'},lv:{b:0,   A:0, sg:2.0,beh:'same'}};   /* lv = a level that only drifts slowly: the world where Naive is right */
+let Y=[],TT=[],TE=[],TR=[];      /* series · true trend-cycle · true SEASONAL EFFECT in kW · true noise */
+const mIn=document.getElementById('mIn'),nsIn=document.getElementById('nsIn'),
+      trIn=document.getElementById('trIn'),ampIn=document.getElementById('ampIn'),sigIn=document.getElementById('sigIn');
+const SLOPE=()=>+trIn.value/100, AMP=()=>+ampIn.value, SIG=()=>+sigIn.value/2;
+function gauss(r){let s=0;for(let k=0;k<12;k++)s+=r.next();return s-6;}
+function mean(a){const v=a.filter(x=>x!=null&&isFinite(x));return v.length?v.reduce((x,b)=>x+b,0)/v.length:0;}
+function sd(a){const v=a.filter(x=>x!=null&&isFinite(x)),m=mean(v);return Math.sqrt(mean(v.map(x=>(x-m)*(x-m))));}
+function pp(a){const v=a.filter(x=>x!=null&&isFinite(x));return v.length?Math.max.apply(null,v)-Math.min.apply(null,v):0;}
+function rmseOf(a,b){let s=0,n=0;for(let i=0;i<a.length;i++){
+  if(a[i]==null||b[i]==null||!isFinite(a[i])||!isFinite(b[i]))continue;s+=(a[i]-b[i])*(a[i]-b[i]);n++;}
+  return n?Math.sqrt(s/n):NaN;}
+function maeOf(a,b){let s=0,n=0;for(let i=0;i<a.length;i++){if(a[i]==null||b[i]==null)continue;s+=Math.abs(a[i]-b[i]);n++;}return n?s/n:NaN;}
+function maxErr(a,b){let m=0;for(let i=0;i<a.length;i++){if(a[i]==null||b[i]==null)continue;m=Math.max(m,Math.abs(a[i]-b[i]));}return m;}
+
+/* daily profiles — every shape has exact zero mean over one period and amplitude 1 */
+function shapeAt(kind,ph){
+  if(kind==='square')return ph<0.5?1:-1;
+  if(kind==='saw')return 2*ph-1;
+  if(kind==='work'){const h=ph*24;let v;
+    if(h<6)v=0;else if(h<8)v=(h-6)/2;else if(h<18)v=1;else if(h<20)v=1-(h-18)/2;else v=0;return v;}
+  return Math.sin(2*Math.PI*ph);}
+function profile(kind,P){const v=[];for(let i=0;i<P;i++)v.push(shapeAt(kind,i/P));const c=mean(v);
+  const pk=(Math.max.apply(null,v)-Math.min.apply(null,v))/2||1;return v.map(x=>(x-c)/pk);}
+
+/* ---- BUILD ---- the learner sets the truth, so every later claim can be scored against it */
+function regen(){const r=PG.rng(seed*7919+37),b=SLOPE(),A=AMP(),P=PER,sg=SIG(),S1=profile(shape,P);
+  TT=[];TE=[];TR=[];
+  for(let t=0;t<N;t++){
+    const T=LEVEL+b*t+BEND*Math.sin(2*Math.PI*t/BPER);TT.push(T);
+    const u=t/(N-1),base=S1[t%P];
+    /* drift = the seasonal SHAPE moves through the sample (phase and size), which is exactly
+       what Classical decomposition cannot represent and what STL was invented for */
+    const dr=S1[Math.floor(((t/P)+0.25*u)*P)%P];
+    TE.push(beh==='same'?A*base:beh==='grow'?T*(A/LEVEL)*base:A*(0.55+0.9*u)*dr);
+    TR.push(sg*gauss(r));}
+  Y=TT.map((v,i)=>v+TE[i]+TR[i]);}
+
+/* ---- FPP 3.3: centred moving average. Even m needs the 2xm-MA — half weight at both ends ---- */
+function ma(y,m){const out=new Array(y.length).fill(null);
+  if(m<2)return y.slice();
+  if(m%2){const k=(m-1)/2;
+    for(let t=k;t<y.length-k;t++){let s=0;for(let i=-k;i<=k;i++)s+=y[t+i];out[t]=s/m;}}
+  else{const k=m/2;
+    for(let t=k;t<y.length-k;t++){let s=0.5*y[t-k]+0.5*y[t+k];
+      for(let i=-k+1;i<=k-1;i++)s+=y[t+i];out[t]=s/m;}}
+  return out;}
+
+/* ---- FPP 3.4: classical decomposition — one seasonal index per hour of the day, fixed for the whole sample ---- */
+function classical(y,m,mul){
+  const T=ma(y,m);
+  const de=y.map((v,i)=>T[i]==null?null:(mul?v/T[i]:v-T[i]));
+  const sum=new Array(PER).fill(0),cnt=new Array(PER).fill(0);
+  de.forEach((v,i)=>{if(v!=null&&isFinite(v)){sum[i%PER]+=v;cnt[i%PER]++;}});
+  const raw=sum.map((s,j)=>cnt[j]?s/cnt[j]:(mul?1:0)),c=mean(raw);
+  const S0=raw.map(v=>mul?(c?v/c:1):v-c);
+  const S=y.map((v,i)=>S0[i%PER]);
+  const R=y.map((v,i)=>T[i]==null?null:(mul?v/((T[i]*S[i])||1):v-T[i]-S[i]));
+  return {T,de,S0,S,R};}
+
+/* ---- loess: local linear fit, tricube weights, over the q nearest points ---- */
+function loessAt(ys,x0,q){const n=ys.length;q=Math.max(2,Math.min(Math.round(q),n));
+  let lo=Math.round(x0)-Math.floor(q/2);lo=Math.max(0,Math.min(n-q,lo));const hi=lo+q-1;
+  const d=Math.max(Math.abs(x0-lo),Math.abs(hi-x0))||1;
+  let sw=0,sx=0,sy=0,sxx=0,sxy=0;
+  for(let i=lo;i<=hi;i++){const u=Math.abs(i-x0)/d,t=1-u*u*u,w=t>0?t*t*t:0;
+    if(w<=0)continue;sw+=w;sx+=w*i;sy+=w*ys[i];sxx+=w*i*i;sxy+=w*i*ys[i];}
+  if(sw<=0)return ys[Math.max(0,Math.min(n-1,Math.round(x0)))];
+  const mx=sx/sw,my=sy/sw,vxx=sxx/sw-mx*mx,vxy=sxy/sw-mx*my;
+  return my+(Math.abs(vxx)<1e-12?0:vxy/vxx)*(x0-mx);}
+function loess(ys,q){return ys.map((_,i)=>loessAt(ys,i,q));}
+
+/* ---- STL (Cleveland et al.): loess on each cycle-subseries, so the seasonal shape may change ---- */
+function nextOdd(x){x=Math.ceil(x);return x%2?x:x+1;}
+function stlAdd(y,m,ns){const n=y.length,nt=nextOdd(1.5*m/Math.max(0.05,1-1.5/ns));
+  let T=loess(y,nt),S=new Array(n).fill(0);
+  for(let it=0;it<2;it++){
+    const D=y.map((v,i)=>v-T[i]),Cs=new Array(n).fill(0);
+    for(let j=0;j<m;j++){const idx=[],sub=[];
+      for(let i=j;i<n;i+=m){idx.push(i);sub.push(D[i]);}
+      const sm2=sub.map((_,k)=>loessAt(sub,k,ns));
+      idx.forEach((i,k)=>{Cs[i]=sm2[k];});}
+    const Lp=loess(Cs,nt);
+    S=Cs.map((v,i)=>v-Lp[i]);
+    T=loess(y.map((v,i)=>v-S[i]),nt);}
+  return {T,S,R:y.map((v,i)=>v-T[i]-S[i])};}
+function stl(y,m,ns,mul){
+  if(!mul)return stlAdd(y,m,ns);
+  const ly=y.map(v=>Math.log(Math.max(1e-9,v))),o=stlAdd(ly,m,ns);
+  return {T:o.T.map(Math.exp),S:o.S.map(Math.exp),R:o.R.map(Math.exp)};}
+
+function build(m,ns,mul,which){
+  const o=which==='stl'?stl(Y,m,ns,mul):classical(Y,m,mul);
+  /* every method is judged on the SAME thing: the seasonal effect in kW */
+  const E=o.S.map((s,i)=>o.T[i]==null?null:(mul?o.T[i]*(s-1):s));
+  return {T:o.T,S:o.S,R:o.R,de:o.de,E:E,centre:mul?1:0};}
+
+/* ---- the two baselines every later model must beat ---- */
+function fNaive(y,o,h){return new Array(h).fill(y[o-1]);}
+function fSNaive(y,o,h,m){const f=[];for(let i=0;i<h;i++)f.push(y[o-m+(i%m)]);return f;}
+function baselines(){const h=hz,o=ORIGIN,act=Y.slice(o,o+h);
+  const fn=fNaive(Y,o,h),fs=fSNaive(Y,o,h,sm);
+  const r={h,o,m:sm,P:PER,naive:{mae:maeOf(act,fn),max:maxErr(act,fn),f:fn},snaive:{mae:maeOf(act,fs),max:maxErr(act,fs),f:fs},act};
+  r.winner=r.snaive.mae<r.naive.mae?'snaive':'naive';
+  r.margin=r.winner==='snaive'?100*(r.naive.mae/r.snaive.mae-1):100*(r.snaive.mae/r.naive.mae-1);
+  return r;}
+/* the verdicts are derived from the world the learner built, not typed in */
+function baselineWords(r){const hasS=AMP()>=1,hasT=SLOPE()>=0.01,mOK=(sm%PER===0);
+  let n,s;
+  if(!hasS&&!hasT){n='คงค่าล่าสุด — เหมาะเมื่อระดับเปลี่ยนช้าและไม่มีรอบ';s='คัดลอกค่าเมื่อ '+sm+' ชั่วโมงก่อน = คัดลอก noise เก่ามาด้วย จึงแพ้ Naive';}
+  else if(!hasS&&hasT){n='คงค่าล่าสุด — ตามระดับที่ไต่ขึ้นไม่ทัน ยิ่งไกลยิ่งเบี่ยง';s='คัดลอกจากรอบก่อนซึ่งต่ำกว่า — ตามระดับไม่ทันเช่นกัน ไม่มีตัวไหนตาม trend';}
+  else{n='คงค่าล่าสุด — ทำนายระดับได้ แต่ไม่ทำนายรอบรายวัน';
+    s=mOK?'คัดลอกตำแหน่งเดียวกันจากรอบก่อน — ตามรอบได้เพราะ m = '+sm+' ตรงกับ P = '+PER+(hasT?' แต่ยังตามระดับที่ไต่ขึ้นไม่ทัน':'')
+         :'m = '+sm+' ไม่ตรงกับ P = '+PER+' — คัดลอกผิดตำแหน่งในรอบ จึงพลาดยอดกับร่อง';}
+  return {naive:n,snaive:s};}
+
+/* ---------- the numbers each tab exists to produce ---------- */
+function shares(){const vT=sd(TT)*sd(TT),vS=sd(TE)*sd(TE),vR=sd(TR)*sd(TR),tot=vT+vS+vR||1;
+  return [100*vT/tot,100*vS/tot,100*vR/tot];}
+const survive=m=>pp(ma(TE,m));                     /* season left after averaging m hours — exactly 0 at multiples of P */
+const trendErr=m=>rmseOf(ma(Y,m),TT);              /* how far the averaged trend is from the true one, kW */
+/* averaging 14 noisy cycles always leaves a pattern of about 4σ/√cycles kW — a "found" season must clear that floor */
+const noiseFloor=()=>4*SIG()/Math.sqrt(N/PER);
+function verdict(err,truth){
+  if(truth<1.0){const fl=noiseFloor();return pp(err.E)>Math.max(1.0,1.5*fl)
+    ? {t:'INVENTED — you built no season and it found one above the noise floor',ok:false}
+    : {t:'nothing found — correct, below the noise floor of '+fl.toFixed(1)+' kW',ok:true};}
+  const e=err.rel;
+  return e<0.15 ? {t:'RECOVERED — error '+(100*e).toFixed(0)+'% of the season',ok:true}
+       : e<0.40 ? {t:'PARTLY — error '+(100*e).toFixed(0)+'% of the season',ok:false}
+                : {t:'MISSED — error '+(100*e).toFixed(0)+'% of the season',ok:false};}
+function banner(c,W,txt,ok){c.font='600 19px KaTeX_Main';const w=c.measureText(txt).width,x=W/2-w/2;
+  c.fillStyle=ok?'rgba(107,163,140,0.16)':'rgba(176,122,174,0.18)';
+  c.fillRect(x-14,4,w+28,29);
+  c.fillStyle=ok?'#3F7D63':'#7E5A93';c.textAlign='left';c.textBaseline='top';c.fillText(txt,x,9);}
+
+/* ---------------- drawing ---------------- */
+function ctxOf(cv){cv.style.width='100%';cv.style.height='100%';const w=Math.max(80,Math.round(cv.clientWidth)),h=Math.max(80,Math.round(cv.clientHeight));cv.width=w;cv.height=h;return cv.getContext('2d');}
+const mC=document.getElementById('mC');
+function nice(v){const a=Math.abs(v);return a>=100?v.toFixed(0):a>=10?v.toFixed(1):v.toFixed(2);}
+function tag(c,box,txt,col,slot){c.font='14px KaTeX_Main';const w=c.measureText(txt).width,y=box.t+1+19*(slot||0);
+  c.fillStyle='rgba(255,255,255,0.86)';c.fillRect(box.l+2,y-2,w+6,19);
+  c.fillStyle=col;c.textAlign='left';c.textBaseline='top';c.fillText(txt,box.l+4,y);}
+
+/* The standard decomposition figure: equal-height strips on ONE shared span, so a swing of 14 kW in the
+   season panel is drawn exactly as tall as a swing of 14 kW in the series panel. */
+function commonSpan(panels){let mx=0;
+  panels.forEach(p=>{[p.data,p.truth].forEach(arr=>{if(!arr)return;
+    const v=arr.filter(x=>x!=null&&isFinite(x));if(v.length)mx=Math.max(mx,Math.max.apply(null,v)-Math.min.apply(null,v));});});
+  return Math.max(mx*1.18,1e-6);}
+function strips(c,L,R,T,B,panels){
+  const n=panels.length,gap=13,hh=(B-T-gap*(n-1)-36)/n,sp=commonSpan(panels);
+  panels.forEach((p,i)=>{
+    const t=T+i*(hh+gap),box={l:L,t:t,r:R,b:t+hh},last=(i===n-1);
+    const v=p.data.filter(x=>x!=null&&isFinite(x));
+    const mid=v.length?(Math.max.apply(null,v)+Math.min.apply(null,v))/2:0;
+    const lo=mid-sp/2,hi=mid+sp/2;
+    const PX=x=>box.l+(x+0.6)/(N-0.4+0.6)*(box.r-box.l),PY=y=>box.b-(y-lo)/(hi-lo)*(box.b-box.t);
+    c.strokeStyle=C.ax;c.lineWidth=1.1;c.beginPath();c.moveTo(box.l,box.t);c.lineTo(box.l,box.b);c.lineTo(box.r,box.b);c.stroke();
+    c.fillStyle=C.axtx;c.font='14px KaTeX_Main';c.textAlign='right';c.textBaseline='middle';
+    [lo+sp*0.12,hi-sp*0.12].forEach(y=>c.fillText(nice(y),box.l-5,PY(y)));
+    if(p.zero!=null&&p.zero>lo&&p.zero<hi){c.strokeStyle=C.zero;c.lineWidth=1;c.setLineDash([4,4]);
+      c.beginPath();c.moveTo(box.l,PY(p.zero));c.lineTo(box.r,PY(p.zero));c.stroke();c.setLineDash([]);}
+    if(p.truth){c.strokeStyle=p.col;c.lineWidth=1.7;c.setLineDash([6,4]);c.beginPath();
+      let on=false;p.truth.forEach((y,j)=>{if(y==null||!isFinite(y)){on=false;return;}
+        const X=PX(j),Yv=PY(y);on?c.lineTo(X,Yv):c.moveTo(X,Yv);on=true;});c.stroke();c.setLineDash([]);}
+    if(p.stem){c.strokeStyle=p.col;c.lineWidth=1.0;
+      p.data.forEach((y,j)=>{if(y==null||!isFinite(y))return;
+        c.beginPath();c.moveTo(PX(j),PY(p.zero||0));c.lineTo(PX(j),PY(y));c.stroke();});}
+    else{c.strokeStyle=p.col;c.lineWidth=1.6;c.beginPath();
+      let on=false;p.data.forEach((y,j)=>{if(y==null||!isFinite(y)){on=false;return;}
+        const X=PX(j),Yv=PY(y);on?c.lineTo(X,Yv):c.moveTo(X,Yv);on=true;});c.stroke();}
+    tag(c,box,p.lab,p.tx,0);
+    if(last){c.fillStyle=C.axtx;c.font='14px KaTeX_Main';c.textAlign='center';c.textBaseline='top';
+      for(let d=0;d<14;d+=2)c.fillText('Day '+(d+1),PX(d*24+12),box.b+3);   /* every other day; a day is 24 hours */
+      c.font='italic 14px KaTeX_Math';c.fillText('hour of the 14 days',(box.l+box.r)/2,box.b+20);}});}
+
+/* the Baselines chart: the last 96 hours before the origin, then the actual next h hours against both forecasts */
+function drawForecast(c,W,H,r){
+  const L=52,R=W-34,T=44,B=H-42,o=r.o,h=r.h,x0=o-96,x1=o+h;
+  const vals=Y.slice(x0,x1).concat(r.naive.f,r.snaive.f).filter(isFinite);
+  const lo=Math.min.apply(null,vals)-3,hi=Math.max.apply(null,vals)+3;
+  const PX=x=>L+(x-x0)/(x1-x0)*(R-L),PY=y=>B-(y-lo)/(hi-lo)*(B-T);
+  c.strokeStyle=C.ax;c.lineWidth=1.1;c.beginPath();c.moveTo(L,T);c.lineTo(L,B);c.lineTo(R,B);c.stroke();
+  /* the future is shaded: nothing right of the origin was seen by either forecast */
+  c.fillStyle='rgba(224,122,95,0.07)';c.fillRect(PX(o),T,PX(x1)-PX(o),B-T);
+  c.fillStyle=C.axtx;c.font='14px KaTeX_Main';c.textAlign='right';c.textBaseline='middle';
+  [lo+(hi-lo)*0.1,(lo+hi)/2,hi-(hi-lo)*0.1].forEach(y=>c.fillText(nice(y),L-5,PY(y)));
+  c.textAlign='center';c.textBaseline='top';
+  [-96,-48,0,24,48].forEach(k=>{if(o+k>x1)return;c.fillText(k===0?'0 h':(k>0?'+':'')+k+' h',PX(o+k),B+4);});
+  c.font='italic 14px KaTeX_Math';c.fillText('hours from the forecast origin',(L+R)/2,B+22);
+  const line=(arr,start,col,w,dash)=>{c.strokeStyle=col;c.lineWidth=w;c.setLineDash(dash||[]);c.beginPath();
+    arr.forEach((y,j)=>{const X=PX(start+j),Yv=PY(y);j?c.lineTo(X,Yv):c.moveTo(X,Yv);});c.stroke();c.setLineDash([]);};
+  line(Y.slice(x0,o+1),x0,C.ser,1.8);                    /* history, up to and including the origin */
+  line(Y.slice(o-1,x1),o-1,C.serTx,1.8,[3,3]);           /* what actually happened */
+  line([Y[o-1]].concat(r.naive.f),o-1,C.trd,2.2,[7,4]);
+  line([Y[o-1]].concat(r.snaive.f),o-1,C.sea,2.2,[7,4]);
+  c.strokeStyle='#111';c.lineWidth=1.6;c.setLineDash([5,4]);c.beginPath();c.moveTo(PX(o),T);c.lineTo(PX(o),B);c.stroke();c.setLineDash([]);
+  c.fillStyle='#111';c.font='600 14px KaTeX_Main';c.textAlign='right';c.textBaseline='top';c.fillText('forecast origin  →  unseen '+h+' h',PX(x1)-4,T+3);
+  /* legend lives in its own band above the plot, so it never sits on the data */
+  const items=[['history',C.ser,false],['actual',C.serTx,true],['Naive',C.trd,true],['Seasonal Naive m='+r.m,C.sea,true]];
+  let x=L+2;c.font='14px KaTeX_Main';c.textBaseline='middle';
+  items.forEach(([lab,col,dash])=>{c.strokeStyle=col;c.lineWidth=2.2;c.setLineDash(dash?[6,4]:[]);c.beginPath();c.moveTo(x,T-22);c.lineTo(x+22,T-22);c.stroke();c.setLineDash([]);
+    c.fillStyle=C.axtx;c.textAlign='left';c.fillText(lab,x+27,T-22);x+=27+c.measureText(lab).width+18;});}
+
+function fillTable(r){const w=baselineWords(r),win=r.winner,tb=document.getElementById('btab');tb.textContent='';
+  const cell=(tr,tag,cls,txt,st)=>{const c=document.createElement(tag);if(cls)c.className=cls;Ktext(c,txt,st);tr.appendChild(c);return c;};
+  const th=document.createElement('thead'),hr=document.createElement('tr');
+  cell(hr,'th','','Model');cell(hr,'th','r','MAE');cell(hr,'th','r','Max error');cell(hr,'th','','Trend / Season');th.appendChild(hr);tb.appendChild(th);
+  const body=document.createElement('tbody');
+  const row=(k,name,d,say)=>{const tr=document.createElement('tr');if(win===k)tr.className='win';
+    const nm=cell(tr,'td','nm',name,{b:true});if(win===k){const l=document.createElement('span');l.className='lead';Ktext(l,'ชนะ '+r.margin.toFixed(0)+'%');nm.appendChild(l);}
+    cell(tr,'td','v',d.mae.toFixed(2)+' kW',{b:true});cell(tr,'td','v',d.max.toFixed(1)+' kW',{b:true});cell(tr,'td','say',say);body.appendChild(tr);};
+  row('naive','Naive',r.naive,w.naive);row('snaive','Seasonal Naive',r.snaive,w.snaive);tb.appendChild(body);}
+
+function draw(){
+  document.body.classList.toggle('mode-learn',tab===4);
+  if(tab===4){const f=document.getElementById('learnFrame');if(f&&!f.getAttribute('src'))f.setAttribute('src','ts_day1_preview.html');return;}
+  const c=ctxOf(mC),W=mC.width,Hh=mC.height;c.clearRect(0,0,W,Hh);
+  const m=(tab===1)?+mIn.value:PER,ns=+nsIn.value,mul=(tab===2&&mode==='mul');
+  const D=build(m,ns,mul,tab===2?meth:'cl');
+  const L=52,R=W-14;
+  document.getElementById('btabWrap').style.display=tab===3?'':'none';
+  if(tab===0){
+    strips(c,L,R,16,Hh-20,[
+      {data:Y,  col:C.ser,tx:C.serTx,lab:'load  y  (kW)'},
+      {data:TT, col:C.trd,tx:C.trdTx,lab:'trend-cycle  T'},
+      {data:TE, col:C.sea,tx:C.seaTx,lab:'daily season  S',zero:0},
+      {data:TR, col:C.rem,tx:C.remTx,lab:'remainder  R',zero:0,stem:true}]);
+  }else if(tab===1){
+    strips(c,L,R,16,Hh-20,[
+      {data:Y,   col:C.ser,tx:C.serTx,lab:'load  y  (kW)'},
+      {data:D.T, col:C.trd,tx:C.trdTx,lab:(m%2?'':'2×')+m+'-hour average — found solid, true dashed',truth:TT},
+      {data:ma(TE,m),col:C.sea,tx:C.seaTx,lab:'the season that survived the average',zero:0}]);
+  }else if(tab===2){
+    const err=seasonError(D),v=verdict(err,pp(TE));
+    banner(c,W,v.t,v.ok);
+    strips(c,L,R,42,Hh-20,[
+      {data:Y,   col:C.ser,tx:C.serTx,lab:'load  y  (kW)'},
+      {data:D.T, col:C.trd,tx:C.trdTx,lab:'trend-cycle — found solid, true dashed',truth:TT},
+      {data:D.E, col:C.sea,tx:C.seaTx,lab:'seasonal effect — error '+err.abs.toFixed(2)+' kW',truth:TE,zero:0},
+      {data:D.R, col:C.rem,tx:C.remTx,lab:'remainder',zero:D.centre,stem:true}]);
+  }else{
+    const r=baselines();drawForecast(c,W,Hh,r);fillTable(r);}
+  showEq(D,m,ns,mul);
+  const narrow=window.matchMedia('(max-width:820px)').matches,wrap=document.querySelector('.wrap'),pnl=document.querySelector('.panel');
+  if(wrap&&pnl)wrap.style.paddingBottom=narrow?(Math.ceil(pnl.getBoundingClientRect().height)+14)+'px':'';}
+
+function seasonError(D){const a=rmseOf(D.E,TE),s=sd(TE);return {abs:a,rel:s>1e-6?a/s:a,E:D.E};}
+
+function showEq(D,m,ns,mul){
+  if(tab===0){const[t,s,r]=shares();
+    Keq('y_t = L + bt + A\\,s_P(t) + \\varepsilon_t \\qquad \\text{share of a part} = \\mathrm{var(part)} \\,/\\, [\\,\\mathrm{var}(T)+\\mathrm{var}(S)+\\mathrm{var}(R)\\,]',
+      ['L='+LEVEL+'\\text{ kW}\\quad b='+SLOPE().toFixed(2)+'\\text{ kW/h}\\quad A='+AMP()+'\\text{ kW}\\quad P='+PER+'\\text{ h}\\quad\\sigma='+SIG().toFixed(1)+'\\text{ kW}',
+       '\\textcolor{#3F6E99}{\\text{trend-cycle }'+t.toFixed(0)+'\\%}\\qquad \\textcolor{#8A6510}{\\text{season }'+s.toFixed(0)+
+       '\\%}\\qquad \\textcolor{#7E5A93}{\\text{noise }'+r.toFixed(0)+'\\%}']);}
+  else if(tab===1)Keq('\\hat T_t = \\tfrac{1}{m}\\left(y_{t-k} + \\dots + y_{t+k}\\right)\\qquad m = \\text{hours averaged}',
+    'm = '+m+'\\text{ h}\\ \\ (P = '+PER+'\\text{ h})\\qquad \\text{season surviving} = '+survive(m).toFixed(2)+'\\text{ kW}'+
+    '\\qquad \\text{trend error} = '+trendErr(m).toFixed(2)+'\\text{ kW}');
+  else if(tab===2){const e=seasonError(D);
+    Keq((mul?'y_t = T_t \\times S_t \\times R_t':'y_t = T_t + S_t + R_t')+'\\qquad '+
+      (meth==='stl'?'\\text{STL}':'\\text{Classical}')+(meth==='stl'&&mul?'\\ (\\text{in logs})':''),
+      '\\text{seasonal-effect error} = '+e.abs.toFixed(2)+'\\text{ kW}\\ \\ ('+(100*e.rel).toFixed(0)+'\\%\\text{ of the season})'+
+      '\\qquad \\mathrm{sd}(\\hat R) = '+sd(D.R).toFixed(2)+'\\text{, true }'+sd(TR).toFixed(2));}
+  else{const r=baselines();
+    Keq('\\text{Naive: }\\hat y_{t+h|t} = y_t \\qquad \\text{Seasonal Naive: }\\hat y_{t+h|t} = y_{t+h-m}',
+      ['\\text{origin } t='+r.o+'\\text{ h (start of day 13)}\\qquad h='+r.h+'\\text{ h}\\qquad m='+r.m+'\\qquad P='+r.P,
+       '\\text{MAE}_{\\text{Naive}}='+r.naive.mae.toFixed(2)+'\\text{ kW}\\qquad \\text{MAE}_{\\text{Seasonal Naive}}='+r.snaive.mae.toFixed(2)+'\\text{ kW}\\qquad '+
+       (r.winner==='snaive'?'\\text{Seasonal Naive wins by }':'\\text{Naive wins by }')+r.margin.toFixed(0)+'\\%']);}}
+
+/* research question first, then the aim with the number to read */
+const TABS=[
+ {name:'\\text{Build}',
+  q:'Level, Trend, Seasonality และ Noise เปลี่ยนรูปร่างของข้อมูลอย่างไร',
+  aim:'ตั้ง **Shape** · $A$ · $\\sigma$ จน [#8A6510|**รอบรายวัน**] ครองเกินครึ่งของความแปรปรวน แล้วอ่านสามเปอร์เซ็นต์ในกล่องสมการ'},
+ {name:'\\text{Window }m',
+  q:'เฉลี่ยกี่ชั่วโมงจึงลบรอบรายวันออกหมดโดยไม่ทำลาย trend',
+  aim:'ลาก $m$ จาก 2 ถึง 48 จดทุกค่าที่ __season surviving__ = 0.00 แล้วเลือกตัวที่ __trend error__ ต่ำสุด'},
+ {name:'\\text{Recover}',
+  q:'วิธีไหนกู้ seasonal effect กลับมาได้ใกล้ที่สุด เมื่อรอบคงที่ โต หรือเคลื่อน',
+  aim:'ลอง Method × Split ทั้งสี่คู่บน Season แต่ละแบบ หา __seasonal-effect error__ ต่ำสุด แล้วตั้ง $A=0$ อ่านแถบด้านบน'},
+ {name:'\\text{Baselines}',
+  q:'เมื่อไหร่ Seasonal Naive ชนะ Naive และชนะเท่าไร',
+  aim:'เปลี่ยน Pattern ทั้งสี่แบบ อ่าน MAE ทั้งสองแถว แล้วตั้ง $m$ ให้ผิดจาก $P$ ดูว่ามันแพ้ Naive ได้ด้วย'},
+ {name:'\\text{Learn}',q:'',aim:''}];
+
+function syncReadouts(){K(mIn.value,document.getElementById('mV'));K(nsIn.value,document.getElementById('nsV'));
+  K(SLOPE().toFixed(2),document.getElementById('trV'));K(String(AMP()),document.getElementById('ampV'));
+  K(SIG().toFixed(1),document.getElementById('sigV'));}
+/* หลักการซ่อน/จาง (ใช้เหมือนกันทั้ง 4 playground):
+     ซ่อน (.off)  = ตัวแปรนี้ไม่มีอยู่ในการทดลองนี้เลย
+     จาง (.lock)  = มีอยู่จริงและค่ามีผล แต่การทดลองนี้ตรึงไว้
+     สว่าง        = ตัวแปรของการทดลองนี้
+   ทุก tab เหลือคันโยกที่ใช้ได้จริงไม่เกิน 6 ตัว (Hick) */
+function syncRows(){
+  const set=(id,st)=>{const e=document.getElementById(id);if(!e)return;
+    e.classList.toggle('off',st==='hide');e.classList.toggle('lock',st==='lock');};
+  set('c-pat','live');
+  set('c-shape',tab===0||tab===1?'live':'hide');
+  set('c-tr',  tab===0||tab===3?'live':'hide');
+  set('c-amp', 'live');
+  set('c-per', tab===1?'live':'hide');                    /* P is a lever only where the window lesson needs it */
+  set('c-sig', tab===2?'hide':'live');                   /* Recover: the preset fixes the noise; the levers are Method × Split × Season */
+  set('c-beh', tab===0||tab===2?'live':'hide');
+  set('c-m',   tab===1?'live':'hide');
+  set('c-meth',tab===2?'live':'hide');
+  set('c-mode',tab===2?'live':'hide');
+  set('c-ns',  'hide');                                    /* n_s is STL's internal detail, fixed at 7 */
+  set('c-sm',  tab===3?'live':'hide');
+  set('c-hz',  tab===3?'live':'hide');
+}
+function paint(name,v){document.querySelectorAll('.seg[data-for="'+name+'"] button').forEach(b=>{
+  const on=b.getAttribute('data-val')===String(v);b.style.background=on?'#1e3a8a':'#fff';b.style.color=on?'#fff':'#555';});}
+function applyPat(v){pat=v;const P=PAT[v];
+  trIn.value=Math.round(P.b*100);ampIn.value=Math.round(P.A);sigIn.value=Math.round(P.sg*2);
+  beh=P.beh;paint('beh',beh);paint('pat',v);
+  syncReadouts();regen();syncRows();draw();}
+function clearPat(){if(pat!=='free'){pat='free';paint('pat','free');}}
+function setSeg(name,v){
+  if(name==='pat')return applyPat(v);
+  if(name==='mode')mode=v;else if(name==='meth')meth=v;
+  else if(name==='shape'){shape=v;regen();}
+  else if(name==='per'){PER=+v;if(tab===1)mIn.value=PER;regen();}
+  else if(name==='sm'){sm=+v;}
+  else if(name==='hz'){hz=+v;}
+  else{if(document.getElementById('c-beh').classList.contains('lock'))return;beh=v;clearPat();regen();}
+  paint(name,v);syncReadouts();syncRows();draw();}
+function applyTab(i){tab=i;document.querySelectorAll('.tabbtn').forEach((b,j)=>b.classList.toggle('on',j===i));   /* keep the tab-learn / tab-link markers the gates rely on */
+  const T=TABS[i];goalHTML(T.q,T.aim);
+  /* every tab starts from the same baseline; the world sliders keep the learner's values */
+  mIn.value=BASE.m;nsIn.value=BASE.ns;sm=BASE.sm;hz=BASE.hz;paint('sm',sm);paint('hz',hz);
+  if(i!==1){PER=BASE.per;paint('per',PER);}
+  if(i===2){meth=BASE.meth;mode=BASE.mode;paint('meth',meth);paint('mode',mode);}
+  regen();syncReadouts();syncRows();draw();}
+
+['mode','meth','beh','pat','shape','per','sm','hz'].forEach(nm=>document.querySelectorAll('.seg[data-for="'+nm+'"] button')
+  .forEach(b=>b.addEventListener('click',()=>setSeg(nm,b.getAttribute('data-val')))));
+[mIn,nsIn].forEach(el=>el.addEventListener('input',()=>{syncReadouts();draw();}));
+[trIn,ampIn,sigIn].forEach(el=>el.addEventListener('input',()=>{clearPat();syncReadouts();regen();draw();}));
+document.getElementById('resetBtn').addEventListener('click',()=>{seed++;regen();draw();});
+window.addEventListener('resize',()=>draw());
+
+const tb=document.getElementById('tabs');
+TABS.forEach((T,i)=>{const b=document.createElement('button');b.className='tabbtn'+(i===4?' tab-learn':'');
+  (window.katex?katex.render(T.name,b,{throwOnError:false}):(b.textContent=T.name));b.onclick=()=>applyTab(i);tb.appendChild(b);});
+(function(){const a=document.createElement('a');a.className='tabbtn tab-link';a.href='TSpythonforecastingworkflow.html';a.target='_blank';a.rel='noopener';
+  (window.katex?katex.render('\\text{Notebook}\\ \\nearrow',a,{throwOnError:false}):(a.textContent='Notebook ↗'));tb.appendChild(a);})();
+Ktext(document.getElementById('learnNote'),'บทเรียนวันที่ 1 — ใช้ลูกศร ← → เลื่อนสไลด์');Ktext(document.getElementById('learnFull'),'เปิดเต็มจอ ↗',{b:true,c:'#185fa5'});
+syncReadouts();paint('mode','add');paint('meth','cl');paint('beh','same');paint('pat','ts');paint('shape','sine');paint('per',24);paint('sm',24);paint('hz',48);
+regen();applyTab(0);
+/* the clarity gate reads these — the same numbers the learner sees, with no scraping of rendered text */
+window.LAB={
+  read:()=>{if(tab===4)return {tab,learn:true};
+    const m=(tab===1)?+mIn.value:PER,mul=(tab===2&&mode==='mul');
+    const D=build(m,+nsIn.value,mul,tab===2?meth:'cl'),e=seasonError(D),sh=shares(),r=baselines();
+    return {tab,pat,shape,trend:sh[0],season:sh[1],noise:sh[2],m:m,P:PER,
+      survive:+survive(m).toFixed(3),trendErr:+trendErr(m).toFixed(3),
+      seasonErr:+e.abs.toFixed(3),seasonRel:+e.rel.toFixed(3),verdict:verdict(e,pp(TE)).t,meth,mode,beh,
+      sm,hz,naiveMAE:+r.naive.mae.toFixed(3),snaiveMAE:+r.snaive.mae.toFixed(3),winner:r.winner,margin:+r.margin.toFixed(1)};},
+  set:(o)=>{if(o.tab!=null)applyTab(o.tab);        /* tab first — it restores the baseline, then we overwrite */
+    if(o.pat!=null)applyPat(o.pat);                  /* preset first, so an explicit slider value below wins */
+    if(o.b!=null)trIn.value=Math.round(o.b*100);if(o.A!=null)ampIn.value=Math.round(o.A);
+    if(o.sg!=null)sigIn.value=Math.round(o.sg*2);
+    if(o.m!=null)mIn.value=o.m;if(o.ns!=null)nsIn.value=o.ns;
+    if(o.shape!=null){shape=o.shape;paint('shape',shape);}
+    if(o.P!=null){PER=o.P;paint('per',PER);}
+    if(o.beh!=null){beh=o.beh;paint('beh',beh);}
+    if(o.meth!=null){meth=o.meth;paint('meth',meth);}
+    if(o.mode!=null){mode=o.mode;paint('mode',mode);}
+    if(o.sm!=null){sm=o.sm;paint('sm',sm);}
+    if(o.hz!=null){hz=o.hz;paint('hz',hz);}
+    if(o.seed!=null)seed=o.seed;
+    syncReadouts();regen();syncRows();draw();}};
+(function(){function fix(){if(tab!==4&&mC.clientWidth>0&&(Math.abs(mC.width-Math.round(mC.clientWidth))>0.6||Math.abs(mC.height-Math.round(mC.clientHeight))>0.6))draw();}
+  if(window.ResizeObserver){const ro=new ResizeObserver(()=>fix());ro.observe(mC);}
+  requestAnimationFrame(()=>requestAnimationFrame(fix));})();
+</script>
+<script>(function(){if(!window.katex)return;var t=document.getElementById("__pgt");if(t)try{katex.render(t.getAttribute("data-tex"),t,{throwOnError:false});}catch(e){}})();</script>
+<script>document.addEventListener("DOMContentLoaded",function(){if(window.renderMathInElement)renderMathInElement(document.body,{delimiters:[{left:"\\(",right:"\\)",display:false},{left:"$$",right:"$$",display:true}],throwOnError:false});});</script>
+</body>
+</html>

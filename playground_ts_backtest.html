@@ -1,0 +1,418 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Backtest</title>
+<link rel="stylesheet" href="pg_style.css?v=24">
+<link rel="stylesheet" href="vendor/katex/katex.min.css">
+<script src="vendor/katex/katex.min.js"></script>
+<script src="vendor/katex/auto-render.min.js"></script>
+<style>
+  :root{--panel-h:424px}
+  .pg .plots .canvasbox{width:100%;height:clamp(260px,44vh,400px)}
+  .pg .layout>.stage{align-self:start}
+  /* UD §1.2: ตรึงความสูงที่คอลัมน์โปร่งใส (.rail) ไม่ใช่การ์ดขาว */
+  .pg .layout>.rail{grid-column:2;min-width:0;align-self:start;display:flex;flex-direction:column;align-items:stretch;min-height:var(--panel-h)}
+  .pg .rail>.panel{width:100%;min-width:0;align-self:stretch;min-height:0}
+  .pg .panel .seg[data-for="data"],.pg .panel .seg[data-for="meth"]{display:grid;grid-template-columns:1fr 1fr 1fr 1fr;width:100%;min-width:0;border:1px solid #e6e6e0;border-radius:8px;overflow:hidden}
+  .pg .panel .seg[data-for="data"] button,.pg .panel .seg[data-for="meth"] button{font-size:15px;padding:7px 2px;cursor:pointer;border:0!important;text-align:center}
+  .pg .panel .seg[data-for="meth"] button+button{border-left:1px solid #e6e6e0!important}
+  .pg .panel .btnrow{display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin:10px 0 0}
+  .pg .panel .btnrow button{font-size:15px;padding:7px 6px;border-radius:8px;border:1px solid var(--line);background:#fff;color:#555;cursor:pointer}
+  .pg .panel .btnrow button.primary{background:var(--navy);color:#fff;border-color:var(--navy)}
+  .pg .panel .seg[data-for="pat"]{display:grid;grid-template-columns:1fr 1fr 1fr;width:100%;min-width:0;border:1px solid #e6e6e0;border-radius:8px;overflow:hidden}
+  .pg .panel .seg[data-for="pat"] button{font-size:15px;padding:7px 2px;cursor:pointer;border:0!important;border-top:1px solid #e6e6e0!important;text-align:center}
+  .pg .panel .seg[data-for="pat"] button:not(:nth-child(3n+1)){border-left:1px solid #e6e6e0!important}
+  .pg .panel .seg[data-for="pat"] button:nth-child(1),
+  .pg .panel .seg[data-for="pat"] button:nth-child(2),
+  .pg .panel .seg[data-for="pat"] button:nth-child(3){border-top:0!important}
+  .pg .panel .drow.lock{opacity:.42}
+  .pg .panel .drow.lock input,.pg .panel .drow.lock button{pointer-events:none;cursor:not-allowed}
+  .goal{background:var(--sec);border:1px solid var(--line);border-radius:8px;padding:5px 12px;font-size:15px;color:var(--ink);line-height:1.5;margin:0 0 2px}
+  .goal .katex{font-size:1em}
+  .eqbox{background:#fff;border:1px solid var(--line);border-radius:8px;padding:3px 12px;text-align:center;margin:0 0 3px;color:#1f2a44;min-height:26px}
+  .eqbox .katex{font-size:1.06em}
+  .eqbox .eqnum{color:#185fa5;margin-top:1px}
+  @media(max-width:820px){
+    .pg .plots{flex-direction:column}
+    .pg .plots .canvasbox{max-height:none}
+    .pg .layout>.rail{grid-column:auto;width:auto;min-height:0;display:block}
+    .pg .panel{position:fixed;left:0;right:0;bottom:0;margin:0;max-height:50vh;overflow-y:auto;
+      border:1px solid var(--line);border-bottom:0;border-radius:14px 14px 0 0;box-shadow:0 -3px 14px rgba(0,0,0,.10);z-index:50}
+  }
+</style>
+</head>
+<body class="pg">
+<h2 class="sr-only" style="position:absolute;width:1px;height:1px;overflow:hidden">Backtesting with a rolling forecasting origin. The series is built from a trend slope, a season size, a wandering level and a noise level. One origin cuts the series at one point, forecasts forward and reports the error there, next to the smallest and largest error obtainable by moving the cut. Rolling repeats the cut at every possible position and reports the error separately for each horizon, so the growth of error with horizon can be measured. Compare runs all four methods over every cut and reports each one as a percentage of the naive forecast, with a t statistic that says whether the difference is larger than the run to run noise.</h2>
+<div class="wrap">
+  <div class="hdr">
+    <h1 id="__pgt" data-tex="\text{4. Backtest}">4. Backtest</h1>
+    <div class="tabs" id="tabs"></div>
+  </div>
+  <div class="goal" id="hint"></div>
+  <div class="layout">
+    <div class="stage">
+      <div class="plots">
+        <div class="canvasbox" id="boxM"><canvas id="mC"></canvas></div>
+      </div>
+      <div class="eqbox" id="eq"></div>
+    </div>
+    <div class="rail">
+    <div class="panel">
+      <div class="drow" id="c-pat" style="display:flex;align-items:center;gap:10px;margin:8px 0">
+        <span class="dlab" style="flex:0 0 auto;color:#475569;font-size:15px;font-weight:600">\(\text{Pattern}\)</span>
+        <div class="seg" data-for="pat">
+          <button type="button" data-val="tr">\(\text{Trend}\)</button>
+          <button type="button" data-val="se">\(\text{Season}\)</button>
+          <button type="button" data-val="ts">\(\text{Trend+season}\)</button>
+          <button type="button" data-val="rw">\(\text{Wandering}\)</button>
+          <button type="button" data-val="nz">\(\text{Noise}\)</button>
+          <button type="button" data-val="gr">\(\text{All of it}\)</button>
+        </div>
+      </div>
+      <div class="drow" id="c-tr" style="display:flex;align-items:center;gap:10px;margin:8px 0">
+        <span class="dlab" style="flex:0 0 92px;display:flex;align-items:baseline;gap:5px"><span style="color:#475569;font-size:15px;font-weight:600">\(a\)</span><span style="color:#6b7280;font-size:13px">\(\text{trend slope}\)</span></span>
+        <input type="range" id="trIn" min="0" max="40" value="10" step="5" style="flex:1 1 auto;width:auto;min-width:0;margin:0">
+        <span class="num" id="trV" style="flex:0 0 62px;text-align:right;font-size:15px;padding:4px 7px;border:1px solid #e6e6e0;border-radius:7px;background:#fff;color:#185fa5;font-weight:600;font-variant-numeric:tabular-nums">0.10</span>
+      </div>
+      <div class="drow" id="c-amp" style="display:flex;align-items:center;gap:10px;margin:8px 0">
+        <span class="dlab" style="flex:0 0 92px;display:flex;align-items:baseline;gap:5px"><span style="color:#475569;font-size:15px;font-weight:600">\(A\)</span><span style="color:#6b7280;font-size:13px">\(\text{season size}\)</span></span>
+        <input type="range" id="ampIn" min="0" max="50" value="24" step="2" style="flex:1 1 auto;width:auto;min-width:0;margin:0">
+        <span class="num" id="ampV" style="flex:0 0 62px;text-align:right;font-size:15px;padding:4px 7px;border:1px solid #e6e6e0;border-radius:7px;background:#fff;color:#185fa5;font-weight:600;font-variant-numeric:tabular-nums">2.4</span>
+      </div>
+      <div class="drow" id="c-w" style="display:flex;align-items:center;gap:10px;margin:8px 0">
+        <span class="dlab" style="flex:0 0 92px;display:flex;align-items:baseline;gap:5px"><span style="color:#475569;font-size:15px;font-weight:600">\(\sigma_\ell\)</span><span style="color:#6b7280;font-size:13px">\(\text{level wander}\)</span></span>
+        <input type="range" id="wIn" min="0" max="100" value="0" step="10" style="flex:1 1 auto;width:auto;min-width:0;margin:0">
+        <span class="num" id="wV" style="flex:0 0 62px;text-align:right;font-size:15px;padding:4px 7px;border:1px solid #e6e6e0;border-radius:7px;background:#fff;color:#185fa5;font-weight:600;font-variant-numeric:tabular-nums">0.00</span>
+      </div>
+      <div class="drow" id="c-sig" style="display:flex;align-items:center;gap:10px;margin:8px 0">
+        <span class="dlab" style="flex:0 0 92px;display:flex;align-items:baseline;gap:5px"><span style="color:#475569;font-size:15px;font-weight:600">\(\sigma\)</span><span style="color:#6b7280;font-size:13px">\(\text{noise}\)</span></span>
+        <input type="range" id="sigIn" min="2" max="30" value="6" step="2" style="flex:1 1 auto;width:auto;min-width:0;margin:0">
+        <span class="num" id="sigV" style="flex:0 0 62px;text-align:right;font-size:15px;padding:4px 7px;border:1px solid #e6e6e0;border-radius:7px;background:#fff;color:#185fa5;font-weight:600;font-variant-numeric:tabular-nums">0.6</span>
+      </div>
+      <div class="drow" id="c-o" style="display:flex;align-items:center;gap:10px;margin:8px 0">
+        <span class="dlab" style="flex:0 0 92px;display:flex;align-items:baseline;gap:5px"><span style="color:#475569;font-size:15px;font-weight:600">\(o\)</span><span style="color:#6b7280;font-size:13px">\(\text{where you cut}\)</span></span>
+        <input type="range" id="oIn" min="32" max="72" value="48" step="1" style="flex:1 1 auto;width:auto;min-width:0;margin:0">
+        <span class="num" id="oV" style="flex:0 0 62px;text-align:right;font-size:15px;padding:4px 7px;border:1px solid #e6e6e0;border-radius:7px;background:#fff;color:#185fa5;font-weight:600;font-variant-numeric:tabular-nums">48</span>
+      </div>
+      <div class="drow" id="c-h" style="display:flex;align-items:center;gap:10px;margin:8px 0">
+        <span class="dlab" style="flex:0 0 92px;display:flex;align-items:baseline;gap:5px"><span style="color:#475569;font-size:15px;font-weight:600">\(h\)</span><span style="color:#6b7280;font-size:13px">\(\text{horizon}\)</span></span>
+        <input type="range" id="hIn" min="2" max="8" value="6" step="1" style="flex:1 1 auto;width:auto;min-width:0;margin:0">
+        <span class="num" id="hV" style="flex:0 0 62px;text-align:right;font-size:15px;padding:4px 7px;border:1px solid #e6e6e0;border-radius:7px;background:#fff;color:#185fa5;font-weight:600;font-variant-numeric:tabular-nums">6</span>
+      </div>
+      <div class="drow" id="c-meth" style="display:flex;align-items:center;gap:10px;margin:8px 0">
+        <span class="dlab" style="flex:0 0 auto;color:#475569;font-size:15px;font-weight:600">\(\text{Method}\)</span>
+        <div class="seg" data-for="meth">
+          <button type="button" data-val="nv">\(\text{Naive}\)</button>
+          <button type="button" data-val="sn">\(\text{S-naive}\)</button>
+          <button type="button" data-val="ets">\(\text{ETS}\)</button>
+          <button type="button" data-val="ari">\(\text{ARIMA}\)</button>
+        </div>
+      </div>
+      <div class="row" id="rowRun">
+        <button class="primary" id="resetBtn">\(\text{New data}\)</button>
+      </div>
+    </div>
+    </div>
+  </div>
+</div>
+<script src="pg_engine.js?v=5"></script>
+<script>
+/* 4. Backtest — the rolling forecasting origin.
+   One origin gives a number you cannot trust; every origin gives one you can, and a t that says
+   whether the winner really won. Each tab has one number to read (see OBJECTIVES.md). */
+const C={ser:'#E07A5F',serTx:'#B0503A',hold:'rgba(176,122,174,0.10)',
+         fit:'#5B8FB9',fitTx:'#3F6E99',err:'#B07AAE',errTx:'#7E5A93',
+         ok:'#6BA38C',okTx:'#3F7D63',ax:'#94a3b8',axtx:'#64748b',zero:'#9aa3b2',
+         bar:['#94a3b8','#E3B23C','#5B8FB9','#6BA38C'],
+         barTx:['#64748b','#8A6510','#3F6E99','#3F7D63']};
+const MK={nv:'Naive',sn:'Seasonal naive',ets:'ETS',ari:'ARIMA'},MKEYS=['nv','sn','ets','ari'];
+function K(t,el,d){if(!el)return;if(window.katex){try{katex.render(String(t),el,{throwOnError:false,displayMode:!!d});return;}catch(e){}}el.textContent=t;}
+function Keq(sym,num){const el=document.getElementById('eq');if(!el)return;el.textContent='';
+  const d1=document.createElement('div'),d2=document.createElement('div');d2.className='eqnum';
+  try{katex.render(sym,d1,{throwOnError:false});}catch(e){d1.textContent=sym;}
+  try{katex.render(num,d2,{throwOnError:false});}catch(e){d2.textContent=num;}
+  el.appendChild(d1);el.appendChild(d2);}
+
+const N=80,M=4,O0=32;
+let seed=1,tab=0,meth='ets',pat='ts',Y=[];
+/* the six standard worlds. A preset snaps the sliders there; the sliders stay live afterwards. */
+const PAT={tr:{a:0.25,A:0,w:0,sg:0.6},se:{a:0,A:3.5,w:0,sg:0.4},ts:{a:0.10,A:2.4,w:0,sg:0.6},
+           rw:{a:0,A:0,w:0.8,sg:0.4},nz:{a:0,A:0,w:0,sg:1.2},gr:{a:0.15,A:2.4,w:0.4,sg:0.8}};
+const BASE={o:48,h:6,meth:'ets'};
+const trIn=document.getElementById('trIn'),ampIn=document.getElementById('ampIn'),
+      wIn=document.getElementById('wIn'),sigIn=document.getElementById('sigIn'),
+      oIn=document.getElementById('oIn'),hIn=document.getElementById('hIn');
+const SLOPE=()=>+trIn.value/100, AMP=()=>+ampIn.value/10, WAN=()=>+wIn.value/100, SIG=()=>+sigIn.value/10;
+const HH=()=>+hIn.value, ORI=()=>Math.min(+oIn.value,N-HH()-1);
+function gauss(r){let s=0;for(let k=0;k<12;k++)s+=r.next();return s-6;}
+function mean(a){const v=a.filter(x=>x!=null&&isFinite(x));return v.length?v.reduce((x,b)=>x+b,0)/v.length:0;}
+
+/* ---- BUILD: a trend, a season, a level that may wander, and noise ---- */
+function regen(){const r=PG.rng(seed*7919+43),a=SLOPE(),A=AMP(),w=WAN(),sg=SIG();
+  Y=[];let L=12;
+  for(let t=0;t<N;t++){L+=a+w*gauss(r);Y.push(L+A*Math.sin(2*Math.PI*t/M)+sg*gauss(r));}}
+function fcNaive(y,h){const v=y[y.length-1];return Array.from({length:h},()=>v);}
+function fcSnaive(y,h){const n=y.length;return Array.from({length:h},(_,i)=>y[n-M+(i%M)]);}
+function fcETS(y,h){/* Holt-Winters additive, textbook defaults */
+  const al=0.3,be=0.1,ga=0.3,n=y.length;
+  const m1=mean(y.slice(0,M)),m2=mean(y.slice(M,2*M));
+  let L=m1,B=(m2-m1)/M;const s=[];for(let i=0;i<M;i++)s.push(y[i]-m1);
+  for(let t=0;t<n;t++){const si=s[s.length-M],Lp=L;
+    L=al*(y[t]-si)+(1-al)*(L+B);
+    B=be*(L-Lp)+(1-be)*B;
+    s.push(ga*(y[t]-Lp-B)+(1-ga)*si);}
+  return Array.from({length:h},(_,i)=>L+(i+1)*B+s[s.length-M+(i%M)]);}
+function fcARIMA(y,h){/* ARIMA(1,1,1) with drift, Hannan-Rissanen in miniature */
+  const n=y.length,w=[];for(let i=1;i<n;i++)w.push(y[i]-y[i-1]);
+  const mu=mean(w),z=w.map(v=>v-mu),k=z.length;
+  if(k<8)return fcNaive(y,h);
+  const m=Math.min(6,Math.floor(k/4));
+  let a=new Array(m).fill(0);
+  {const X=[],V=[];for(let t=m;t<k;t++){const row=[];for(let i=1;i<=m;i++)row.push(z[t-i]);X.push(row);V.push(z[t]);}
+   a=ols(X,V);}
+  const eh=new Array(k).fill(0);
+  for(let t=m;t<k;t++){let s=0;for(let i=1;i<=m;i++)s+=a[i-1]*z[t-i];eh[t]=z[t]-s;}
+  const X2=[],V2=[];for(let t=m;t<k;t++){X2.push([z[t-1],eh[t-1]]);V2.push(z[t]);}
+  let b=ols(X2,V2);let phi=b[0]||0,th=b[1]||0;
+  if(Math.abs(phi)>0.95)phi=0.95*Math.sign(phi);
+  if(Math.abs(th)>0.95)th=0.95*Math.sign(th);
+  const e=new Array(k).fill(0);
+  for(let t=1;t<k;t++)e[t]=z[t]-phi*z[t-1]-th*e[t-1];
+  const ze=z.slice(),ee=e.slice(),out=[];let last=y[n-1];
+  for(let i=1;i<=h;i++){const v=phi*ze[ze.length-1]+th*(ee.length===k+i-1?0:0)+(i===1?th*ee[k-1]:0);
+    ze.push(v);ee.push(0);last=last+v+mu;out.push(last);}
+  return out.map(v=>isFinite(v)?v:y[n-1]);}
+function ols(X,y){const k=X.length&&X[0]?X[0].length:0;if(!k)return [];
+  const A=[],b=[];for(let i=0;i<k;i++){A.push(new Array(k).fill(0));b.push(0);}
+  for(let r=0;r<X.length;r++)for(let i=0;i<k;i++){b[i]+=X[r][i]*y[r];for(let j=0;j<k;j++)A[i][j]+=X[r][i]*X[r][j];}
+  for(let i=0;i<k;i++)A[i][i]+=1e-6;
+  for(let i=0;i<k;i++){let pv=i;for(let r=i+1;r<k;r++)if(Math.abs(A[r][i])>Math.abs(A[pv][i]))pv=r;
+    if(Math.abs(A[pv][i])<1e-11)return new Array(k).fill(0);
+    if(pv!==i){const t=A[pv];A[pv]=A[i];A[i]=t;const tb=b[pv];b[pv]=b[i];b[i]=tb;}
+    for(let r=i+1;r<k;r++){const f=A[r][i]/A[i][i];if(!f)continue;for(let c=i;c<k;c++)A[r][c]-=f*A[i][c];b[r]-=f*b[i];}}
+  const o=new Array(k).fill(0);
+  for(let i=k-1;i>=0;i--){let s=b[i];for(let j=i+1;j<k;j++)s-=A[i][j]*o[j];o[i]=s/A[i][i];}
+  return o.map(v=>isFinite(v)?v:0);}
+
+const FC={nv:fcNaive,sn:fcSnaive,ets:fcETS,ari:fcARIMA};
+
+/* ---------- every possible cut, in one pass ---------- */
+function origins(h){const out=[];for(let o=O0;o+h<N;o++)out.push(o);return out;}
+function errAt(k,o,h){const f=FC[k](Y.slice(0,o+1),h),e=[];
+  for(let i=0;i<h;i++)e.push(Y[o+1+i]-f[i]);
+  return {f,e,rmse:Math.sqrt(mean(e.map(x=>x*x)))};}
+function acrossOrigins(k,h){const os=origins(h),per=[],byH=Array.from({length:h},()=>[]),all=[];
+  os.forEach(o=>{const r=errAt(k,o,h);per.push(r.rmse);
+    r.e.forEach((v,i)=>{byH[i].push(v*v);all.push(v*v);});});
+  const m=mean(all);
+  return {os,per,sq:all,byH:byH.map(a=>Math.sqrt(mean(a))),mse:m,rmse:Math.sqrt(m),n:all.length};}
+/* Every method is compared with Naive on the SAME forecasts (paired), the way Diebold and Mariano
+   propose: take the difference of squared errors point by point, and test whether its mean is zero.
+   Pairing is what makes the test able to see a difference at all. */
+function pairedT(a,b){const n=Math.min(a.length,b.length),d=[];
+  for(let i=0;i<n;i++)d.push(a[i]-b[i]);
+  const m=mean(d),v=mean(d.map(x=>(x-m)*(x-m)));
+  const se=Math.sqrt(v/Math.max(1,n));
+  return se>0?m/se:0;}
+function compareAll(h){const st={};MKEYS.forEach(k=>st[k]=acrossOrigins(k,h));
+  MKEYS.forEach(k=>{st[k].pct=(st[k].rmse/st.nv.rmse-1)*100;
+    st[k].t=pairedT(st.nv.sq,st[k].sq);            /* positive t = better than Naive */
+    st[k].clear=Math.abs(st[k].t)>2;});
+  const ord=MKEYS.slice().sort((x,y)=>st[x].mse-st[y].mse);
+  const w=ord[0];
+  return {st,ord,t:st[w].t,clear:w==='nv'?!MKEYS.some(k=>k!=='nv'&&st[k].t>2):st[w].clear};}
+
+/* ---------------- drawing ---------------- */
+function ctxOf(cv){cv.style.width='100%';cv.style.height='100%';const w=Math.max(80,Math.round(cv.clientWidth)),h=Math.max(80,Math.round(cv.clientHeight));cv.width=w;cv.height=h;return cv.getContext('2d');}
+const mC=document.getElementById('mC');
+function nice(v){const a=Math.abs(v);return a>=100?v.toFixed(0):a>=10?v.toFixed(1):v.toFixed(2);}
+function span(arr){const v=arr.filter(x=>x!=null&&isFinite(x));if(!v.length)return[0,1];
+  let lo=Math.min.apply(null,v),hi=Math.max.apply(null,v);const pad=(hi-lo||1)*0.16;return[lo-pad,hi+pad];}
+function axes(c,box,x0,x1,lo,hi,xlab,xstep){
+  const PX=x=>box.l+(x-x0)/(x1-x0)*(box.r-box.l),PY=v=>box.b-(v-lo)/(hi-lo)*(box.b-box.t);
+  c.strokeStyle=C.ax;c.lineWidth=1.1;c.beginPath();c.moveTo(box.l,box.t);c.lineTo(box.l,box.b);c.lineTo(box.r,box.b);c.stroke();
+  c.fillStyle=C.axtx;c.font='14px KaTeX_Main';c.textAlign='right';c.textBaseline='middle';
+  [lo+(hi-lo)*0.08,(lo+hi)/2,hi-(hi-lo)*0.08].forEach(v=>c.fillText(nice(v),box.l-5,PY(v)));
+  if(xlab){c.textAlign='center';c.textBaseline='top';
+    for(let i=Math.ceil(x0);i<=x1;i+=(xstep||20))if(i>=x0)c.fillText(i,PX(i),box.b+4);
+    c.font='italic 14px KaTeX_Math';c.textBaseline='bottom';c.fillText(xlab,(box.l+box.r)/2,box.b+36);}
+  return {PX,PY};}
+function tag(c,box,txt,col,slot){c.font='14px KaTeX_Main';const w=c.measureText(txt).width,y=box.t+1+19*(slot||0);
+  c.fillStyle='rgba(255,255,255,0.86)';c.fillRect(box.l+2,y-2,w+6,19);
+  c.fillStyle=col;c.textAlign='left';c.textBaseline='top';c.fillText(txt,box.l+4,y);}
+function poly(c,PX,PY,pts,col,wd,dash){c.strokeStyle=col;c.lineWidth=wd;if(dash)c.setLineDash(dash);
+  c.beginPath();let on=false;
+  pts.forEach(p=>{if(p[1]==null||!isFinite(p[1])){on=false;return;}const X=PX(p[0]),Yv=PY(p[1]);on?c.lineTo(X,Yv):c.moveTo(X,Yv);on=true;});
+  c.stroke();c.setLineDash([]);}
+function dots(c,PX,PY,pts,col,r){c.fillStyle=col;
+  pts.forEach(p=>{if(p[1]==null||!isFinite(p[1]))return;c.beginPath();c.arc(PX(p[0]),PY(p[1]),r,0,7);c.fill();});}
+
+function draw(){const c=ctxOf(mC),W=mC.width,Hh=mC.height;c.clearRect(0,0,W,Hh);
+  const h=HH(),o=ORI(),L=50,R=W-14,T=16,B=Hh-40,gap=32;
+  if(tab===0){
+    const hh=(B-T-gap)*0.58,b1={l:L,t:T,r:R,b:T+hh},b2={l:L,t:T+hh+gap,r:R,b:B};
+    const r=errAt(meth,o,h);
+    const[lo,hi]=span(Y.concat(r.f)),a1=axes(c,b1,-0.6,N-0.4,lo,hi,false);
+    c.fillStyle=C.hold;c.fillRect(a1.PX(o+0.5),b1.t,a1.PX(o+h+0.5)-a1.PX(o+0.5),b1.b-b1.t);
+    poly(c,a1.PX,a1.PY,Y.map((v,i)=>[i,v]),C.ser,2.0);
+    dots(c,a1.PX,a1.PY,Y.map((v,i)=>[i,v]),C.ser,2.0);
+    c.strokeStyle=C.zero;c.lineWidth=1;c.setLineDash([4,4]);
+    c.beginPath();c.moveTo(a1.PX(o+0.5),b1.t);c.lineTo(a1.PX(o+0.5),b1.b);c.stroke();c.setLineDash([]);
+    poly(c,a1.PX,a1.PY,[[o,Y[o]]].concat(r.f.map((v,i)=>[o+1+i,v])),C.fit,2.3);
+    dots(c,a1.PX,a1.PY,r.f.map((v,i)=>[o+1+i,v]),C.fit,2.6);
+    c.strokeStyle=C.err;c.lineWidth=1.6;
+    r.f.forEach((v,i)=>{c.beginPath();c.moveTo(a1.PX(o+1+i),a1.PY(v));c.lineTo(a1.PX(o+1+i),a1.PY(Y[o+1+i]));c.stroke();});
+    tag(c,b1,'series',C.serTx,0);tag(c,b1,MK[meth]+' forecast from the cut, and its errors',C.fitTx,1);
+    /* the point of the tab: the same method, the same data, every other place you could have cut */
+    const A=acrossOrigins(meth,h),[l2,h2]=span(A.per.concat([0]));
+    const a2=axes(c,b2,O0-0.6,N-h-0.4,l2,h2,'where you cut',10);
+    poly(c,a2.PX,a2.PY,A.per.map((v,i)=>[A.os[i],v]),C.errTx,2.0);
+    const cur=A.per[A.os.indexOf(o)];
+    c.fillStyle=C.fit;c.beginPath();c.arc(a2.PX(o),a2.PY(cur),4.5,0,7);c.fill();
+    tag(c,b2,'error you would have got at every other cut',C.errTx,0);
+  }else if(tab===1){
+    const hh=(B-T-gap)*0.52,b1={l:L,t:T,r:R,b:T+hh},b2={l:L,t:T+hh+gap,r:R,b:B};
+    const[lo,hi]=span(Y),a1=axes(c,b1,-0.6,N-0.4,lo,hi,false);
+    poly(c,a1.PX,a1.PY,Y.map((v,i)=>[i,v]),C.ser,2.0);
+    const A=acrossOrigins(meth,h);
+    A.os.forEach((oo,j)=>{if(j%4)return;const r=errAt(meth,oo,h);
+      poly(c,a1.PX,a1.PY,[[oo,Y[oo]]].concat(r.f.map((v,i)=>[oo+1+i,v])),C.fit,1.2);});
+    tag(c,b1,'series',C.serTx,0);tag(c,b1,'every cut, each forecasting '+h+' ahead',C.fitTx,1);
+    const[l2,h2]=span(A.byH.concat([0])),a2=axes(c,b2,0.4,h+0.6,l2,h2,'horizon',1);
+    const bw=Math.max(8,(a2.PX(2)-a2.PX(1))*0.5);
+    A.byH.forEach((v,i)=>{c.fillStyle=C.fit;c.fillRect(a2.PX(i+1)-bw/2,a2.PY(v),bw,a2.PY(l2)-a2.PY(v));
+      c.fillStyle=C.fitTx;c.font='14px KaTeX_Main';c.textAlign='center';c.textBaseline='bottom';
+      c.fillText(v.toFixed(2),a2.PX(i+1),a2.PY(v)-3);});
+    tag(c,b2,'error by horizon, over all '+A.os.length+' cuts',C.fitTx,0);
+  }else{
+    /* the series ALWAYS comes first — bars with no series behind them mean nothing */
+    const g2=26,hh=(B-T-g2)*0.34;
+    const b0={l:L,t:T,r:R,b:T+hh},b1={l:L+30,t:T+hh+g2,r:R,b:B};
+    const[lo0,hi0]=span(Y),a0=axes(c,b0,-0.6,N-0.4,lo0,hi0,false);
+    poly(c,a0.PX,a0.PY,Y.map((v,i)=>[i,v]),C.ser,1.9);
+    dots(c,a0.PX,a0.PY,Y.map((v,i)=>[i,v]),C.ser,1.8);
+    c.fillStyle=C.hold;c.fillRect(a0.PX(O0+0.5),b0.t,a0.PX(N-0.4)-a0.PX(O0+0.5),b0.b-b0.t);
+    tag(c,b0,'the series every method is scored on — cuts start at '+O0,C.serTx,0);
+    const CP=compareAll(h),base=CP.st.nv.rmse;
+    const mx=Math.max.apply(null,MKEYS.map(k=>CP.st[k].rmse))*1.25;
+    const PY=v=>b1.b-v/mx*(b1.b-b1.t),PXi=i=>b1.l+(i+0.5)/MKEYS.length*(b1.r-b1.l);
+    c.strokeStyle=C.ax;c.lineWidth=1.1;c.beginPath();c.moveTo(b1.l,b1.t);c.lineTo(b1.l,b1.b);c.lineTo(b1.r,b1.b);c.stroke();
+    c.fillStyle=C.axtx;c.font='14px KaTeX_Main';c.textAlign='right';c.textBaseline='middle';
+    [0,mx/2,mx*0.9].forEach(v=>c.fillText(nice(v),b1.l-5,PY(v)));
+    c.strokeStyle=C.serTx;c.lineWidth=1.3;c.setLineDash([6,4]);
+    c.beginPath();c.moveTo(b1.l,PY(base));c.lineTo(b1.r,PY(base));c.stroke();c.setLineDash([]);
+    c.fillStyle=C.serTx;c.font='14px KaTeX_Main';c.textAlign='left';c.textBaseline='bottom';
+    c.fillText('Naive benchmark',b1.l+4,PY(base)-3);
+    const bw=(b1.r-b1.l)/MKEYS.length*0.46;
+    MKEYS.forEach((k,i)=>{const v=CP.st[k].rmse,X=PXi(i);
+      if(k!=='nv'&&CP.st[k].t>2){c.fillStyle='rgba(107,163,140,0.18)';c.fillRect(X-bw/2-4,b1.t,bw+8,b1.b-b1.t);}
+      c.fillStyle=C.bar[i];c.fillRect(X-bw/2,PY(v),bw,b1.b-PY(v));
+      c.fillStyle=C.barTx[i];c.font='600 15px KaTeX_Main';c.textAlign='center';c.textBaseline='bottom';
+      c.fillText(v.toFixed(2),X,PY(v)-20);
+      const pc=(v/base-1)*100;
+      c.font='14px KaTeX_Main';c.fillText((pc>0?'+':'')+pc.toFixed(0)+'%',X,PY(v)-4);
+      c.fillStyle=C.axtx;c.textBaseline='top';c.font='14px KaTeX_Main';c.fillText(MK[k],X,b1.b+4);});
+    c.font='italic 14px KaTeX_Math';c.fillStyle=C.axtx;c.textAlign='center';c.textBaseline='top';
+    c.fillText('error over all cuts, h = '+h,(b1.l+b1.r)/2,b1.b+24);}
+  showEq();
+  const narrow=window.matchMedia('(max-width:820px)').matches,wrap=document.querySelector('.wrap'),pnl=document.querySelector('.panel');
+  if(wrap&&pnl)wrap.style.paddingBottom=narrow?(Math.ceil(pnl.getBoundingClientRect().height)+14)+'px':'';}
+
+const SYM=['\\mathrm{RMSE}(o) = \\big[\\tfrac1h\\textstyle\\sum_{i=1}^{h}(y_{o+i}-\\hat y_{o+i})^2\\big]^{1/2}',
+           '\\mathrm{RMSE}(i) = \\text{root mean square of }e_{o+i}\\text{ over every cut }o',
+           't = (\\overline{e^2_{\\text{2nd}}} - \\overline{e^2_{\\text{1st}}})\\,/\\,\\mathrm{se\\ of\\ the\\ difference}'];
+function showEq(){const h=HH(),o=ORI();
+  if(tab===0){const A=acrossOrigins(meth,h),cur=A.per[A.os.indexOf(o)];
+    const lo=Math.min.apply(null,A.per),hi=Math.max.apply(null,A.per);
+    Keq(SYM[0],'\\text{cut at }o='+o+':\\ '+cur.toFixed(2)+
+      '\\allowbreak\\quad \\text{over all '+A.os.length+' cuts: }'+lo.toFixed(2)+'\\text{ to }'+hi.toFixed(2)+
+      '\\allowbreak\\quad \\textbf{spread }'+(hi/Math.max(lo,1e-9)).toFixed(1)+'\\times');}
+  else if(tab===1){const A=acrossOrigins(meth,h);
+    Keq(SYM[1],'\\text{h}=1{:}\\ '+A.byH[0].toFixed(2)+'\\allowbreak\\quad h='+h+'{:}\\ '+A.byH[h-1].toFixed(2)+
+      '\\allowbreak\\quad \\textbf{grows }'+(A.byH[h-1]/Math.max(A.byH[0],1e-9)).toFixed(2)+'\\times'+
+      '\\allowbreak\\quad \\text{over '+A.os.length+' cuts}');}
+  else{const CP=compareAll(h),w=CP.ord[0];
+    const beat=MKEYS.filter(k=>k!=='nv'&&CP.st[k].t>2);
+    Keq(SYM[2],'\\textbf{best }\\text{'+MK[w]+'}\\ '+CP.st[w].rmse.toFixed(2)+
+      '\\allowbreak\\quad '+(w==='nv'?'\\text{vs Naive: }0\\%':(CP.st[w].pct.toFixed(0)+'\\%\\text{ vs Naive}'))+
+      '\\allowbreak\\quad t='+CP.st[w].t.toFixed(1)+
+      '\\allowbreak\\quad \\text{'+(beat.length?beat.length+' of 3 really beat Naive':'nothing really beats Naive')+'}');}}
+
+const TABS=[
+ {name:'\\text{One origin}',
+  goal:'\\textbf{Aim: show one cut proves nothing.}\\allowbreak\\ \\text{Drag }o\\text{ across the series}\\allowbreak\\ \\text{and read the spread}\\allowbreak\\ \\text{between the best and worst cut.}'},
+ {name:'\\text{Rolling}',
+  goal:'\\textbf{Aim: measure how error grows.}\\allowbreak\\ \\text{Set the level wander to }0,\\allowbreak\\ \\text{then to }0.60,\\allowbreak\\ \\text{and read the growth factor.}'},
+ {name:'\\text{Compare}',
+  goal:'\\textbf{Aim: name the winner, honestly.}\\allowbreak\\ \\text{Build four worlds}\\allowbreak\\ \\text{(trend only, season only, wander only, noise only)}\\allowbreak\\ \\text{and read the percentages and }t.'}];
+
+function syncReadouts(){K(SLOPE().toFixed(2),document.getElementById('trV'));
+  K(AMP().toFixed(1),document.getElementById('ampV'));K(WAN().toFixed(2),document.getElementById('wV'));
+  K(SIG().toFixed(1),document.getElementById('sigV'));
+  K(String(ORI()),document.getElementById('oV'));K(hIn.value,document.getElementById('hV'));}
+/* หลักการซ่อน/จาง: ซ่อน (.off) = ไม่มีในการทดลองนี้ · จาง (.lock) = มีแต่ตรึงไว้ · สว่าง = คันโยกของ tab นี้ */
+function syncRows(){
+  const set=(id,st)=>{const e=document.getElementById(id);
+    e.classList.toggle('off',st==='hide');e.classList.toggle('lock',st==='lock');};
+  set('c-pat','live');
+  ['c-amp','c-w','c-sig'].forEach(id=>set(id,'live'));
+  set('c-tr',  tab===2?'live':'hide');   /* the first two questions are not about the slope */
+  set('c-o',   tab===0?'live':'hide');
+  set('c-h',   tab===0?'hide':'live');
+  set('c-meth',tab===2?'hide':'live');}
+function paint(name,v){document.querySelectorAll('.seg[data-for="'+name+'"] button').forEach(b=>{
+  const on=b.getAttribute('data-val')===v;b.style.background=on?'#1e3a8a':'#fff';b.style.color=on?'#fff':'#555';});}
+function applyPat(v){pat=v;const P=PAT[v];
+  trIn.value=Math.round(P.a*100);ampIn.value=Math.round(P.A*10);
+  wIn.value=Math.round(P.w*100);sigIn.value=Math.round(P.sg*10);
+  paint('pat',v);syncReadouts();regen();draw();}
+function clearPat(){if(pat!=='free'){pat='free';paint('pat','free');}}
+function setSeg(name,v){if(name==='pat')return applyPat(v);meth=v;paint(name,v);draw();}
+function applyTab(i){tab=i;document.querySelectorAll('.tabbtn').forEach((b,j)=>b.className='tabbtn'+(j===i?' on':''));
+  K('\\textbf{Try it.}\\ \\allowbreak'+TABS[i].goal,document.getElementById('hint'),false);
+  oIn.value=BASE.o;hIn.value=BASE.h;
+  if(i===2)paint('meth',meth=BASE.meth);
+  syncReadouts();syncRows();draw();}
+
+['meth','pat'].forEach(nm=>document.querySelectorAll('.seg[data-for="'+nm+'"] button')
+  .forEach(b=>b.addEventListener('click',()=>setSeg(nm,b.getAttribute('data-val')))));
+[oIn,hIn].forEach(el=>el.addEventListener('input',()=>{syncReadouts();draw();}));
+[trIn,ampIn,wIn,sigIn].forEach(el=>el.addEventListener('input',()=>{clearPat();syncReadouts();regen();draw();}));
+document.getElementById('resetBtn').addEventListener('click',()=>{seed++;regen();draw();});
+window.addEventListener('resize',()=>draw());
+
+const tb=document.getElementById('tabs');
+TABS.forEach((T,i)=>{const b=document.createElement('button');b.className='tabbtn';
+  (window.katex?katex.render(T.name,b,{throwOnError:false}):(b.textContent=T.name));b.onclick=()=>applyTab(i);tb.appendChild(b);});
+paint('meth','ets');paint('pat','ts');regen();applyTab(0);
+window.LAB={
+  read:()=>{const h=HH(),o=ORI(),out={tab,h,o,meth};
+    if(tab===0){const A=acrossOrigins(meth,h);
+      out.here=+A.per[A.os.indexOf(o)].toFixed(3);
+      out.lo=+Math.min.apply(null,A.per).toFixed(3);out.hi=+Math.max.apply(null,A.per).toFixed(3);
+      out.spread=+(out.hi/Math.max(out.lo,1e-9)).toFixed(2);out.cuts=A.os.length;}
+    if(tab===1){const A=acrossOrigins(meth,h);out.byH=A.byH.map(v=>+v.toFixed(3));
+      out.grow=+(A.byH[h-1]/Math.max(A.byH[0],1e-9)).toFixed(2);out.cuts=A.os.length;}
+    if(tab===2){const CP=compareAll(h);out.rmse={};MKEYS.forEach(k=>out.rmse[k]=+CP.st[k].rmse.toFixed(3));
+      out.pct={};MKEYS.forEach(k=>out.pct[k]=+((CP.st[k].rmse/CP.st.nv.rmse-1)*100).toFixed(0));
+      out.t={};MKEYS.forEach(k=>out.t[k]=+CP.st[k].t.toFixed(2));
+      out.winner=CP.ord[0];out.beat=MKEYS.filter(k=>k!=='nv'&&CP.st[k].t>2);out.clear=CP.clear;}
+    return out;},
+  set:(o)=>{if(o.tab!=null)applyTab(o.tab);
+    if(o.a!=null)trIn.value=Math.round(o.a*100);if(o.A!=null)ampIn.value=Math.round(o.A*10);
+    if(o.w!=null)wIn.value=Math.round(o.w*100);if(o.sg!=null)sigIn.value=Math.round(o.sg*10);
+    if(o.o!=null)oIn.value=o.o;if(o.h!=null)hIn.value=o.h;
+    if(o.pat!=null)applyPat(o.pat);
+    if(o.meth!=null){meth=o.meth;paint('meth',meth);}
+    if(o.seed!=null)seed=o.seed;
+    syncReadouts();regen();syncRows();draw();}};
+(function(){function fix(){if(mC.clientWidth>0&&(Math.abs(mC.width-Math.round(mC.clientWidth))>0.6||Math.abs(mC.height-Math.round(mC.clientHeight))>0.6))draw();}
+  if(window.ResizeObserver){const ro=new ResizeObserver(()=>fix());ro.observe(mC);}
+  requestAnimationFrame(()=>requestAnimationFrame(fix));})();
+</script>
+<script>(function(){if(!window.katex)return;var t=document.getElementById("__pgt");if(t)try{katex.render(t.getAttribute("data-tex"),t,{throwOnError:false});}catch(e){}})();</script>
+<script>document.addEventListener("DOMContentLoaded",function(){if(window.renderMathInElement)renderMathInElement(document.body,{delimiters:[{left:"\\(",right:"\\)",display:false},{left:"$$",right:"$$",display:true}],throwOnError:false});});</script>
+</body>
+</html>

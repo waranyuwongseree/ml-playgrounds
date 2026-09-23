@@ -1,0 +1,408 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Exponential smoothing</title>
+<link rel="stylesheet" href="pg_style.css?v=24">
+<link rel="stylesheet" href="vendor/katex/katex.min.css">
+<script src="vendor/katex/katex.min.js"></script>
+<script src="vendor/katex/auto-render.min.js"></script>
+<style>
+  :root{--panel-h:432px}
+  .pg .plots .canvasbox{width:100%;height:clamp(260px,44vh,400px)}
+  .pg .layout>.stage{align-self:start}
+  /* UD §1.2: ตรึงความสูงที่คอลัมน์โปร่งใส (.rail) ไม่ใช่การ์ดขาว — การ์ดจึงหดพอดีเนื้อหา ไม่เหลือแถบขาวเปล่า */
+  .pg .layout>.rail{grid-column:2;min-width:0;align-self:start;display:flex;flex-direction:column;align-items:stretch;min-height:var(--panel-h)}
+  .pg .rail>.panel{width:100%;min-width:0;align-self:stretch;min-height:0}
+  /* selector = grid ทุกช่องกว้างเท่ากัน */
+  .pg .panel .seg[data-for="beh"],.pg .panel .seg[data-for="stype"]{display:grid;grid-template-columns:1fr 1fr;width:100%;min-width:0;border:1px solid #e6e6e0;border-radius:8px;overflow:hidden}
+  .pg .panel .seg[data-for="beh"] button,.pg .panel .seg[data-for="stype"] button{font-size:15px;padding:7px 4px;cursor:pointer;border:0!important;text-align:center}
+  .pg .panel .seg[data-for="beh"] button:nth-child(2n),.pg .panel .seg[data-for="stype"] button:nth-child(2n){border-left:1px solid #e6e6e0!important}
+  .pg .panel .seg[data-for="pat"]{display:grid;grid-template-columns:1fr 1fr 1fr;width:100%;min-width:0;border:1px solid #e6e6e0;border-radius:8px;overflow:hidden}
+  .pg .panel .seg[data-for="pat"] button{font-size:15px;padding:7px 2px;cursor:pointer;border:0!important;text-align:center}
+  .pg .panel .seg[data-for="pat"] button+button{border-left:1px solid #e6e6e0!important}
+  .pg .panel .drow.lock{opacity:.42}
+  .pg .panel .drow.lock input,.pg .panel .drow.lock button{pointer-events:none;cursor:not-allowed}
+  .goal{background:var(--sec);border:1px solid var(--line);border-radius:8px;padding:5px 12px;font-size:15px;color:var(--ink);line-height:1.5;margin:0 0 2px}
+  .goal .katex{font-size:1em}
+  .eqbox{background:#fff;border:1px solid var(--line);border-radius:8px;padding:3px 12px;text-align:center;margin:0 0 3px;color:#1f2a44;min-height:26px}
+  .eqbox .katex{font-size:1.06em}
+  .eqbox .eqnum{color:#185fa5;margin-top:1px}
+  @media(max-width:820px){
+    .pg .plots{flex-direction:column}
+    .pg .plots .canvasbox{max-height:none}
+    .pg .layout>.rail{grid-column:auto;width:auto;min-height:0;display:block}
+    .pg .panel{position:fixed;left:0;right:0;bottom:0;margin:0;max-height:50vh;overflow-y:auto;
+      border:1px solid var(--line);border-bottom:0;border-radius:14px 14px 0 0;box-shadow:0 -3px 14px rgba(0,0,0,.10);z-index:50}
+  }
+</style>
+</head>
+<body class="pg">
+<h2 class="sr-only" style="position:absolute;width:1px;height:1px;overflow:hidden">Exponential smoothing climbed one rung at a time. SES builds a wandering level and asks which alpha fits it, comparing the alpha you find with the value the signal to noise formula predicts. Holt builds a slope that only partly carries over from one step to the next, and asks whether damping the trend with phi beats extrapolating it in full, judged on the last eight points which the model never saw. Holt-Winters builds a season that is either the same every cycle or grows with the level, and asks whether the additive or the multiplicative form forecasts better.</h2>
+<div class="wrap">
+  <div class="hdr">
+    <h1 id="__pgt" data-tex="\text{2. Exponential smoothing}">2. Exponential smoothing</h1>
+    <div class="tabs" id="tabs"></div>
+  </div>
+  <div class="goal" id="hint"></div>
+  <div class="layout">
+    <div class="stage">
+      <div class="plots">
+        <div class="canvasbox" id="boxM"><canvas id="mC"></canvas></div>
+      </div>
+      <div class="eqbox" id="eq"></div>
+    </div>
+    <div class="rail">
+    <div class="panel">
+      <div class="drow" id="c-pat" style="display:flex;align-items:center;gap:10px;margin:8px 0">
+        <span class="dlab" style="flex:0 0 auto;color:#475569;font-size:15px;font-weight:600">\(\text{Pattern}\)</span>
+        <div class="seg" data-for="pat">
+          <button type="button" data-val="a">\(\text{A}\)</button>
+          <button type="button" data-val="b">\(\text{B}\)</button>
+          <button type="button" data-val="c">\(\text{C}\)</button>
+        </div>
+      </div>
+      <div class="drow" id="c-w" style="display:flex;align-items:center;gap:10px;margin:8px 0">
+        <span class="dlab" style="flex:0 0 96px;display:flex;align-items:baseline;gap:5px"><span style="color:#475569;font-size:15px;font-weight:600">\(\sigma_\ell\)</span><span style="color:#6b7280;font-size:13px">\(\text{level wander}\)</span></span>
+        <input type="range" id="wIn" min="5" max="150" value="40" step="5" style="flex:1 1 auto;width:auto;min-width:0;margin:0">
+        <span class="num" id="wV" style="flex:0 0 66px;text-align:right;font-size:15px;padding:4px 7px;border:1px solid #e6e6e0;border-radius:7px;background:#fff;color:#185fa5;font-weight:600;font-variant-numeric:tabular-nums">0.40</span>
+      </div>
+      <div class="drow" id="c-rho" style="display:flex;align-items:center;gap:10px;margin:8px 0">
+        <span class="dlab" style="flex:0 0 96px;display:flex;align-items:baseline;gap:5px"><span style="color:#475569;font-size:15px;font-weight:600">\(\rho\)</span><span style="color:#6b7280;font-size:13px">\(\text{slope carry-over}\)</span></span>
+        <input type="range" id="rhoIn" min="60" max="100" value="70" step="5" style="flex:1 1 auto;width:auto;min-width:0;margin:0">
+        <span class="num" id="rhoV" style="flex:0 0 66px;text-align:right;font-size:15px;padding:4px 7px;border:1px solid #e6e6e0;border-radius:7px;background:#fff;color:#185fa5;font-weight:600;font-variant-numeric:tabular-nums">0.70</span>
+      </div>
+      <div class="drow" id="c-amp" style="display:flex;align-items:center;gap:10px;margin:8px 0">
+        <span class="dlab" style="flex:0 0 96px;display:flex;align-items:baseline;gap:5px"><span style="color:#475569;font-size:15px;font-weight:600">\(A\)</span><span style="color:#6b7280;font-size:13px">\(\text{season size}\)</span></span>
+        <input type="range" id="ampIn" min="0" max="50" value="26" step="2" style="flex:1 1 auto;width:auto;min-width:0;margin:0">
+        <span class="num" id="ampV" style="flex:0 0 66px;text-align:right;font-size:15px;padding:4px 7px;border:1px solid #e6e6e0;border-radius:7px;background:#fff;color:#185fa5;font-weight:600;font-variant-numeric:tabular-nums">2.6</span>
+      </div>
+      <div class="drow" id="c-beh" style="display:flex;align-items:center;gap:10px;margin:8px 0">
+        <span class="dlab" style="flex:0 0 auto;color:#475569;font-size:15px;font-weight:600">\(\text{Season}\)</span>
+        <div class="seg" data-for="beh">
+          <button type="button" data-val="same">\(\text{Same}\)</button>
+          <button type="button" data-val="grow">\(\text{Grows}\)</button>
+        </div>
+      </div>
+      <div class="drow" id="c-sig" style="display:flex;align-items:center;gap:10px;margin:8px 0">
+        <span class="dlab" style="flex:0 0 96px;display:flex;align-items:baseline;gap:5px"><span style="color:#475569;font-size:15px;font-weight:600">\(\sigma\)</span><span style="color:#6b7280;font-size:13px">\(\text{noise}\)</span></span>
+        <input type="range" id="sigIn" min="2" max="30" value="10" step="2" style="flex:1 1 auto;width:auto;min-width:0;margin:0">
+        <span class="num" id="sigV" style="flex:0 0 66px;text-align:right;font-size:15px;padding:4px 7px;border:1px solid #e6e6e0;border-radius:7px;background:#fff;color:#185fa5;font-weight:600;font-variant-numeric:tabular-nums">1.0</span>
+      </div>
+      <div class="drow" id="c-a" style="display:flex;align-items:center;gap:10px;margin:8px 0">
+        <span class="dlab" style="flex:0 0 96px;display:flex;align-items:baseline;gap:5px"><span style="color:#475569;font-size:15px;font-weight:600">\(\alpha\)</span><span style="color:#6b7280;font-size:13px">\(\text{level}\)</span></span>
+        <input type="range" id="aIn" min="5" max="95" value="30" step="5" style="flex:1 1 auto;width:auto;min-width:0;margin:0">
+        <span class="num" id="aV" style="flex:0 0 66px;text-align:right;font-size:15px;padding:4px 7px;border:1px solid #e6e6e0;border-radius:7px;background:#fff;color:#185fa5;font-weight:600;font-variant-numeric:tabular-nums">0.30</span>
+      </div>
+      <div class="drow" id="c-b" style="display:flex;align-items:center;gap:10px;margin:8px 0">
+        <span class="dlab" style="flex:0 0 96px;display:flex;align-items:baseline;gap:5px"><span style="color:#475569;font-size:15px;font-weight:600">\(\beta\)</span><span style="color:#6b7280;font-size:13px">\(\text{slope}\)</span></span>
+        <input type="range" id="bIn" min="0" max="95" value="20" step="5" style="flex:1 1 auto;width:auto;min-width:0;margin:0">
+        <span class="num" id="bV" style="flex:0 0 66px;text-align:right;font-size:15px;padding:4px 7px;border:1px solid #e6e6e0;border-radius:7px;background:#fff;color:#185fa5;font-weight:600;font-variant-numeric:tabular-nums">0.20</span>
+      </div>
+      <div class="drow" id="c-f" style="display:flex;align-items:center;gap:10px;margin:8px 0">
+        <span class="dlab" style="flex:0 0 96px;display:flex;align-items:baseline;gap:5px"><span style="color:#475569;font-size:15px;font-weight:600">\(\varphi\)</span><span style="color:#6b7280;font-size:13px">\(\text{damping}\)</span></span>
+        <input type="range" id="fIn" min="70" max="100" value="100" step="5" style="flex:1 1 auto;width:auto;min-width:0;margin:0">
+        <span class="num" id="fV" style="flex:0 0 66px;text-align:right;font-size:15px;padding:4px 7px;border:1px solid #e6e6e0;border-radius:7px;background:#fff;color:#185fa5;font-weight:600;font-variant-numeric:tabular-nums">1.00</span>
+      </div>
+      <div class="drow" id="c-g" style="display:flex;align-items:center;gap:10px;margin:8px 0">
+        <span class="dlab" style="flex:0 0 96px;display:flex;align-items:baseline;gap:5px"><span style="color:#475569;font-size:15px;font-weight:600">\(\gamma\)</span><span style="color:#6b7280;font-size:13px">\(\text{season}\)</span></span>
+        <input type="range" id="gIn" min="0" max="95" value="30" step="5" style="flex:1 1 auto;width:auto;min-width:0;margin:0">
+        <span class="num" id="gV" style="flex:0 0 66px;text-align:right;font-size:15px;padding:4px 7px;border:1px solid #e6e6e0;border-radius:7px;background:#fff;color:#185fa5;font-weight:600;font-variant-numeric:tabular-nums">0.30</span>
+      </div>
+      <div class="drow" id="c-st" style="display:flex;align-items:center;gap:10px;margin:8px 0">
+        <span class="dlab" style="flex:0 0 auto;color:#475569;font-size:15px;font-weight:600">\(\text{Split}\)</span>
+        <div class="seg" data-for="stype">
+          <button type="button" data-val="add">\(\text{Additive}\)</button>
+          <button type="button" data-val="mul">\(\text{Multiplicative}\)</button>
+        </div>
+      </div>
+      <div class="row" id="rowRun">
+        <button class="primary" id="resetBtn">\(\text{New data}\)</button>
+      </div>
+    </div>
+    </div>
+  </div>
+</div>
+<script src="pg_engine.js?v=5"></script>
+<script>
+/* 2. Exponential smoothing — the textbook ladder, but each rung gets a world built for it
+   and a number that settles the question (see OBJECTIVES.md).
+   Two errors are always on show: the one-step fit error, and the error on the last 8 points
+   the model never saw. Which one decides the question is stated on each tab. */
+const C={ser:'#E07A5F',serTx:'#B0503A',fit:'#5B8FB9',fitTx:'#3F6E99',
+         lev:'#5B8FB9',levTx:'#3F6E99',trd:'#6BA38C',trdTx:'#3F7D63',sea:'#E3B23C',seaTx:'#8A6510',
+         hold:'rgba(176,122,174,0.10)',holdTx:'#7E5A93',ax:'#94a3b8',axtx:'#64748b',zero:'#9aa3b2',faint:'#e7cfc6'};
+function K(t,el,d){if(!el)return;if(window.katex){try{katex.render(String(t),el,{throwOnError:false,displayMode:!!d});return;}catch(e){}}el.textContent=t;}
+function Keq(sym,num){const el=document.getElementById('eq');if(!el)return;el.textContent='';
+  const d1=document.createElement('div'),d2=document.createElement('div');d2.className='eqnum';
+  try{katex.render(sym,d1,{throwOnError:false});}catch(e){d1.textContent=sym;}
+  try{katex.render(num,d2,{throwOnError:false});}catch(e){d2.textContent=num;}
+  el.appendChild(d1);el.appendChild(d2);}
+
+const N=48,M=4,H=8,NFIT=N-H;      /* fit on the first 40, judge on the last 8 */
+let seed=1,tab=0,stype='add',beh='same',pat='b',Y=[];
+/* Each rung has its own world, so it gets its own three standard cases.
+   A preset snaps the sliders there; the sliders stay live afterwards. */
+const PAT=[
+ {a:{lab:'Steady',w:15,sg:10},   b:{lab:'Drifting',w:40,sg:10},  c:{lab:'Jumpy',w:150,sg:10}},
+ {a:{lab:'Trend dies',rho:60,sg:8},b:{lab:'Trend fades',rho:70,sg:8},c:{lab:'Trend holds',rho:100,sg:8}},
+ {a:{lab:'Weak season',amp:15,sg:4,beh:'same'},b:{lab:'Season same',amp:40,sg:4,beh:'same'},
+  c:{lab:'Season grows',amp:40,sg:4,beh:'grow'}}];
+const BASE={a:30,b:20,f:100,g:30,stype:'add'};
+/* each rung resets to its own world — the generator is different on each tab, so the baseline is too */
+const WBASE=[{w:40,sg:10},{rho:70,sg:8},{amp:40,sg:4}];
+const EN=[['a'],['b','f'],['g','stype']];
+const aIn=document.getElementById('aIn'),bIn=document.getElementById('bIn'),
+      fIn=document.getElementById('fIn'),gIn=document.getElementById('gIn'),
+      wIn=document.getElementById('wIn'),rhoIn=document.getElementById('rhoIn'),
+      ampIn=document.getElementById('ampIn'),sigIn=document.getElementById('sigIn');
+const WAN=()=>+wIn.value/100, RHO=()=>+rhoIn.value/100, AMP=()=>+ampIn.value/10, SIG=()=>+sigIn.value/10;
+function gauss(r){let s=0;for(let k=0;k<12;k++)s+=r.next();return s-6;}
+function mean(a){const v=a.filter(x=>x!=null&&isFinite(x));return v.length?v.reduce((x,b)=>x+b,0)/v.length:0;}
+
+/* ---- one world per rung: the world contains exactly the component that rung is about ---- */
+function regen(){const r=PG.rng(seed*7919+31),sg=SIG();Y=[];
+  if(tab===0){let L=12;const w=WAN();
+    for(let t=0;t<N;t++){L+=w*gauss(r);Y.push(L+sg*gauss(r));}}
+  else if(tab===1){let L=12,B=0.55;const rho=RHO();
+    for(let t=0;t<N;t++){B=rho*B+0.22*gauss(r);L+=B;Y.push(L+sg*gauss(r));}}
+  else{let L=12;const A=AMP();
+    for(let t=0;t<N;t++){L+=0.30;const s=Math.sin(2*Math.PI*t/M);
+      Y.push(L+(beh==='grow'?L*(A/12)*s:A*s)+sg*gauss(r));}}}
+
+/* ---- one routine for the whole family: turn trend and season on or off ---- */
+function ets(al,be,ph,ga,useT,useS,mul,nfit){
+  nfit=nfit||N;
+  const l=[],b=[],s=[],fit=new Array(N).fill(null);
+  const m1=mean(Y.slice(0,M)),m2=mean(Y.slice(M,2*M));
+  let L=m1,B=useT?(m2-m1)/M:0;
+  for(let i=0;i<M;i++)s.push(mul?(Y[i]/(m1||1)):(Y[i]-m1));
+  let ss=0,cnt=0;
+  for(let t=0;t<nfit;t++){
+    const si=useS?s[s.length-M]:(mul?1:0);
+    const base=L+ph*B, f=mul?base*si:base+si;
+    if(t>=M){fit[t]=f;ss+=(Y[t]-f)*(Y[t]-f);cnt++;}
+    const dese=useS?(mul?Y[t]/(si||1):Y[t]-si):Y[t];
+    const Lp=L;
+    L=al*dese+(1-al)*(L+ph*B);
+    B=useT?be*(L-Lp)+(1-be)*ph*B:0;
+    if(useS)s.push(ga*(mul?Y[t]/((Lp+ph*B)||1):Y[t]-Lp-ph*B)+(1-ga)*si); else s.push(mul?1:0);
+    l.push(L);b.push(B);}
+  /* forecast the 8 points the fit never touched — damped sum of the slope, last cycle of seasonal terms */
+  const fc=[];let acc=0,hs=0;
+  for(let h=1;h<=H;h++){acc+=Math.pow(ph,h);
+    const base=L+acc*B, si=useS?s[s.length-M+((h-1)%M)]:(mul?1:0);
+    const f=mul?base*si:base+si;fc.push(f);
+    const idx=nfit+h-1;if(idx<N)hs+=(Y[idx]-f)*(Y[idx]-f);}
+  return {l,b,s:s.slice(M),fit,fc,L,B,
+          rmse:Math.sqrt(cnt?ss/cnt:0),          /* one-step error inside the fit */
+          hold:Math.sqrt(hs/H)};}                /* error on the 8 held-out points */
+
+/* two passes on purpose:
+     FULL — updated on every point, gives the one-step fit error (how alpha is chosen in the textbook)
+     CUT  — updated on the first 40 only, so the 8 points it forecasts are genuinely unseen */
+function run(o){o=o||{};
+  const al=o.al!=null?o.al:+aIn.value/100, be=o.be!=null?o.be:+bIn.value/100,
+        ph=o.ph!=null?o.ph:+fIn.value/100, ga=o.ga!=null?o.ga:+gIn.value/100,
+        mul=o.mul!=null?o.mul:(stype==='mul');
+  const A=[al,be,tab>=1?ph:1,ga,tab>=1,tab>=2,mul];
+  const full=ets(A[0],A[1],A[2],A[3],A[4],A[5],A[6],N),
+        cut =ets(A[0],A[1],A[2],A[3],A[4],A[5],A[6],NFIT);
+  return {l:full.l,b:full.b,s:full.s,fit:cut.fit,fc:cut.fc,L:full.L,B:full.B,
+          rmse:full.rmse,hold:cut.hold};}
+/* The playground runs the experiment for you, and runs it REPEATEDLY.
+   One series is a noisy answer; the number that decides a question is averaged over RUNS
+   independent series from the same world, so the reading is stable and reproducible. */
+const RUNS=8;
+function overRuns(fn){const keep=seed,out=[];
+  for(let k=0;k<RUNS;k++){seed=keep+k;regen();out.push(fn());}
+  seed=keep;regen();
+  return out;}
+function meanOf(a){return a.reduce((x,b)=>x+b,0)/a.length;}
+function sweep(vals,get){const acc=vals.map(()=>[]);
+  overRuns(()=>{vals.forEach((v,i)=>acc[i].push(get(v)));});
+  let best=null;const curve=vals.map((v,i)=>{const m=meanOf(acc[i]);
+    if(!best||m<best[1])best=[v,m];return [v,m];});
+  return {best,curve};}
+function bestAlpha(){const s=sweep([5,10,15,20,25,30,35,40,45,50,55,60,65,70,75,80,85,90,95].map(x=>x/100),
+  a=>run({al:a}).rmse);return s;}
+function bestPhi(){return sweep([0.70,0.75,0.80,0.85,0.90,0.95,1.00],p=>run({ph:p}).hold);}
+function splitPair(){const a=overRuns(()=>run({mul:false}).hold),b=overRuns(()=>run({mul:true}).hold);
+  return [meanOf(a),meanOf(b)];}
+/* q = how much the level moves between steps, against the noise. Textbook steady state: a^2/(1-a) = q */
+function alphaPredicted(){const q=(WAN()*WAN())/(SIG()*SIG()||1e-9);
+  return (-q+Math.sqrt(q*q+4*q))/2;}
+
+function ctxOf(cv){cv.style.width='100%';cv.style.height='100%';const w=Math.max(80,Math.round(cv.clientWidth)),h=Math.max(80,Math.round(cv.clientHeight));cv.width=w;cv.height=h;return cv.getContext('2d');}
+const mC=document.getElementById('mC');
+function nice(v){const a=Math.abs(v);return a>=100?v.toFixed(0):a>=10?v.toFixed(1):v.toFixed(2);}
+function span(arr){const v=arr.filter(x=>x!=null&&isFinite(x));if(!v.length)return[-1,1];
+  let lo=Math.min.apply(null,v),hi=Math.max.apply(null,v);const pad=(hi-lo||1)*0.16;return[lo-pad,hi+pad];}
+function axes(c,box,x0,x1,lo,hi,xlab){
+  const PX=x=>box.l+(x-x0)/(x1-x0)*(box.r-box.l),PY=v=>box.b-(v-lo)/(hi-lo)*(box.b-box.t);
+  c.strokeStyle=C.ax;c.lineWidth=1.1;c.beginPath();c.moveTo(box.l,box.t);c.lineTo(box.l,box.b);c.lineTo(box.r,box.b);c.stroke();
+  c.fillStyle=C.axtx;c.font='14px KaTeX_Main';c.textAlign='right';c.textBaseline='middle';
+  [lo+(hi-lo)*0.06,(lo+hi)/2,hi-(hi-lo)*0.06].forEach(v=>c.fillText(nice(v),box.l-5,PY(v)));
+  if(xlab){c.textAlign='center';c.textBaseline='top';
+    for(let i=0;i<=x1;i+=12)if(i>=x0)c.fillText(i+1,PX(i),box.b+4);
+    c.font='italic 14px KaTeX_Math';c.textBaseline='bottom';c.fillText('time step',(box.l+box.r)/2,box.b+36);}
+  return {PX,PY};}
+function tag(c,box,txt,col,slot){c.font='14px KaTeX_Main';const w=c.measureText(txt).width,y=box.t+1+19*(slot||0);
+  c.fillStyle='rgba(255,255,255,0.86)';c.fillRect(box.l+2,y-2,w+6,19);
+  c.fillStyle=col;c.textAlign='left';c.textBaseline='top';c.fillText(txt,box.l+4,y);}
+function poly(c,PX,PY,arr,x0i,col,wd,dash){c.strokeStyle=col;c.lineWidth=wd;if(dash)c.setLineDash(dash);
+  c.beginPath();let on=false;
+  arr.forEach((v,i)=>{if(v==null||!isFinite(v)){on=false;return;}const X=PX(i+x0i),Yp=PY(v);on?c.lineTo(X,Yp):c.moveTo(X,Yp);on=true;});
+  c.stroke();c.setLineDash([]);}
+function dots(c,PX,PY,arr,x0i,col,r){c.fillStyle=col;
+  arr.forEach((v,i)=>{if(v==null||!isFinite(v))return;c.beginPath();c.arc(PX(i+x0i),PY(v),r,0,7);c.fill();});}
+
+function draw(){const c=ctxOf(mC),W=mC.width,Hh=mC.height;c.clearRect(0,0,W,Hh);
+  const Mo=run(),mul=(stype==='mul');
+  const L=48,R=W-14,T=16,B=Hh-40,gap=30,hh=(B-T-gap)*0.60;
+  const b1={l:L,t:T,r:R,b:T+hh},b2={l:L,t:T+hh+gap,r:R,b:B};
+  const all=Y.concat(Mo.fit).concat(Mo.fc),[lo,hi]=span(all);
+  const {PX,PY}=axes(c,b1,-0.6,N-0.4,lo,hi,false);
+  /* the held-out block is shaded so it is obvious which points the model never saw */
+  c.fillStyle=C.hold;c.fillRect(PX(NFIT-0.5),b1.t,PX(N-0.4)-PX(NFIT-0.5),b1.b-b1.t);
+  c.save();c.beginPath();c.rect(b1.l,b1.t,b1.r-b1.l,b1.b-b1.t);c.clip();
+  poly(c,PX,PY,Y,0,C.ser,2.1);dots(c,PX,PY,Y,0,C.ser,2.2);
+  poly(c,PX,PY,Mo.fit,0,C.fit,1.9,[5,4]);
+  c.strokeStyle=C.fit;c.lineWidth=2.3;c.beginPath();c.moveTo(PX(NFIT-1),PY(Y[NFIT-1]));
+  Mo.fc.forEach((v,i)=>c.lineTo(PX(NFIT+i),PY(v)));c.stroke();
+  dots(c,PX,PY,Mo.fc,NFIT,C.fit,2.6);c.restore();
+  c.strokeStyle=C.zero;c.lineWidth=1;c.setLineDash([4,4]);
+  c.beginPath();c.moveTo(PX(NFIT-0.5),b1.t);c.lineTo(PX(NFIT-0.5),b1.b);c.stroke();c.setLineDash([]);
+  tag(c,b1,'series',C.serTx,0);tag(c,b1,'fit, then forecast into the shaded block',C.fitTx,1);
+  if(tab===0){const[l2,h2]=span(Y.concat(Mo.l)),a2=axes(c,b2,-0.6,N-0.4,l2,h2,true);
+    poly(c,a2.PX,a2.PY,Y,0,C.faint,1.6);
+    poly(c,a2.PX,a2.PY,Mo.l,0,C.lev,2.2);
+    tag(c,b2,'level  ℓ',C.levTx,0);}
+  else if(tab===1){const[l2,h2]=span(Mo.b),a2=axes(c,b2,-0.6,N-0.4,l2,h2,true);
+    c.strokeStyle=C.zero;c.lineWidth=1;c.beginPath();c.moveTo(b2.l,a2.PY(0));c.lineTo(b2.r,a2.PY(0));c.stroke();
+    poly(c,a2.PX,a2.PY,Mo.b,0,C.trd,2.2);
+    tag(c,b2,'slope  b',C.trdTx,0);}
+  else{const[l2,h2]=span(Mo.s),a2=axes(c,b2,-0.6,N-0.4,l2,h2,true);
+    c.strokeStyle=C.zero;c.lineWidth=1;c.beginPath();c.moveTo(b2.l,a2.PY(mul?1:0));c.lineTo(b2.r,a2.PY(mul?1:0));c.stroke();
+    poly(c,a2.PX,a2.PY,Mo.s,0,C.sea,2.2);
+    tag(c,b2,'season  s',C.seaTx,0);}
+  showEq(Mo);
+  const narrow=window.matchMedia('(max-width:820px)').matches,wrap=document.querySelector('.wrap'),pnl=document.querySelector('.panel');
+  if(wrap&&pnl)wrap.style.paddingBottom=narrow?(Math.ceil(pnl.getBoundingClientRect().height)+14)+'px':'';}
+
+const SYM=['\\ell_t = \\alpha\\,y_t + (1-\\alpha)\\,\\ell_{t-1} \\qquad \\hat y_{t+h} = \\ell_t',
+           '\\ell_t = \\alpha y_t + (1-\\alpha)(\\ell_{t-1}+\\varphi b_{t-1}) \\quad b_t = \\beta(\\ell_t-\\ell_{t-1}) + (1-\\beta)\\varphi b_{t-1}'];
+const SYM_S={add:'s_t = \\gamma\\,(y_t - \\ell_{t-1} - b_{t-1}) + (1-\\gamma)\\,s_{t-m} \\qquad \\hat y_{t+h} = \\ell_t + h\\,b_t + s_{t+h-m}',
+             mul:'s_t = \\gamma\\,y_t/(\\ell_{t-1} + b_{t-1}) + (1-\\gamma)\\,s_{t-m} \\qquad \\hat y_{t+h} = (\\ell_t + h\\,b_t)\\,s_{t+h-m}'};
+function showEq(Mo){
+  const al=+aIn.value/100;
+  if(tab===0){const bA=bestAlpha().best;
+    Keq(SYM[0],'\\alpha = '+al.toFixed(2)+'\\quad \\text{one-step error} = '+Mo.rmse.toFixed(2)+
+      '\\quad \\textbf{best }\\alpha\\textbf{ over }'+RUNS+'\\textbf{ runs} = '+bA[0].toFixed(2)+
+      '\\quad \\text{formula says }'+alphaPredicted().toFixed(2));}
+  else if(tab===1){const bP=bestPhi(),at1=bP.curve[bP.curve.length-1][1];
+    Keq(SYM[1],'\\varphi = '+(+fIn.value/100).toFixed(2)+'\\quad \\text{held-out error} = '+Mo.hold.toFixed(2)+
+      '\\quad \\textbf{best }\\varphi\\textbf{ over }'+RUNS+'\\textbf{ runs} = '+bP.best[0].toFixed(2)+'\\ ('+bP.best[1].toFixed(2)+')'+
+      '\\quad \\varphi=1\\text{ costs }'+((at1/bP.best[1]-1)*100).toFixed(0)+'\\%');}
+  else{const p=splitPair(),A=p[0],B=p[1];
+    Keq(SYM_S[stype==='mul'?'mul':'add'],'\\gamma = '+(+gIn.value/100).toFixed(2)+
+      '\\quad \\text{held-out error over }'+RUNS+'\\text{ runs — additive }'+A.toFixed(2)+'\\text{, multiplicative }'+B.toFixed(2)+
+      '\\quad \\textbf{'+(A<B?'additive':'multiplicative')+'\\ wins\\ by\\ }'+
+      (Math.abs(A-B)/Math.min(A,B)*100).toFixed(0)+'\\%');}}
+
+const TABS=[
+ {name:'\\text{SES}',
+  goal:'\\textbf{Aim: make the best }\\alpha\\textbf{ move.}\\ \\text{Set the}\\allowbreak\\ \\textcolor{#3F6E99}{\\text{level wander}}\\text{ to }0.15,\\ 0.40,\\ 1.50\\text{ and write}\\allowbreak\\text{ down }\\textit{best }\\alpha\\text{ each time. Compare with the formula.}'},
+ {name:'\\text{Holt}',
+  goal:'\\textbf{Aim: decide whether damping pays.}\\ \\text{Set }\\rho=\\allowbreak 0.70\\text{, then }1.00\\text{. Read }\\textit{best }\\varphi\\text{ and how much}\\allowbreak\\ \\varphi=1\\text{ costs on the 8 points held out.}'},
+ {name:'\\text{Holt-Winters}',
+  goal:'\\textbf{Aim: pick the split by the number.}\\ \\text{Switch}\\allowbreak\\text{ Season between Same and Grows and read which}\\allowbreak\\text{ of additive / multiplicative wins, and by how much.}'}];
+
+function syncReadouts(){K((+aIn.value/100).toFixed(2),document.getElementById('aV'));
+  K((+bIn.value/100).toFixed(2),document.getElementById('bV'));
+  K((+fIn.value/100).toFixed(2),document.getElementById('fV'));
+  K((+gIn.value/100).toFixed(2),document.getElementById('gV'));
+  K(WAN().toFixed(2),document.getElementById('wV'));K(RHO().toFixed(2),document.getElementById('rhoV'));
+  K(AMP().toFixed(1),document.getElementById('ampV'));K(SIG().toFixed(1),document.getElementById('sigV'));}
+/* หลักการซ่อน/จาง: ซ่อน (.off) = ไม่มีตัวแปรนี้ในการทดลองนี้ · จาง (.lock) = มีอยู่แต่ตรึงไว้ · สว่าง = คันโยกของ tab นี้
+   แถวที่มี .seg ต้องใช้คลาส .off — pg_style บังคับ display:flex!important ทับ inline style */
+function syncRows(){const en=EN[tab];
+  const set=(id,st)=>{const e=document.getElementById(id);
+    e.classList.toggle('off',st==='hide');e.classList.toggle('lock',st==='lock');};
+  set('c-pat','live');
+  set('c-w',  tab===0?'live':'hide');       /* each rung gets the world it is about */
+  set('c-rho',tab===1?'live':'hide');
+  set('c-amp',tab===2?'live':'hide');
+  set('c-beh','hide');    /* พฤติกรรมฤดูกาลเลือกผ่าน Pattern (Season same / Season grows) */
+  set('c-sig','live');
+  set('c-a', en.includes('a')?'live':'lock');
+  set('c-b', tab<1?'hide':(en.includes('b')?'live':'lock'));
+  set('c-f', tab!==1?'hide':'live');        /* damping is the Holt question; HW here runs undamped */
+  set('c-g', tab<2?'hide':'live');
+  set('c-st',tab<2?'hide':'live');}
+function paint(name,v){document.querySelectorAll('.seg[data-for="'+name+'"] button').forEach(b=>{
+  const on=b.getAttribute('data-val')===v;b.style.background=on?'#1e3a8a':'#fff';b.style.color=on?'#fff':'#555';});}
+function labelPresets(){const P=PAT[tab];
+  document.querySelectorAll('.seg[data-for="pat"] button').forEach(b=>{
+    const t=P[b.getAttribute('data-val')].lab;
+    if(window.katex){try{katex.render('\\text{'+t+'}',b,{throwOnError:false});return;}catch(e){}}
+    b.textContent=t;});}
+function applyPat(v){pat=v;const P=PAT[tab][v];
+  if(P.w!=null)wIn.value=P.w;if(P.rho!=null)rhoIn.value=P.rho;if(P.amp!=null)ampIn.value=P.amp;
+  if(P.sg!=null)sigIn.value=P.sg;if(P.beh!=null){beh=P.beh;paint('beh',beh);}
+  paint('pat',v);syncReadouts();regen();draw();}
+function clearPat(){if(pat!=='free'){pat='free';paint('pat','free');}}
+function setSeg(name,v){
+  if(name==='pat')return applyPat(v);
+  if(name==='stype'){if(document.getElementById('c-st').classList.contains('lock'))return;stype=v;}
+  else{if(document.getElementById('c-beh').classList.contains('lock'))return;beh=v;clearPat();regen();}
+  paint(name,v);draw();}
+function applyTab(i){tab=i;document.querySelectorAll('.tabbtn').forEach((b,j)=>b.className='tabbtn'+(j===i?' on':''));
+  K('\\textbf{Try it.}\\ \\allowbreak'+TABS[i].goal,document.getElementById('hint'),false);
+  aIn.value=BASE.a;bIn.value=BASE.b;fIn.value=BASE.f;gIn.value=BASE.g;
+  const W=WBASE[i];
+  if(W.w!=null)wIn.value=W.w;if(W.rho!=null)rhoIn.value=W.rho;if(W.amp!=null)ampIn.value=W.amp;
+  sigIn.value=W.sg;
+  if(!EN[i].includes('stype'))paint('stype',stype=BASE.stype);
+  labelPresets();paint('pat',pat='b');
+  seed=1;regen();syncReadouts();syncRows();draw();}
+
+['stype','beh','pat'].forEach(nm=>document.querySelectorAll('.seg[data-for="'+nm+'"] button')
+  .forEach(b=>b.addEventListener('click',()=>setSeg(nm,b.getAttribute('data-val')))));
+[aIn,bIn,fIn,gIn].forEach(el=>el.addEventListener('input',()=>{syncReadouts();draw();}));
+[wIn,rhoIn,ampIn,sigIn].forEach(el=>el.addEventListener('input',()=>{clearPat();syncReadouts();regen();draw();}));
+document.getElementById('resetBtn').addEventListener('click',()=>{seed++;regen();draw();});
+window.addEventListener('resize',()=>draw());
+
+const tb=document.getElementById('tabs');
+TABS.forEach((T,i)=>{const b=document.createElement('button');b.className='tabbtn';
+  (window.katex?katex.render(T.name,b,{throwOnError:false}):(b.textContent=T.name));b.onclick=()=>applyTab(i);tb.appendChild(b);});
+syncReadouts();paint('stype','add');paint('beh','same');applyTab(0);
+window.LAB={
+  read:()=>{const Mo=run();const o={tab,pat,rmse:+Mo.rmse.toFixed(3),hold:+Mo.hold.toFixed(3)};
+    if(tab===0){const s=bestAlpha();o.bestAlpha=s.best[0];o.bestRmse=+s.best[1].toFixed(3);
+      o.predAlpha=+alphaPredicted().toFixed(3);
+      o.slowRmse=+s.curve[0][1].toFixed(3);o.fastRmse=+s.curve[s.curve.length-1][1].toFixed(3);}
+    if(tab===1){const s=bestPhi();o.bestPhi=s.best[0];o.bestHold=+s.best[1].toFixed(3);
+      o.hold1=+s.curve[s.curve.length-1][1].toFixed(3);}
+    if(tab===2){const p=splitPair();o.holdAdd=+p[0].toFixed(3);o.holdMul=+p[1].toFixed(3);}
+    return o;},
+  set:(o)=>{if(o.tab!=null)applyTab(o.tab);
+    if(o.w!=null)wIn.value=Math.round(o.w*100);if(o.rho!=null)rhoIn.value=Math.round(o.rho*100);
+    if(o.A!=null)ampIn.value=Math.round(o.A*10);if(o.sg!=null)sigIn.value=Math.round(o.sg*10);
+    if(o.al!=null)aIn.value=Math.round(o.al*100);if(o.be!=null)bIn.value=Math.round(o.be*100);
+    if(o.ph!=null)fIn.value=Math.round(o.ph*100);if(o.ga!=null)gIn.value=Math.round(o.ga*100);
+    if(o.pat!=null)applyPat(o.pat);
+    if(o.beh!=null){beh=o.beh;paint('beh',beh);}
+    if(o.stype!=null){stype=o.stype;paint('stype',stype);}
+    if(o.seed!=null)seed=o.seed;
+    syncReadouts();regen();syncRows();draw();}};
+(function(){function fix(){if(mC.clientWidth>0&&(Math.abs(mC.width-Math.round(mC.clientWidth))>0.6||Math.abs(mC.height-Math.round(mC.clientHeight))>0.6))draw();}
+  if(window.ResizeObserver){const ro=new ResizeObserver(()=>fix());ro.observe(mC);}
+  requestAnimationFrame(()=>requestAnimationFrame(fix));})();
+</script>
+<script>(function(){if(!window.katex)return;var t=document.getElementById("__pgt");if(t)try{katex.render(t.getAttribute("data-tex"),t,{throwOnError:false});}catch(e){}})();</script>
+<script>document.addEventListener("DOMContentLoaded",function(){if(window.renderMathInElement)renderMathInElement(document.body,{delimiters:[{left:"\\(",right:"\\)",display:false},{left:"$$",right:"$$",display:true}],throwOnError:false});});</script>
+</body>
+</html>
