@@ -10,7 +10,7 @@
 <style>
   /* intro-timeseries — โครงเดียวกับ Introduction to Regression / RUL: ตารางข้อมูลซ้าย ·
      กราฟ + legend + กล่องคำนวณ · control ขวา */
-  :root{--panel-h:316px}   /* วัดจาก tab ที่ control สูงสุดแล้วตรึงทุก tab เท่ากัน */
+  :root{--panel-h:422px}   /* วัดจาก tab ที่ control สูงสุดแล้วตรึงทุก tab เท่ากัน */
   .layout{align-items:start}
   .pg.distcls .canvasbox{height:260px}
   .distcls .stage{gap:6px}
@@ -38,6 +38,8 @@
   .seg2 button+button{border-left:1px solid #e6e6e0}
   .seg2 button.on{background:var(--navy);color:#fff}
   .seg2 .katex{font-size:1em}
+  .eqline{font-size:14px;color:#555;margin:-2px 0 9px;text-align:center}
+  .eqline .katex{font-size:1em}
   .stage.mod{flex-direction:row;gap:18px;align-items:flex-start}
   .dleft{display:block;flex:0 0 300px;min-width:0;overflow-y:auto;overflow-x:hidden;border-radius:8px;position:relative}
   .main{display:flex;flex-direction:column;gap:6px;flex:1 1 auto;min-width:0}
@@ -47,7 +49,7 @@
 </style>
 </head>
 <body class="pg distcls">
-<h2 class="sr-only" style="position:absolute;width:1px;height:1px;overflow:hidden">Introduction to time series in four steps. First build a series yourself from its components — a level, a trend, a weekly seasonal pattern and noise — and read the sum in the table. Then pick a lag and see the correlation between today and that many days ago as a scatter of pairs. Then read the same correlations for every lag at once as the ACF, and with the shorter lags removed as the PACF. Finally fit ARIMA and SARIMA to the series you built and watch the forecast carry the trend and the weekly pattern forward.</h2>
+<h2 class="sr-only" style="position:absolute;width:1px;height:1px;overflow:hidden">Introduction to time series in four steps. First build a series yourself from its components — a level, a trend, a weekly seasonal pattern and noise — and read the sum in the table. Then pick a lag and see the correlation between today and that many days ago as a scatter of pairs. Then read the same correlations for every lag at once as the ACF, and with the shorter lags removed as the PACF. Finally choose the model orders p, d, q and the seasonal P, D, Q at period seven, fit the model to the series and watch the forecast carry the trend and the weekly pattern forward. A dataset control offers three fixed example series, sales, sensor and clinic, besides the series built from the levers.</h2>
 <div class="wrap">
   <div class="hdr"><h1 id="h1">Introduction to Time Series</h1><div class="tabs" id="tabs"></div></div>
   <div class="layout" id="mainPanel">
@@ -62,12 +64,16 @@
     </div>
     <div class="panel">
       <div class="dhd" id="hd-data"></div>
-      <div class="dgrid">
+      <div class="seg2" id="dsSeg">
+        <button data-ds="custom" id="ds-custom" class="on"></button><button data-ds="sales" id="ds-sales"></button><button data-ds="sensor" id="ds-sensor"></button><button data-ds="clinic" id="ds-clinic"></button>
+      </div>
+      <div class="eqline" id="eqline"></div>
+      <div id="grp-custom"><div class="dgrid">
         <div class="drow"><span class="dlab" id="lbl-b"></span><input type="range" id="Rb" min="0" max="0.4" step="0.05" value="0.2"><input class="num" type="number" id="Nb" min="0" max="0.4" step="0.05" value="0.2"></div>
         <div class="drow"><span class="dlab" id="lbl-A"></span><input type="range" id="RA" min="0" max="8" step="0.5" value="5"><input class="num" type="number" id="NA" min="0" max="8" step="0.5" value="5"></div>
         <div class="drow"><span class="dlab" id="lbl-sg"></span><input type="range" id="Rsg" min="0.5" max="4" step="0.5" value="1"><input class="num" type="number" id="Nsg" min="0.5" max="4" step="0.5" value="1"></div>
         <div class="drow"><span class="dlab" id="lbl-n"></span><input type="range" id="Rn" min="28" max="84" step="7" value="56"><input class="num" type="number" id="Nn" min="28" max="84" step="7" value="56"></div>
-      </div>
+      </div></div>
       <div id="grp-lag"><div class="dhd" id="hd-lag"></div>
       <div class="dgrid">
         <div class="drow"><span class="dlab" id="lbl-k"></span><input type="range" id="Rk" min="1" max="14" step="1" value="7"><input class="num" type="number" id="Nk" min="1" max="14" step="1" value="7"></div>
@@ -77,10 +83,15 @@
         <div class="drow"><span class="dlab" id="lbl-t0"></span><input type="range" id="Rt0" min="1" max="56" step="1" value="16"><input class="num" type="number" id="Nt0" min="1" max="56" step="1" value="16"></div>
       </div></div>
       <div id="grp-model"><div class="dhd" id="hd-model"></div>
-      <div class="seg2" id="modelSeg">
-        <button data-m="arima" id="sb-arima" class="on"></button><button data-m="sarima" id="sb-sarima"></button>
+      <div class="dgrid">
+        <div class="drow"><span class="dlab" id="lbl-p"></span><input type="range" id="Rp" min="0" max="2" step="1" value="1"><input class="num" type="number" id="Np" min="0" max="2" step="1" value="1"></div>
+        <div class="drow"><span class="dlab" id="lbl-d"></span><input type="range" id="Rd" min="0" max="1" step="1" value="1"><input class="num" type="number" id="Nd" min="0" max="1" step="1" value="1"></div>
+        <div class="drow"><span class="dlab" id="lbl-q"></span><input type="range" id="Rq" min="0" max="2" step="1" value="1"><input class="num" type="number" id="Nq" min="0" max="2" step="1" value="1"></div>
+        <div class="drow"><span class="dlab" id="lbl-P"></span><input type="range" id="RP" min="0" max="1" step="1" value="0"><input class="num" type="number" id="NP" min="0" max="1" step="1" value="0"></div>
+        <div class="drow"><span class="dlab" id="lbl-D"></span><input type="range" id="RD" min="0" max="1" step="1" value="0"><input class="num" type="number" id="ND" min="0" max="1" step="1" value="0"></div>
+        <div class="drow"><span class="dlab" id="lbl-Q"></span><input type="range" id="RQ" min="0" max="1" step="1" value="0"><input class="num" type="number" id="NQ" min="0" max="1" step="1" value="0"></div>
       </div></div>
-      <div class="tgls"><button class="primary" id="resample" style="width:100%"></button></div>
+      <div class="tgls" id="grp-resample"><button class="primary" id="resample" style="width:100%"></button></div>
     </div>
   </div>
 </div>
@@ -102,9 +113,13 @@
                           at k = 7 the season lines the pairs up
      3 ACF and PACF       the same r_k for every lag at once, and the partial version with
                           the shorter lags removed; the chosen lag is highlighted in both
-     4 ARIMA and SARIMA   fit both to the series just built (coordinate-descent CSS, the same
-                          machinery as the SARIMA playground) and forecast 14 days with a 95%
-                          band -- SARIMA carries the weekly pattern, ARIMA cannot
+     4 ARIMA and SARIMA   choose the orders (p,d,q)(P,D,Q)_7 and fit (coordinate-descent CSS,
+                          the same machinery as the SARIMA playground); forecast 14 days with a
+                          95% band -- the seasonal terms carry the weekly pattern
+
+   RIT 2026-09-24: the levers must be visible IN an equation (the eqline under the dataset
+   control), the model control is the orders themselves, and there are datasets to choose,
+   not only parameters -- three fixed example series besides the custom levers.
 
    Everything downstream is computed from the SAME rounded series the table prints, and
    ts_intro_ref.py re-derives series, ACF, PACF, both fits and both forecasts independently
@@ -113,9 +128,20 @@
 function mulberry32(a){return function(){a|=0;a=a+0x6D2B79F5|0;var t=Math.imul(a^a>>>15,1|a);
   t=t+Math.imul(t^t>>>7,61|t)^t;return((t^t>>>14)>>>0)/4294967296;};}
 var MAXN=84,ZN=[];
-function regen(s){var rng=mulberry32(s),i;ZN=[];
-  for(i=0;i<MAXN;i++){var u=rng()||1e-9,v=rng();ZN.push(Math.sqrt(-2*Math.log(u))*Math.cos(2*Math.PI*v));}}
+function znOf(s){var rng=mulberry32(s),o=[],i;
+  for(i=0;i<MAXN;i++){var u=rng()||1e-9,v=rng();o.push(Math.sqrt(-2*Math.log(u))*Math.cos(2*Math.PI*v));}
+  return o;}
+function regen(s){ZN=znOf(s);}
 var seed=12345;regen(seed);
+/* the fixed example datasets: same generator, their own parameters and their own noise --
+   picking one is picking DATA; the levers steer Custom only */
+var DS={sales:{b:0.25,A:6,sg:0.8,n:63,seed:20260924},
+        sensor:{b:0.3,A:0,sg:1.5,n:56,seed:87001},
+        clinic:{b:0,A:5,sg:1,n:70,seed:424242}};
+var dsK='custom',ZNP={};
+function cur(){if(dsK==='custom')return {b:gv('b'),A:gv('A'),sg:gv('sg'),n:Math.round(gv('n')),zn:ZN};
+  var d=DS[dsK];if(!ZNP[dsK])ZNP[dsK]=znOf(d.seed);
+  return {b:d.b,A:d.A,sg:d.sg,n:d.n,zn:ZNP[dsK]};}
 
 /* ---------------- the series: water pumped per day (thousand m^3) ----------------
    y_t = 40 + b(t-1) + A*S[(t-1)%7]/5.5 + sigma*z_t, rounded to the 1 decimal the table
@@ -125,9 +151,9 @@ var DOW=['Mon','Tue','Wed','Thu','Fri','Sat','Sun'];
 function rnd(v,d){var p=Math.pow(10,d);return Math.round(v*p)/p;}
 function gv(b){return parseFloat(document.getElementById('R'+b).value);}
 function sv(b,v){document.getElementById('R'+b).value=v;document.getElementById('N'+b).value=v;}
-function parts(t){var b=gv('b'),A=gv('A'),sg=gv('sg');
-  return {tr:rnd(LEVEL+b*(t-1),2),se:rnd(A*SEAS[(t-1)%M]/5.5,2),no:rnd(sg*ZN[t-1],2)};}
-function series(){var n=Math.round(gv('n')),y=[null],t;
+function parts(t){var c=cur();
+  return {tr:rnd(LEVEL+c.b*(t-1),2),se:rnd(c.A*SEAS[(t-1)%M]/5.5,2),no:rnd(c.sg*c.zn[t-1],2)};}
+function series(){var n=cur().n,y=[null],t;
   for(t=1;t<=n;t++){var p=parts(t);y.push(rnd(p.tr+p.se+p.no,1));}
   return y;}
 
@@ -207,27 +233,31 @@ function psiWeights(A,B,ops,h){
     psi.push(v);}
   return psi;}
 var H=14;
-function fitModel(kind,y){
-  var yv=y.slice(1),ops=kind==='sarima'?[1,M]:[1];
-  var stages=diffChain(yv,ops),z=stages[stages.length-1];
-  var F=kind==='sarima'?fitSARIMA(z,1,1,1,1,M):fitSARIMA(z,1,1,0,0,M);
+function fitModel(o,y){
+  var yv=y.slice(1),ops=[];if(o.d)ops.push(1);if(o.D)ops.push(M);
+  var stages=diffChain(yv,ops),z=stages[stages.length-1],mu=0;
+  /* no differencing leaves the model with no built-in level: fit deviations from the mean */
+  if(!ops.length){mu=meanOf(z);z=z.map(function(v){return v-mu;});}
+  var F=fitSARIMA(z,o.p,o.q,o.P,o.Q,M);
   /* forecast on the differenced scale (future shocks 0), then integrate back */
   var zf=z.slice(),ef=F.e.slice(),wf=[],h,i,j;
   for(h=0;h<H;h++){var t=zf.length,v=0;
     for(i=1;i<F.A.length;i++)v+=-F.A[i]*((t-i>=0)?zf[t-i]:0);
     for(j=1;j<F.B.length;j++)v+=F.B[j]*((t-j>=0)?ef[t-j]:0);
     zf.push(v);ef.push(0);wf.push(v);}
-  var fc=undiffChain(stages,ops,wf);
+  var fc=undiffChain(stages,ops,wf).map(function(v){return v+mu;});
   var psi=psiWeights(F.A,F.B,ops,H),se=[],acc=0;
   for(h=0;h<H;h++){acc+=psi[h]*psi[h];se.push(F.sig*Math.sqrt(acc));}
   return {F:F,ops:ops,fc:fc,se:se};}
 
 /* ---------------- KaTeX ---------------- */
 var MT={'h1':'\\text{Introduction to Time Series}','resample':'\\text{Resample noise}',
-  'hd-data':'\\text{The components}','lbl-b':'b','lbl-A':'A',
-  'lbl-sg':'\\sigma','lbl-n':'n',
+  'hd-data':'\\text{Dataset}','ds-custom':'\\text{Custom}','ds-sales':'\\text{Sales}',
+  'ds-sensor':'\\text{Sensor}','ds-clinic':'\\text{Clinic}',
+  'lbl-b':'b','lbl-A':'A','lbl-sg':'\\sigma','lbl-n':'n',
   'hd-lag':'\\text{Lag}','lbl-k':'k','hd-ex':'\\text{Testing day}','lbl-t0':'t',
-  'hd-model':'\\text{Model}','sb-arima':'\\text{ARIMA}(1,1,1)','sb-sarima':'\\text{SARIMA}{\\cdot}(1,1,1)_7'};
+  'hd-model':'\\text{Model }(p,d,q)(P,D,Q)_7',
+  'lbl-p':'p','lbl-d':'d','lbl-q':'q','lbl-P':'P','lbl-D':'D','lbl-Q':'Q'};
 var KXC={};
 function kx(t){if(KXC[t]!==undefined)return KXC[t];var r;
   try{r=window.katex?katex.renderToString(t,{throwOnError:false}):t;}catch(e){r=t;}
@@ -283,11 +313,16 @@ function frame(box,x0,x1,y0,y1,ticksX,ticksY){
 /* ---------------- state ---------------- */
 var TABS=[{n:'Build the series'},{n:'Correlation at a lag'},{n:'ACF and PACF'},
           {n:'ARIMA and SARIMA'}];
-var curTab=0,modelK='arima';
-var FITC={};                       /* fits keyed by levers+seed, so sliding t stays instant */
-function fitOf(kind,y){
-  var key=kind+'/'+gv('b')+'/'+gv('A')+'/'+gv('sg')+'/'+y.length+'/'+seed;
-  if(!FITC[key])FITC[key]=fitModel(kind,y);
+var curTab=0;
+function ordOf(){return {p:Math.round(gv('p')),d:Math.round(gv('d')),q:Math.round(gv('q')),
+                         P:Math.round(gv('P')),D:Math.round(gv('D')),Q:Math.round(gv('Q'))};}
+function modelName(o){var s='('+o.p+','+o.d+','+o.q+')';
+  return (o.P||o.D||o.Q)?'\\text{SARIMA}'+s+'('+o.P+','+o.D+','+o.Q+')_7':'\\text{ARIMA}'+s;}
+var FITC={};                 /* fits keyed by dataset+levers+orders, so sliding stays instant */
+function fitOf(o,y){var c=cur();
+  var key=dsK+'/'+c.b+'/'+c.A+'/'+c.sg+'/'+c.n+'/'+(dsK==='custom'?seed:0)+'/'
+          +o.p+o.d+o.q+o.P+o.D+o.Q;
+  if(!FITC[key])FITC[key]=fitModel(o,y);
   return FITC[key];}
 
 /* ============ tab 1 · build the series: the components, then the sum ============ */
@@ -376,7 +411,7 @@ function draw3(lb,y){
 
 /* ============ tab 4 · ARIMA and SARIMA fitted to the series just built ============ */
 function draw4(lb,y){
-  var n=y.length-1,fit=fitOf(modelK,y);
+  var n=y.length-1,fit=fitOf(ordOf(),y);
   var L=52,Rm=14,box={l:L,r:CW-Rm,t:10,b:CH-38};
   var lo=Infinity,hi=-Infinity,i;
   y.slice(1).forEach(function(v){if(v<lo)lo=v;if(v>hi)hi=v;});
@@ -450,7 +485,7 @@ function fillTable(){
     for(var k4=1;k4<=14;k4++)
       rows.push({hl:k4===k3,cells:[String(k4),fx(acfOf(yv,k4),2),fx(pc[k4-1],2)],yc:-1});
   }else{
-    var fit=fitOf(modelK,y);
+    var fit=fitOf(ordOf(),y);
     cols=['\\text{Day}','\\widehat{y}','\\text{low}','\\text{high}'];
     cap='\\text{the 14-day forecast with its 95\\% band}';
     for(var h2=0;h2<H;h2++)
@@ -478,7 +513,7 @@ function fillCalc(){
   var el=document.getElementById('mcalc'),y=series(),n=y.length-1,h='';
   if(curTab===0){
     var t0=Math.round(gv('t0')),p=parts(t0),dow=DOW[(t0-1)%M];
-    h+=lline('Trend',['40+b\\,(t-1)=40+'+fx(gv('b'),2)+'\\cdot'+(t0-1)+'='+fx(p.tr,1)]);
+    h+=lline('Trend',['40+b\\,(t-1)=40+'+fx(cur().b,2)+'\\cdot'+(t0-1)+'='+fx(p.tr,1)]);
     h+=lline('Seasonal',['\\text{day }'+t0+'\\text{ is a '+dow+'}\\Rightarrow s='+fx(p.se,1),
       '\\text{(the same seven values repeat)}']);
     h+=lline('Noise',['\\varepsilon_{'+t0+'}='+fx(p.no,1),'\\text{(new draw on Resample)}']);
@@ -501,15 +536,15 @@ function fillCalc(){
     h+=lline('Band',['\\pm1.96/\\sqrt{'+n+'}=\\pm'+fx(bound,2),
       '\\text{-- bars inside it look like noise}']);
   }else{
-    /* intro level only: what the model sees, one error number per model, the forecast.
+    /* intro level only: the chosen orders, one error number, the forecast.
        The equations and the differencing theory live in the SARIMA playground. */
-    var fit=fitOf(modelK,y),fa=fitOf('arima',y),fs=fitOf('sarima',y);
-    h+=lline('Model',[modelK==='arima'
-      ?'\\text{ARIMA sees yesterday only -- nothing in it knows about the week}'
-      :'\\text{SARIMA adds the lag-7 season the ACF tab just found}']);
-    h+=lline('Error',['\\sigma_{\\text{ARIMA}}='+fx(fa.F.sig,2),
-      '\\sigma_{\\text{SARIMA}}='+fx(fs.F.sig,2),
-      '\\text{-- the weekly pattern is signal, not noise}']);
+    var o=ordOf(),fit=fitOf(o,y),F=fit.F,seas=(o.P||o.D||o.Q);
+    h+=lline('Model',[modelName(o),seas
+      ?'\\text{-- the }(P,D,Q)_7\\text{ terms look one week back}'
+      :'\\text{-- nothing in this model looks a week back}']);
+    h+=lline('Error',['\\sigma='+fx(F.sig,2),seas
+      ?'\\text{-- what the seasonal fit leaves unexplained}'
+      :'\\text{-- add }P,D,Q\\text{ and watch it drop on a seasonal series}']);
     h+=lline('Forecast',['\\widehat y_{'+(n+1)+'}='+fx(fit.fc[0],1),
       '\\widehat y_{'+(n+H)+'}='+fx(fit.fc[H-1],1)+'\\pm'+fx(1.96*fit.se[H-1],1),
       '\\text{-- the band widens with the horizon}']);
@@ -517,16 +552,25 @@ function fillCalc(){
   el.innerHTML=h;}
 
 /* ---------------- controls ---------------- */
-function paintSeg(){document.querySelectorAll('#modelSeg button').forEach(function(b){
-  b.className=b.getAttribute('data-m')===modelK?'on':'';});}
+function paintDs(){document.querySelectorAll('#dsSeg button').forEach(function(b){
+  b.className=b.getAttribute('data-ds')===dsK?'on':'';});}
+function fillEq(){
+  /* the levers, shown IN the equation they steer -- a preset substitutes its numbers */
+  var el=document.getElementById('eqline'),c=cur();
+  K(dsK==='custom'?'y_t=40+b\\,(t-1)+A\\,s_t+\\sigma\\,\\varepsilon_t'
+    :'y_t=40+'+fx(c.b,2)+'\\,(t-1)+'+fx(c.A,1)+'\\,s_t+'+fx(c.sg,1)+'\\,\\varepsilon_t',el);}
 function syncRows(){
+  /* the component levers live on the data tabs; the model tab is for the orders (and Hick:
+     at most six simultaneous levers) */
+  document.getElementById('grp-custom').style.display=(dsK==='custom'&&curTab!==3)?'':'none';
+  document.getElementById('grp-resample').style.display=dsK==='custom'?'':'none';
   document.getElementById('grp-lag').style.display=(curTab===1||curTab===2)?'':'none';
   document.getElementById('grp-ex').style.display=curTab===0?'':'none';
   document.getElementById('grp-model').style.display=curTab===3?'':'none';
-  var n=Math.round(gv('n'));
+  var n=cur().n;
   ['Rt0','Nt0'].forEach(function(id){var e=document.getElementById(id);e.max=n;});
   if(gv('t0')>n)sv('t0',n);}
-function upd(){syncRows();paintSeg();sizeCanvas();draw();fillLegend();fillTable();fillCalc();
+function upd(){syncRows();paintDs();fillEq();sizeCanvas();draw();fillLegend();fillTable();fillCalc();
   if(Math.round(cv.clientWidth)!==CW||Math.round(cv.clientHeight)!==CH){sizeCanvas();draw();}}
 function applyTab(i){curTab=i;
   document.querySelectorAll('.tabbtn').forEach(function(b,j){b.className='tabbtn'+(j===i?' on':'');});
@@ -534,9 +578,9 @@ function applyTab(i){curTab=i;
 var tb2=document.getElementById('tabs');
 TABS.forEach(function(t,i){var el=document.createElement('button');el.className='tabbtn';
   K('\\text{'+t.n+'}',el);el.addEventListener('click',function(){applyTab(i);});tb2.appendChild(el);});
-document.querySelectorAll('#modelSeg button').forEach(function(b){
-  b.addEventListener('click',function(){modelK=b.getAttribute('data-m');upd();});});
-['b','A','sg','n','k','t0'].forEach(function(b){
+document.querySelectorAll('#dsSeg button').forEach(function(b){
+  b.addEventListener('click',function(){dsK=b.getAttribute('data-ds');upd();});});
+['b','A','sg','n','k','t0','p','d','q','P','D','Q'].forEach(function(b){
   var Re=document.getElementById('R'+b),Ne=document.getElementById('N'+b);
   Re.addEventListener('input',function(){Ne.value=Re.value;FITC={};upd();});
   Ne.addEventListener('input',function(){Re.value=Ne.value;FITC={};upd();});});
@@ -549,11 +593,11 @@ window.LAB={
     var y=series(),n=y.length-1,yv=y.slice(1);
     var ac=[],i;for(i=1;i<=14;i++)ac.push(+acfOf(yv,i).toFixed(6));
     var pc=pacfList(yv,14).map(function(v){return +v.toFixed(6);});
-    var out={tab:curTab,seed:seed,n:n,b:gv('b'),A:gv('A'),sg:gv('sg'),
-      k:Math.round(gv('k')),t0:Math.round(gv('t0')),model:modelK,m:M,level:LEVEL,
+    var out={tab:curTab,seed:seed,n:n,ds:dsK,b:cur().b,A:cur().A,sg:cur().sg,
+      k:Math.round(gv('k')),t0:Math.round(gv('t0')),ord:ordOf(),m:M,level:LEVEL,
       y:yv.map(function(v){return +v.toFixed(1);}),acf:ac,pacf:pc,
       bound:+(1.96/Math.sqrt(n)).toFixed(6)};
-    if(curTab===3){var fit=fitOf(modelK,y),F=fit.F;
+    if(curTab===3){var fit=fitOf(ordOf(),y),F=fit.F;
       out.fit={phis:F.phis.map(function(v){return +v.toFixed(4);}),
                ths:F.ths.map(function(v){return +v.toFixed(4);}),
                Phis:F.Phis.map(function(v){return +v.toFixed(4);}),
@@ -564,9 +608,12 @@ window.LAB={
     return out;},
   set:function(o){
     if(o.seed!=null&&+o.seed!==seed){seed=+o.seed;regen(seed);FITC={};}
-    ['b','A','sg','n','k','t0'].forEach(function(b2){
-      if(o[b2]!=null){sv(b2,+o[b2]);FITC={};}});
-    if(o.model==='arima'||o.model==='sarima')modelK=o.model;
+    if(o.ds&&(o.ds==='custom'||DS[o.ds]))dsK=o.ds;
+    ['b','A','sg','n','k','t0','p','d','q','P','D','Q'].forEach(function(b2){
+      if(o[b2]!=null)sv(b2,+o[b2]);});
+    if(o.model==='arima'||o.model==='sarima'){
+      ['p','d','q'].forEach(function(b2){sv(b2,1);});
+      ['P','D','Q'].forEach(function(b2){sv(b2,o.model==='sarima'?1:0);});}
     if(o.tab!=null)applyTab(Math.max(0,Math.min(3,+o.tab)));
     else upd();}};
 
