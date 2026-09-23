@@ -49,7 +49,7 @@
 </style>
 </head>
 <body class="pg distcls">
-<h2 class="sr-only" style="position:absolute;width:1px;height:1px;overflow:hidden">Introduction to time series in four steps. First build a series yourself from its components — a level, a trend, a weekly seasonal pattern and noise — and read the sum in the table. Then pick a lag and see the correlation between today and that many days ago as a scatter of pairs. Then read the same correlations for every lag at once as the ACF, and with the shorter lags removed as the PACF. Finally choose the model orders p, d, q and the seasonal P, D, Q at period seven, fit the model to the series and watch the forecast carry the trend and the weekly pattern forward. A dataset control offers three fixed example series, sales, sensor and clinic, besides the series built from the levers.</h2>
+<h2 class="sr-only" style="position:absolute;width:1px;height:1px;overflow:hidden">Introduction to time series in four steps. First build a series yourself from its components — a level, a trend, a weekly seasonal pattern and noise — and read the sum in the table. Then pick a lag and see the correlation between today and that many days ago as a scatter of pairs. Then read the same correlations for every lag at once as the ACF, and with the shorter lags removed as the PACF. Finally choose the model orders p, d, q and the seasonal P, D, Q at period seven, fit the model to the series and watch the forecast carry the trend and the weekly pattern forward. A dataset control offers three classic processes, an AR(1), an MA(1) and a random walk, besides the series built from the levers.</h2>
 <div class="wrap">
   <div class="hdr"><h1 id="h1">Introduction to Time Series</h1><div class="tabs" id="tabs"></div></div>
   <div class="layout" id="mainPanel">
@@ -65,7 +65,7 @@
     <div class="panel">
       <div class="dhd" id="hd-data"></div>
       <div class="seg2" id="dsSeg">
-        <button data-ds="custom" id="ds-custom" class="on"></button><button data-ds="sales" id="ds-sales"></button><button data-ds="sensor" id="ds-sensor"></button><button data-ds="clinic" id="ds-clinic"></button>
+        <button data-ds="custom" id="ds-custom" class="on"></button><button data-ds="ar" id="ds-ar"></button><button data-ds="ma" id="ds-ma"></button><button data-ds="rw" id="ds-rw"></button>
       </div>
       <div class="eqline" id="eqline"></div>
       <div id="grp-custom"><div class="dgrid">
@@ -119,7 +119,9 @@
 
    RIT 2026-09-24: the levers must be visible IN an equation (the eqline under the dataset
    control), the model control is the orders themselves, and there are datasets to choose,
-   not only parameters -- three fixed example series besides the custom levers.
+   not only parameters. Follow-up the same day: by datasets he means the classic processes
+   of the SARIMA playground's Pattern control -- so the presets are AR(1), MA(1) and the
+   random walk, and tab 1 shows each one's own recursion.
 
    Everything downstream is computed from the SAME rounded series the table prints, and
    ts_intro_ref.py re-derives series, ACF, PACF, both fits and both forecasts independently
@@ -133,15 +135,29 @@ function znOf(s){var rng=mulberry32(s),o=[],i;
   return o;}
 function regen(s){ZN=znOf(s);}
 var seed=12345;regen(seed);
-/* the fixed example datasets: same generator, their own parameters and their own noise --
-   picking one is picking DATA; the levers steer Custom only */
-var DS={sales:{b:0.25,A:6,sg:0.8,n:63,seed:20260924},
-        sensor:{b:0.3,A:0,sg:1.5,n:56,seed:87001},
-        clinic:{b:0,A:5,sg:1,n:70,seed:424242}};
+/* the fixed example datasets = the classic processes (RIT: "MA(1), AR(1), ..." -- the
+   SARIMA playground's Pattern control, cut to the intro-necessary three). Picking one is
+   picking DATA; the component levers steer Custom only. */
+var DS={ar:{phi:0.7,sg:1,n:56,seed:20101},
+        ma:{th:0.8,sg:1,n:56,seed:30010},
+        rw:{sg:1,n:56,seed:40301}};
 var dsK='custom',ZNP={};
 function cur(){if(dsK==='custom')return {b:gv('b'),A:gv('A'),sg:gv('sg'),n:Math.round(gv('n')),zn:ZN};
   var d=DS[dsK];if(!ZNP[dsK])ZNP[dsK]=znOf(d.seed);
-  return {b:d.b,A:d.A,sg:d.sg,n:d.n,zn:ZNP[dsK]};}
+  return {b:0,A:0,sg:d.sg,n:d.n,zn:ZNP[dsK]};}
+/* the process series, built from the PRINTED numbers: each term rounded to 2 dp, the sum to
+   the 1 dp the table prints, and the recursion feeds on the rounded y -- so the table IS the
+   arithmetic. c1/c2 are the two per-day terms the table and the strips show. */
+var SERC={};
+function proc(){var d=DS[dsK],zn=cur().zn;
+  if(SERC[dsK])return SERC[dsK];
+  var y=[null],c1=[null],c2=[null],t,prev=40,ePrev=0;
+  for(t=1;t<=d.n;t++){var e=rnd(d.sg*zn[t-1],2),a;
+    if(dsK==='ar'){a=rnd(d.phi*(prev-40),2);y.push(rnd(40+a+e,1));c1.push(a);c2.push(e);}
+    else if(dsK==='ma'){a=rnd(d.th*ePrev,2);y.push(rnd(40+e+a,1));c1.push(e);c2.push(a);}
+    else{y.push(rnd(prev+e,1));c1.push(prev);c2.push(e);}
+    prev=y[t];ePrev=e;}
+  SERC[dsK]={y:y,c1:c1,c2:c2};return SERC[dsK];}
 
 /* ---------------- the series: water pumped per day (thousand m^3) ----------------
    y_t = 40 + b(t-1) + A*S[(t-1)%7]/5.5 + sigma*z_t, rounded to the 1 decimal the table
@@ -153,7 +169,9 @@ function gv(b){return parseFloat(document.getElementById('R'+b).value);}
 function sv(b,v){document.getElementById('R'+b).value=v;document.getElementById('N'+b).value=v;}
 function parts(t){var c=cur();
   return {tr:rnd(LEVEL+c.b*(t-1),2),se:rnd(c.A*SEAS[(t-1)%M]/5.5,2),no:rnd(c.sg*c.zn[t-1],2)};}
-function series(){var n=cur().n,y=[null],t;
+function series(){
+  if(dsK!=='custom')return proc().y;
+  var n=cur().n,y=[null],t;
   for(t=1;t<=n;t++){var p=parts(t);y.push(rnd(p.tr+p.se+p.no,1));}
   return y;}
 
@@ -252,8 +270,8 @@ function fitModel(o,y){
 
 /* ---------------- KaTeX ---------------- */
 var MT={'h1':'\\text{Introduction to Time Series}','resample':'\\text{Resample noise}',
-  'hd-data':'\\text{Dataset}','ds-custom':'\\text{Custom}','ds-sales':'\\text{Sales}',
-  'ds-sensor':'\\text{Sensor}','ds-clinic':'\\text{Clinic}',
+  'hd-data':'\\text{Dataset}','ds-custom':'\\text{Custom}','ds-ar':'\\text{AR}(1)',
+  'ds-ma':'\\text{MA}(1)','ds-rw':'\\text{Walk}',
   'lbl-b':'b','lbl-A':'A','lbl-sg':'\\sigma','lbl-n':'n',
   'hd-lag':'\\text{Lag}','lbl-k':'k','hd-ex':'\\text{Testing day}','lbl-t0':'t',
   'hd-model':'\\text{Model }(p,d,q)(P,D,Q)_7',
@@ -327,29 +345,39 @@ function fitOf(o,y){var c=cur();
 
 /* ============ tab 1 · build the series: the components, then the sum ============ */
 function draw1(lb,y){
-  var n=y.length-1,t0=Math.round(gv('t0'));
-  var L=76,Rm=14,gap=12,h3=44,hy=CH-38-3*(h3+gap)-8;   /* 76: 'seasonal' fits left of the strips */
-  var rows=[
-    {name:'\\text{trend}',col:CTR,arr:[],lab:'tr'},
-    {name:'\\text{seasonal}',col:CSE,arr:[],lab:'se'},
-    {name:'\\text{noise}',col:CNO,arr:[],lab:'no'},
-    {name:'y',col:CS,arr:y.slice(1),lab:null}];
-  for(var t=1;t<=n;t++){var p=parts(t);
-    rows[0].arr.push(p.tr);rows[1].arr.push(p.se);rows[2].arr.push(p.no);}
+  var n=y.length-1,t0=Math.round(gv('t0')),rows;
+  if(dsK==='custom'){
+    rows=[
+      {name:'\\text{trend}',col:CTR,arr:[]},
+      {name:'\\text{seasonal}',col:CSE,arr:[]},
+      {name:'\\text{noise}',col:CNO,arr:[]},
+      {name:'y',col:CS,arr:y.slice(1)}];
+    for(var t=1;t<=n;t++){var p=parts(t);
+      rows[0].arr.push(p.tr);rows[1].arr.push(p.se);rows[2].arr.push(p.no);}
+  }else{var pr=proc();
+    rows=dsK==='ar'?[{name:'\\text{memory}',col:CTR,arr:pr.c1.slice(1)},
+                     {name:'\\varepsilon_t',col:CNO,arr:pr.c2.slice(1)},
+                     {name:'y',col:CS,arr:y.slice(1)}]
+        :dsK==='ma'?[{name:'\\varepsilon_t',col:CNO,arr:pr.c1.slice(1)},
+                     {name:'\\varepsilon_{t-1}',col:CTR,arr:pr.c2.slice(1)},
+                     {name:'y',col:CS,arr:y.slice(1)}]
+                   :[{name:'\\varepsilon_t',col:CNO,arr:pr.c2.slice(1)},
+                     {name:'y',col:CS,arr:y.slice(1)}];}
+  var k=rows.length,L=76,Rm=14,gap=12,h3=44,hy=CH-38-(k-1)*(h3+gap)-8;   /* 76: 'seasonal' fits left */
   var top=8;
   rows.forEach(function(r,i){
-    var hh=(i<3)?h3:hy,box={l:L,r:CW-Rm,t:top,b:top+hh};
+    var last=(i===k-1),hh=last?hy:h3,box={l:L,r:CW-Rm,t:top,b:top+hh};
     var sp=spanOf(r.arr);
-    var P=frame(box,1,n,sp[0],sp[1],i===3?[1,14,28,42,56,70,84].filter(function(v){return v<=n;}):[],
-                i===3?[rnd(sp[0]+(sp[1]-sp[0])*0.15,0),rnd(sp[0]+(sp[1]-sp[0])*0.85,0)]:[]);
+    var P=frame(box,1,n,sp[0],sp[1],last?[1,14,28,42,56,70,84].filter(function(v){return v<=n;}):[],
+                last?[rnd(sp[0]+(sp[1]-sp[0])*0.15,0),rnd(sp[0]+(sp[1]-sp[0])*0.85,0)]:[]);
     ctx.save();ctx.beginPath();ctx.rect(box.l,box.t,box.r-box.l,box.b-box.t);ctx.clip();
-    lineOf(P,r.arr,1,r.col,i===3?2:1.5);
+    lineOf(P,r.arr,1,r.col,last?2:1.5);
     ctx.restore();
     /* testing day through every strip */
     ctx.strokeStyle=GREY;ctx.setLineDash([4,4]);ctx.lineWidth=1.2;
     ctx.beginPath();ctx.moveTo(P.px(t0),box.t);ctx.lineTo(P.px(t0),box.b);ctx.stroke();ctx.setLineDash([]);
     lb(r.name,L-8,(box.t+box.b)/2,{align:'right',vt:'middle',color:r.col});
-    if(i===3)lb('\\text{day}',CW-Rm,box.b+30,{align:'right'});
+    if(last)lb('\\text{day}',CW-Rm,box.b+30,{align:'right'});
     top+=hh+gap;});
 }
 
@@ -448,10 +476,19 @@ function draw(){try{ctx.setTransform(SC,0,0,SC,0,0);ctx.clearRect(0,0,CW,CH);
 function leg(style,tex){return '<span class="cli"><i class="ln" style="'+style+'"></i><span>'+kx(tex)+'</span></span>';}
 function fillLegend(){
   var el=document.getElementById('classleg'),h='<div class="clrow">';
-  if(curTab===0)h+=leg('background:'+CTR,'\\text{Trend, }40+b(t-1)')
-    +leg('background:'+CSE,'\\text{Seasonal, size }A')
-    +leg('background:'+CNO,'\\text{Noise, sd }\\sigma')
-    +leg('background:'+CS,'\\text{The sum }y_t');
+  if(curTab===0){
+    if(dsK==='custom')h+=leg('background:'+CTR,'\\text{Trend, }40+b(t-1)')
+      +leg('background:'+CSE,'\\text{Seasonal, size }A')
+      +leg('background:'+CNO,'\\text{Noise, sd }\\sigma')
+      +leg('background:'+CS,'\\text{The sum }y_t');
+    else if(dsK==='ar')h+=leg('background:'+CTR,'\\text{Memory, }0.7(y_{t-1}-40)')
+      +leg('background:'+CNO,'\\text{Shock }\\varepsilon_t')
+      +leg('background:'+CS,'\\text{The sum }y_t');
+    else if(dsK==='ma')h+=leg('background:'+CNO,'\\text{Shock }\\varepsilon_t')
+      +leg('background:'+CTR,'\\text{Old shock, }0.8\\,\\varepsilon_{t-1}')
+      +leg('background:'+CS,'\\text{The sum }y_t');
+    else h+=leg('background:'+CNO,'\\text{Shock }\\varepsilon_t')
+      +leg('background:'+CS,'y_t=y_{t-1}+\\varepsilon_t');}
   else if(curTab===1)h+=leg('background:'+CS,'\\text{Pair }(y_{t-k},\\ y_t)');
   else if(curTab===2)h+=leg('background:'+CTR,'\\text{All lags}')
     +leg('background:'+CS,'\\text{Chosen lag }k')
@@ -469,10 +506,20 @@ function fillTable(){
   var cols,rows=[],cap;
   if(curTab===0){
     var t0=Math.round(gv('t0'));
-    cols=['\\text{Day }(t)','\\text{Trend}','\\text{Seas.}','\\text{Noise}','y_t'];
-    cap='\\text{'+n+' days of }y_t=\\text{trend}+\\text{seasonal}+\\text{noise}';
-    for(var t=1;t<=n;t++){var p=parts(t);
-      rows.push({hl:t===t0,cells:[String(t),fx(p.tr,1),fx(p.se,1),fx(p.no,1),fx(y[t],1)],yc:4});}
+    if(dsK==='custom'){
+      cols=['\\text{Day }(t)','\\text{Trend}','\\text{Seas.}','\\text{Noise}','y_t'];
+      cap='\\text{'+n+' days of }y_t=\\text{trend}+\\text{seasonal}+\\text{noise}';
+      for(var t=1;t<=n;t++){var p=parts(t);
+        rows.push({hl:t===t0,cells:[String(t),fx(p.tr,1),fx(p.se,1),fx(p.no,1),fx(y[t],1)],yc:4});}
+    }else{var pr=proc();
+      cols=dsK==='ar'?['\\text{Day }(t)','0.7\\,(y_{t-1}{-}40)','\\varepsilon_t','y_t']
+          :dsK==='ma'?['\\text{Day }(t)','\\varepsilon_t','0.8\\,\\varepsilon_{t-1}','y_t']
+                     :['\\text{Day }(t)','y_{t-1}','\\varepsilon_t','y_t'];
+      cap=dsK==='ar'?'\\text{'+n+' days of an AR(1) process}'
+         :dsK==='ma'?'\\text{'+n+' days of an MA(1) process}'
+                    :'\\text{'+n+' days of a random walk}';
+      for(var t=1;t<=n;t++)
+        rows.push({hl:t===t0,cells:[String(t),fx(pr.c1[t],dsK==='rw'?1:2),fx(pr.c2[t],2),fx(y[t],1)],yc:3});}
   }else if(curTab===1){
     var k=Math.round(gv('k'));
     cols=['\\text{Day }(t)','y_{t-'+k+'}','y_t'];
@@ -512,13 +559,35 @@ function lline(t,parts2){
 function fillCalc(){
   var el=document.getElementById('mcalc'),y=series(),n=y.length-1,h='';
   if(curTab===0){
-    var t0=Math.round(gv('t0')),p=parts(t0),dow=DOW[(t0-1)%M];
-    h+=lline('Trend',['40+b\\,(t-1)=40+'+fx(cur().b,2)+'\\cdot'+(t0-1)+'='+fx(p.tr,1)]);
-    h+=lline('Seasonal',['\\text{day }'+t0+'\\text{ is a '+dow+'}\\Rightarrow s='+fx(p.se,1),
-      '\\text{(the same seven values repeat)}']);
-    h+=lline('Noise',['\\varepsilon_{'+t0+'}='+fx(p.no,1),'\\text{(new draw on Resample)}']);
-    h+=lline('Sum',['y_{'+t0+'}='+fx(p.tr,1)+(p.se<0?'-':'+')+fx(Math.abs(p.se),1)
-      +(p.no<0?'-':'+')+fx(Math.abs(p.no),1)+'='+fx(y[t0],1)]);
+    var t0=Math.round(gv('t0'));
+    if(dsK==='custom'){
+      var p=parts(t0),dow=DOW[(t0-1)%M];
+      h+=lline('Trend',['40+b\\,(t-1)=40+'+fx(cur().b,2)+'\\cdot'+(t0-1)+'='+fx(p.tr,1)]);
+      h+=lline('Seasonal',['\\text{day }'+t0+'\\text{ is a '+dow+'}\\Rightarrow s='+fx(p.se,1),
+        '\\text{(the same seven values repeat)}']);
+      h+=lline('Noise',['\\varepsilon_{'+t0+'}='+fx(p.no,1),'\\text{(new draw on Resample)}']);
+      h+=lline('Sum',['y_{'+t0+'}='+fx(p.tr,1)+(p.se<0?'-':'+')+fx(Math.abs(p.se),1)
+        +(p.no<0?'-':'+')+fx(Math.abs(p.no),1)+'='+fx(y[t0],1)]);
+    }else{
+      var pr=proc(),a=pr.c1[t0],e=pr.c2[t0];
+      if(dsK==='ar'){
+        h+=lline('Memory',['0.7\\,(y_{'+(t0-1)+'}{-}40)='+fx(a,2),
+          '\\text{(0.7 of yesterday remains)}']);
+        h+=lline('Shock',['\\varepsilon_{'+t0+'}='+fx(e,2)]);
+        h+=lline('Sum',['y_{'+t0+'}=40'+(a<0?'-':'+')+fx(Math.abs(a),2)
+          +(e<0?'-':'+')+fx(Math.abs(e),2)+'='+fx(y[t0],1)]);
+      }else if(dsK==='ma'){
+        h+=lline('Shock',['\\varepsilon_{'+t0+'}='+fx(a,2)]);
+        h+=lline('Old shock',['0.8\\,\\varepsilon_{'+(t0-1)+'}='+fx(e,2),
+          '\\text{(yesterday echoes once, then is gone)}']);
+        h+=lline('Sum',['y_{'+t0+'}=40'+(a<0?'-':'+')+fx(Math.abs(a),2)
+          +(e<0?'-':'+')+fx(Math.abs(e),2)+'='+fx(y[t0],1)]);
+      }else{
+        h+=lline('Yesterday',['y_{'+(t0-1)+'}='+fx(a,1)]);
+        h+=lline('Shock',['\\varepsilon_{'+t0+'}='+fx(e,2),'\\text{(never forgotten -- it}',
+          '\\text{shifts every later day)}']);
+        h+=lline('Sum',['y_{'+t0+'}='+fx(a,1)+(e<0?'-':'+')+fx(Math.abs(e),2)+'='+fx(y[t0],1)]);
+      }}
   }else if(curTab===1){
     var k=Math.round(gv('k')),yv=y.slice(1),r=acfOf(yv,k);
     h+=lline('Pairs',['\\text{today against '+k+' days ago: }(y_{t-'+k+'},\\ y_t)',
@@ -555,10 +624,12 @@ function fillCalc(){
 function paintDs(){document.querySelectorAll('#dsSeg button').forEach(function(b){
   b.className=b.getAttribute('data-ds')===dsK?'on':'';});}
 function fillEq(){
-  /* the levers, shown IN the equation they steer -- a preset substitutes its numbers */
-  var el=document.getElementById('eqline'),c=cur();
+  /* the levers, shown IN the equation they steer; a process shows its own recursion */
+  var el=document.getElementById('eqline');
   K(dsK==='custom'?'y_t=40+b\\,(t-1)+A\\,s_t+\\sigma\\,\\varepsilon_t'
-    :'y_t=40+'+fx(c.b,2)+'\\,(t-1)+'+fx(c.A,1)+'\\,s_t+'+fx(c.sg,1)+'\\,\\varepsilon_t',el);}
+    :dsK==='ar'?'y_t=40+0.7\\,(y_{t-1}-40)+\\varepsilon_t'
+    :dsK==='ma'?'y_t=40+\\varepsilon_t+0.8\\,\\varepsilon_{t-1}'
+    :'y_t=y_{t-1}+\\varepsilon_t,\\ y_0=40',el);}
 function syncRows(){
   /* the component levers live on the data tabs; the model tab is for the orders (and Hick:
      at most six simultaneous levers) */
