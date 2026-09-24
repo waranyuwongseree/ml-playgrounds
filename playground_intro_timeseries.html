@@ -10,7 +10,7 @@
 <style>
   /* intro-timeseries — โครงเดียวกับ Introduction to Regression / RUL: ตารางข้อมูลซ้าย ·
      กราฟ + legend + กล่องคำนวณ · control ขวา */
-  :root{--panel-h:422px}   /* วัดจาก tab ที่ control สูงสุดแล้วตรึงทุก tab เท่ากัน */
+  :root{--panel-h:383px}   /* วัดจาก tab ที่ control สูงสุดแล้วตรึงทุก tab เท่ากัน */
   .layout{align-items:start}
   .pg.distcls .canvasbox{height:260px}
   .distcls .stage{gap:6px}
@@ -71,11 +71,13 @@
       <div id="grp-custom"><div class="dgrid">
         <div class="drow"><span class="dlab" id="lbl-b"></span><input type="range" id="Rb" min="0" max="0.4" step="0.05" value="0.2"><input class="num" type="number" id="Nb" min="0" max="0.4" step="0.05" value="0.2"></div>
         <div class="drow"><span class="dlab" id="lbl-A"></span><input type="range" id="RA" min="0" max="8" step="0.5" value="5"><input class="num" type="number" id="NA" min="0" max="8" step="0.5" value="5"></div>
-        <div class="drow"><span class="dlab" id="lbl-sg"></span><input type="range" id="Rsg" min="0.5" max="4" step="0.5" value="1"><input class="num" type="number" id="Nsg" min="0.5" max="4" step="0.5" value="1"></div>
-        <div class="drow"><span class="dlab" id="lbl-n"></span><input type="range" id="Rn" min="28" max="84" step="7" value="56"><input class="num" type="number" id="Nn" min="28" max="84" step="7" value="56"></div>
       </div></div>
       <div id="grp-proc"><div class="dgrid">
         <div class="drow"><span class="dlab" id="lbl-co"></span><input type="range" id="Rco" min="-0.9" max="0.9" step="0.1" value="0.7"><input class="num" type="number" id="Nco" min="-0.9" max="0.9" step="0.1" value="0.7"></div>
+      </div></div>
+      <div id="grp-noise"><div class="dgrid">
+        <div class="drow"><span class="dlab" id="lbl-sg"></span><input type="range" id="Rsg" min="0.5" max="4" step="0.5" value="1"><input class="num" type="number" id="Nsg" min="0.5" max="4" step="0.5" value="1"></div>
+        <div class="drow"><span class="dlab" id="lbl-n"></span><input type="range" id="Rn" min="28" max="84" step="7" value="56"><input class="num" type="number" id="Nn" min="28" max="84" step="7" value="56"></div>
       </div></div>
       <div id="grp-lag"><div class="dhd" id="hd-lag"></div>
       <div class="dgrid">
@@ -136,15 +138,16 @@ var MAXN=84,ZN=[];
 function znOf(s){var rng=mulberry32(s),o=[],i;
   for(i=0;i<MAXN;i++){var u=rng()||1e-9,v=rng();o.push(Math.sqrt(-2*Math.log(u))*Math.cos(2*Math.PI*v));}
   return o;}
-function regen(s){ZN=znOf(s);}
-var seed=12345;regen(seed);
-/* the fixed example datasets = the classic processes (RIT: "MA(1), AR(1), ..." -- the
-   SARIMA playground's Pattern control, cut to the intro-necessary three). Picking one is
-   picking DATA; the component levers steer Custom only. */
-var DS={ar:{phi:0.7,sg:1,n:56,seed:20101},
-        ma:{th:0.8,sg:1,n:56,seed:30010},
-        rw:{sg:1,n:56,seed:40301}};
-var dsK='custom',ZNP={};
+/* the four series are built from the same noise, sigma z_t over n days, so the noise --
+   its size, its length and its Resample -- is shared. Each dataset carries its own seed, so
+   switching datasets does not reuse one draw for two processes. */
+var SEEDS={custom:12345,ar:20101,ma:30010,rw:40301},ZNC={};
+function znNow(){var k=dsK+'/'+SEEDS[dsK];
+  if(!ZNC[k])ZNC[k]=znOf(SEEDS[dsK]);
+  return ZNC[k];}
+/* what IS per process: the coefficient of AR and MA */
+var DS={ar:{phi:0.7},ma:{th:0.8},rw:{}};
+var dsK='custom';
 /* the coefficient each process is built from: a lever, opening on the value the reference
    pins, and kept per dataset so switching back finds what you left */
 function coefOf(){return dsK==='ar'?DS.ar.phi:dsK==='ma'?DS.ma.th:0;}
@@ -153,24 +156,24 @@ function sgn(){var c=coefOf();return (c<0?'-':'+')+fx(Math.abs(c),1);}
 function setCoef(v){
   v=Math.max(-0.9,Math.min(0.9,Math.round(v*10)/10));
   if(dsK==='ar')DS.ar.phi=v;else if(dsK==='ma')DS.ma.th=v;else return;
-  SERC={};FITC={};                       /* both caches are keyed without the coefficient */
+  FITC={};
   document.getElementById('Rco').value=v;document.getElementById('Nco').value=v;}
-function cur(){if(dsK==='custom')return {b:gv('b'),A:gv('A'),sg:gv('sg'),n:Math.round(gv('n')),zn:ZN};
-  var d=DS[dsK];if(!ZNP[dsK])ZNP[dsK]=znOf(d.seed);
-  return {b:0,A:0,sg:d.sg,n:d.n,zn:ZNP[dsK]};}
+function cur(){return {b:dsK==='custom'?gv('b'):0,A:dsK==='custom'?gv('A'):0,
+  sg:gv('sg'),n:Math.round(gv('n')),zn:znNow()};}
 /* the process series, built from the PRINTED numbers: each term rounded to 2 dp, the sum to
    the 1 dp the table prints, and the recursion feeds on the rounded y -- so the table IS the
    arithmetic. c1/c2 are the two per-day terms the table and the strips show. */
 var SERC={};
-function proc(){var d=DS[dsK],zn=cur().zn;
-  if(SERC[dsK])return SERC[dsK];
+function proc(){var c=cur(),zn=c.zn,co=coefOf();
+  var key=dsK+'/'+SEEDS[dsK]+'/'+c.sg+'/'+c.n+'/'+co;
+  if(SERC[key])return SERC[key];
   var y=[null],c1=[null],c2=[null],t,prev=40,ePrev=0;
-  for(t=1;t<=d.n;t++){var e=rnd(d.sg*zn[t-1],2),a;
-    if(dsK==='ar'){a=rnd(d.phi*(prev-40),2);y.push(rnd(40+a+e,1));c1.push(a);c2.push(e);}
-    else if(dsK==='ma'){a=rnd(d.th*ePrev,2);y.push(rnd(40+e+a,1));c1.push(e);c2.push(a);}
+  for(t=1;t<=c.n;t++){var e=rnd(c.sg*zn[t-1],2),a;
+    if(dsK==='ar'){a=rnd(co*(prev-40),2);y.push(rnd(40+a+e,1));c1.push(a);c2.push(e);}
+    else if(dsK==='ma'){a=rnd(co*ePrev,2);y.push(rnd(40+e+a,1));c1.push(e);c2.push(a);}
     else{y.push(rnd(prev+e,1));c1.push(prev);c2.push(e);}
     prev=y[t];ePrev=e;}
-  SERC[dsK]={y:y,c1:c1,c2:c2};return SERC[dsK];}
+  SERC[key]={y:y,c1:c1,c2:c2};return SERC[key];}
 
 /* ---------------- the series: water pumped per day (thousand m^3) ----------------
    y_t = 40 + b(t-1) + A*S[(t-1)%7]/5.5 + sigma*z_t, rounded to the 1 decimal the table
@@ -351,7 +354,7 @@ function modelName(o){var s='('+o.p+','+o.d+','+o.q+')';
   return (o.P||o.D||o.Q)?'\\text{SARIMA}'+s+'('+o.P+','+o.D+','+o.Q+')_7':'\\text{ARIMA}'+s;}
 var FITC={};                 /* fits keyed by dataset+levers+orders, so sliding stays instant */
 function fitOf(o,y){var c=cur();
-  var key=dsK+'/'+c.b+'/'+c.A+'/'+c.sg+'/'+c.n+'/'+(dsK==='custom'?seed:0)+'/'
+  var key=dsK+'/'+SEEDS[dsK]+'/'+coefOf()+'/'+c.b+'/'+c.A+'/'+c.sg+'/'+c.n+'/'
           +o.p+o.d+o.q+o.P+o.D+o.Q;
   if(!FITC[key])FITC[key]=fitModel(o,y);
   return FITC[key];}
@@ -389,8 +392,7 @@ function draw1(lb,y){
     /* testing day through every strip */
     ctx.strokeStyle=GREY;ctx.setLineDash([4,4]);ctx.lineWidth=1.2;
     ctx.beginPath();ctx.moveTo(P.px(t0),box.t);ctx.lineTo(P.px(t0),box.b);ctx.stroke();ctx.setLineDash([]);
-    lb(r.name,L-8,(box.t+box.b)/2,{align:'right',vt:'middle',color:r.col});
-    if(last)lb('\\text{day}',CW-Rm,box.b+30,{align:'right'});
+    if(last)lb('t\\text{, d}',CW-Rm,box.b+30,{align:'right'});
     top+=hh+gap;});
 }
 
@@ -474,9 +476,8 @@ function draw4(lb,y){
   lineOf(P,y.slice(1),1,CS,1.8);
   lineOf(P,fit.fc,n+1,NAVY,2.4);
   ctx.restore();
-  lb('\\text{today}',P.px(n)-6,box.t+12,{align:'right',color:'#5b616e',bg:'rgba(255,255,255,0.85)'});
   lb('y_t',L-8,(box.t+box.b)/2,{align:'right',vt:'middle'});
-  lb('\\text{day}',CW-Rm,box.b+30,{align:'right'});
+  lb('t\\text{, d}',CW-Rm,box.b+30,{align:'right'});
 }
 
 function draw(){try{ctx.setTransform(SC,0,0,SC,0,0);ctx.clearRect(0,0,CW,CH);
@@ -652,7 +653,8 @@ function syncRows(){
   if(proc2){K(dsK==='ar'?'\\phi':'\\theta',document.getElementById('lbl-co'));
     document.getElementById('Rco').value=coefOf();
     document.getElementById('Nco').value=coefOf();}
-  document.getElementById('grp-resample').style.display=dsK==='custom'?'':'none';
+  document.getElementById('grp-noise').style.display=curTab!==3?'':'none';
+  document.getElementById('grp-resample').style.display=curTab!==3?'':'none';
   document.getElementById('grp-lag').style.display=(curTab===1||curTab===2)?'':'none';
   document.getElementById('grp-ex').style.display=curTab===0?'':'none';
   document.getElementById('grp-model').style.display=curTab===3?'':'none';
@@ -671,12 +673,12 @@ document.querySelectorAll('#dsSeg button').forEach(function(b){
   b.addEventListener('click',function(){dsK=b.getAttribute('data-ds');upd();});});
 ['b','A','sg','n','k','t0','p','d','q','P','D','Q'].forEach(function(b){
   var Re=document.getElementById('R'+b),Ne=document.getElementById('N'+b);
-  Re.addEventListener('input',function(){Ne.value=Re.value;FITC={};upd();});
-  Ne.addEventListener('input',function(){Re.value=Ne.value;FITC={};upd();});});
+  Re.addEventListener('input',function(){Ne.value=Re.value;SERC={};FITC={};upd();});
+  Ne.addEventListener('input',function(){Re.value=Ne.value;SERC={};FITC={};upd();});});
 ['Rco','Nco'].forEach(function(id){document.getElementById(id)
   .addEventListener('input',function(){setCoef(+this.value||0);upd();});});
 document.getElementById('resample').addEventListener('click',function(){
-  seed=(seed*1664525+1013904223)>>>0;regen(seed);FITC={};upd();});
+  SEEDS[dsK]=(SEEDS[dsK]*1664525+1013904223)>>>0;SERC={};FITC={};upd();});
 window.addEventListener('resize',function(){sizeCanvas();upd();});
 
 window.LAB={
@@ -684,7 +686,7 @@ window.LAB={
     var y=series(),n=y.length-1,yv=y.slice(1);
     var ac=[],i;for(i=1;i<=14;i++)ac.push(+acfOf(yv,i).toFixed(6));
     var pc=pacfList(yv,14).map(function(v){return +v.toFixed(6);});
-    var out={tab:curTab,seed:seed,n:n,ds:dsK,b:cur().b,A:cur().A,sg:cur().sg,
+    var out={tab:curTab,seed:SEEDS[dsK],n:n,ds:dsK,b:cur().b,A:cur().A,sg:cur().sg,
       k:Math.round(gv('k')),t0:Math.round(gv('t0')),ord:ordOf(),m:M,level:LEVEL,
       coef:coefOf(),
       y:yv.map(function(v){return +v.toFixed(1);}),acf:ac,pacf:pc,
@@ -699,10 +701,10 @@ window.LAB={
                se:fit.se.map(function(v){return +v.toFixed(6);})};}
     return out;},
   set:function(o){
-    if(o.seed!=null&&+o.seed!==seed){seed=+o.seed;regen(seed);FITC={};}
+    if(o.seed!=null&&+o.seed!==SEEDS[dsK]){SEEDS[dsK]=+o.seed;SERC={};FITC={};}
     if(o.ds&&(o.ds==='custom'||DS[o.ds]))dsK=o.ds;
     ['b','A','sg','n','k','t0','p','d','q','P','D','Q'].forEach(function(b2){
-      if(o[b2]!=null)sv(b2,+o[b2]);});
+      if(o[b2]!=null){sv(b2,+o[b2]);SERC={};FITC={};}});
     if(o.model==='arima'||o.model==='sarima'){
       ['p','d','q'].forEach(function(b2){sv(b2,1);});
       ['P','D','Q'].forEach(function(b2){sv(b2,o.model==='sarima'?1:0);});}
