@@ -370,61 +370,54 @@ function draw2(lb){
   lb('\\text{hour}',L+pw,TOP+ph+32,{align:'right'});
 }
 
-/* ============ tab 3 · predict: hours left from the indicator ============ */
+/* ============ tab 3 · predict: the hours left, hour by hour ============
+   Same geometry as tabs 1 and 2 -- hour across -- so the page keeps ONE picture: the actual
+   label is the straight descent it really is, the prediction runs beside it, and the error
+   at the testing hour is the gap between them. (It used to put the indicator on the x-axis:
+   that plane shows the FIT, which the calc box already writes out, and it turned every pump
+   path into a line that doubles back on itself.) */
 function draw3(lb){
-  var kind=view,w=(scope==='cap'?COEFC:COEF)[kind];
-  var L=48,Rm=14,TOP=26,BOT=38,pw=CW-L-Rm,ph=CH-TOP-BOT;
-  var lo=Infinity,hi=-Infinity;
-  TRAINP.concat([pump]).forEach(function(p){var arr=BYID[p][kind];
-    for(var i=0;i<arr.length;i++){if(arr[i]<lo)lo=arr[i];if(arr[i]>hi)hi=arr[i];}});
-  var pad=(hi-lo)*0.05;lo-=pad;hi+=pad;
-  var P=frame(L,TOP,pw,ph,lo,hi,0,CAP+45);
+  var kind=view,w=(scope==='cap'?COEFC:COEF)[kind],d=BYID[pump];
+  var L=52,Rm=14,TOP=26,BOT=38,pw=CW-L-Rm,ph=CH-TOP-BOT;
+  var ymax=Math.max(d.n,CAP)*1.03,xmax=Math.round(d.n*1.02);
+  var P=frame(L,TOP,pw,ph,0,xmax,0,ymax);
+  /* above H: the hours the model is neither fitted on nor scored on (tab 1's lesson), shaded
+     the way tab 2 shades its baseline window */
+  if(CAP<ymax){ctx.fillStyle=BAND;ctx.globalAlpha=0.55;
+    ctx.fillRect(L,TOP,pw,P.py(CAP)-TOP);ctx.globalAlpha=1;
+    ctx.strokeStyle=GREY;ctx.lineWidth=1.2;ctx.setLineDash([5,4]);
+    ctx.beginPath();ctx.moveTo(L,P.py(CAP));ctx.lineTo(L+pw,P.py(CAP));ctx.stroke();ctx.setLineDash([]);
+    lb('\\text{beyond }H='+CAP,L+pw-6,P.py(CAP)-8,{align:'right',color:'#5b616e'});}
   ctx.save();ctx.beginPath();ctx.rect(L,TOP,pw,ph);ctx.clip();
-  /* the 720-hour horizon, drawn as its own line: hours above it are outside the scope
-     the model is fitted and scored on (tab 1's lesson) */
-  ctx.strokeStyle=GREY;ctx.lineWidth=1.2;ctx.setLineDash([5,4]);
-  ctx.beginPath();ctx.moveTo(L,P.py(CAP));ctx.lineTo(L+pw,P.py(CAP));ctx.stroke();ctx.setLineDash([]);
-  /* ONE LINE PER PUMP through its daily points (the table's own "one per day" sampling).
-     The workflow had to scatter this: KNIME's Line Plot cannot colour by pump and draws one
-     line straight across the pump joins of a Loop End table -- the course's exec gate even
-     bans that pairing. The playground has no such limit, so each pump's path down to failure
-     is its own line, and the four training paths visibly disagree in mm/s. */
-  function path(pid,wd,al,bend){var d3=BYID[pid],arr3=d3[kind];
-    ctx.strokeStyle=PCOL[pid];ctx.lineWidth=wd;ctx.globalAlpha=al;ctx.beginPath();
-    var first=true;
-    for(var i3=0;i3<arr3.length;i3+=24){
-      var y3=d3.n-i3;if(bend)y3=Math.min(y3,CAP);   /* capped labels lie ON the horizon */
-      var X3=P.px(arr3[i3]),Y3=P.py(y3);
-      first?ctx.moveTo(X3,Y3):ctx.lineTo(X3,Y3);first=false;}
-    ctx.stroke();ctx.globalAlpha=1;}
-  TRAINP.forEach(function(p3){path(p3,1.6,0.6,scope==='cap');});   /* the fitted paths */
-  path(pump,3,1);                                    /* the chosen new pump, on top */
-  /* the model */
-  ctx.strokeStyle=NAVY;ctx.lineWidth=2.6;ctx.beginPath();
-  ctx.moveTo(P.px(lo),P.py(w[0]+w[1]*lo));ctx.lineTo(P.px(hi),P.py(w[0]+w[1]*hi));ctx.stroke();
+  /* what really happened: hours left counts straight down to the failure. Capping is what
+     the TRAINING labels suffer under "Cap at H" -- it never changes what remains on a new
+     pump, and the scoring never capped it either, so this line is the true descent in both
+     modes and always agrees with the calc box. */
+  var act=[],prd=[],i;
+  for(i=0;i<d.n;i++){act.push(d.n-i);prd.push(w[0]+w[1]*d[kind][i]);}
+  poly(prd,P,NAVY,2,0.95);
+  poly(act,P,PCOL[pump],2.6,1);
   ctx.restore();
-  /* the testing hour: its indicator value, the prediction ON the line, the actual as a ring */
-  var t=nowOf(pump),xq=BYID[pump][kind][t],yh=w[0]+w[1]*xq,
-      ya=BYID[pump].n-t;
-  var Xq=P.px(xq),Yh=Math.max(TOP,Math.min(TOP+ph,P.py(yh)));
-  ctx.strokeStyle=INK;ctx.setLineDash([4,4]);ctx.lineWidth=1.3;
-  ctx.beginPath();ctx.moveTo(Xq,TOP+ph);ctx.lineTo(Xq,Yh);ctx.stroke();ctx.setLineDash([]);
-  /* the actual can exceed the axis (RUL beyond the horizon early in life): clamp the ring
-     to the frame, and when the two labels land close, put them on opposite sides */
-  var Ya=Math.max(TOP,Math.min(TOP+ph,P.py(ya)));
+  /* the testing hour: the gap between the two lines IS the error the calc box reports */
+  var t=nowOf(pump),yh=prd[t],ya=act[t];
+  var Xq=P.px(t),Yh=Math.max(TOP,Math.min(TOP+ph,P.py(yh))),Ya=Math.max(TOP,Math.min(TOP+ph,P.py(ya)));
+  ctx.strokeStyle=GREY;ctx.setLineDash([4,4]);ctx.lineWidth=1.4;
+  ctx.beginPath();ctx.moveTo(Xq,TOP);ctx.lineTo(Xq,TOP+ph);ctx.stroke();ctx.setLineDash([]);
+  ctx.strokeStyle=INK;ctx.lineWidth=2;
+  ctx.beginPath();ctx.moveTo(Xq,Yh);ctx.lineTo(Xq,Ya);ctx.stroke();
   ctx.strokeStyle='rgba(255,255,255,0.9)';ctx.lineWidth=4;
-  ctx.beginPath();ctx.arc(Xq,Ya,9,0,7);ctx.stroke();
-  ctx.strokeStyle=INK;ctx.lineWidth=2;ctx.beginPath();ctx.arc(Xq,Ya,9,0,7);ctx.stroke();
+  ctx.beginPath();ctx.arc(Xq,Ya,8,0,7);ctx.stroke();
+  ctx.strokeStyle=INK;ctx.lineWidth=2;ctx.beginPath();ctx.arc(Xq,Ya,8,0,7);ctx.stroke();
   testDot(Xq,Yh);
-  var rt=Xq>L+pw/2,ra=Math.abs(Ya-Yh)<26?!rt:rt;
-  lb('\\widehat{RUL}='+fx(yh,0)+'\\text{ h}',Xq+(rt?-12:12),Yh-10,
+  var rt=Xq>L+pw/2,lo2=Yh>Ya;
+  lb('\\widehat{RUL}='+fx(yh,0),Xq+(rt?-14:14),Yh+(lo2?18:-8),
      {align:rt?'right':'left',color:NAVY,bg:'rgba(255,255,255,0.9)'});
-  lb('\\text{actual }'+fx(ya,0),Xq+(ra?-12:12),Ya+18,
-     {align:ra?'right':'left',color:INK,bg:'rgba(255,255,255,0.9)'});
-  /* the ring is clamped to the frame when the actual sits beyond the horizon, so the axis
-     title keeps clear of the left edge where that happens */
-  lb('\\text{hours left}',L+pw*0.5,TOP-8,{align:'center'});
-  lb(kind==='raw'?'\\text{mm/s, 24-h mean}':'HI\\ (z)',L+pw,TOP+ph+32,{align:'right'});
+  lb('\\text{actual }'+fx(ya,0),Xq+(rt?-14:14),Ya+(lo2?-8:18),
+     {align:rt?'right':'left',color:INK,bg:'rgba(255,255,255,0.9)'});
+  lb('\\text{hours left}',L+4,TOP-8);
+  lb('\\text{from }'+(kind==='raw'?'\\text{mm/s, }'+W+'\\text{-h mean}':'HI\\ (z)'),
+     L+pw,TOP-8,{align:'right',color:NAVY});
+  lb('\\text{hour}',L+pw,TOP+ph+32,{align:'right'});
 }
 
 function draw(){try{ctx.setTransform(SC,0,0,SC,0,0);ctx.clearRect(0,0,CW,CH);
@@ -447,10 +440,10 @@ function fillLegend(){
     T1P.forEach(function(p){h+=leg('background:'+PCOL[p],'\\text{'+pn(p)+(BYID[p].role==='censored'?' (running)':'')+'}');});
     h+=leg('background:'+BAND,'\\text{Baseline window}');
   }else{
-    TRAINP.forEach(function(p){h+=leg('background:'+PCOL[p],'\\text{'+pn(p)+'}');});
-    h+=leg('background:'+PCOL[pump],'\\text{'+pn(pump)+' (new)}')
-      +leg('background:'+NAVY,'\\text{Model}')
-      +leg('background:'+INK,'\\text{Actual at }t');
+    h+=leg('background:'+PCOL[pump],'\\text{'+pn(pump)+'\\text{: hours left, what happened}}')
+      +leg('background:'+NAVY,'\\text{Predicted, hour by hour}')
+      +leg('background:'+INK,'\\text{Error at }t')
+      +leg('background:'+BAND,'\\text{Beyond }H');
   }
   el.innerHTML=h+'</div>';}
 
