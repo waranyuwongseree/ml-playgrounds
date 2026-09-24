@@ -13,6 +13,7 @@
   :root{--panel-h:371px}   /* ความสูงจริงของ tab ที่ control สูงสุด (รวม margin) — ตรึงทุก tab เท่ากัน */
   .layout{align-items:start}
   .pg.distcls .canvasbox{height:224px}
+  .pg.distcls .canvasbox.two{height:320px}   /* Predict stacks the scatter over the series */
   .distcls .stage{gap:6px}
   .canvasbox{position:relative}
   .cvlab{position:absolute;left:0;top:0;width:100%;height:100%;pointer-events:none;overflow:hidden;font-size:14px;line-height:1}
@@ -417,64 +418,83 @@ function draw2(lb){
   lb('\\text{hour}',L+pw,TOP+ph+32,{align:'right'});
 }
 
-/* ============ tab 3 · predict: the hours left, hour by hour ============
-   Same geometry as tabs 1 and 2 -- hour across -- so the page keeps ONE picture: the actual
-   label is the straight descent it really is, the prediction runs beside it, and the error
-   at the testing hour is the gap between them. (It used to put the indicator on the x-axis:
-   that plane shows the FIT, which the calc box already writes out, and it turned every pump
-   path into a line that doubles back on itself.) */
+/* ============ tab 3 · predict: the relationship, then what it predicts ============
+   Two panels on one figure. ABOVE: the scatter the line is actually fitted to -- the
+   indicator across, the hours left up, one dot per six hours of the training pumps in scope,
+   and the fitted line straight through them; this is where the RELATIONSHIP is visible and
+   where two tilts can be compared side by side. BELOW: the hour axis of tabs 1 and 2, what
+   happened against what was predicted, with the error at the testing hour as the gap. */
 function draw3(lb){
-  var kind=view,w=(scope==='cap'?COEFC:COEF)[kind],d=BYID[pump];
-  var L=52,Rm=14,TOP=26,BOT=38,pw=CW-L-Rm,ph=CH-TOP-BOT;
-  var ymax=Math.max(d.n,CAP)*1.03,xmax=Math.round(d.n*1.02);
-  var P=frame(L,TOP,pw,ph,0,xmax,0,ymax);
-  /* above H: the hours the model is neither fitted on nor scored on (tab 1's lesson), shaded
-     the way tab 2 shades its baseline window */
-  if(CAP<ymax){ctx.fillStyle=BAND;ctx.globalAlpha=0.55;
-    ctx.fillRect(L,TOP,pw,P.py(CAP)-TOP);ctx.globalAlpha=1;
-    ctx.strokeStyle=GREY;ctx.lineWidth=1.2;ctx.setLineDash([5,4]);
-    ctx.beginPath();ctx.moveTo(L,P.py(CAP));ctx.lineTo(L+pw,P.py(CAP));ctx.stroke();ctx.setLineDash([]);
-    lb('\\text{beyond }H='+CAP,L+pw-6,P.py(CAP)-8,{align:'right',color:'#5b616e'});}
-  ctx.save();ctx.beginPath();ctx.rect(L,TOP,pw,ph);ctx.clip();
-  /* what really happened: hours left counts straight down to the failure. Capping is what
-     the TRAINING labels suffer under "Cap at H" -- it never changes what remains on a new
-     pump, and the scoring never capped it either, so this line is the true descent in both
-     modes and always agrees with the calc box. */
-  var act=[],prd=[],i;
-  for(i=0;i<d.n;i++){act.push(d.n-i);prd.push(w[0]+w[1]*d[kind][i]);}
-  /* the alternative you are NOT looking at, drawn faintly in the same colour: the other
-     scope, and the other indicator. Comparing two tilts stops being a memory test. */
-  function ghost(w2,dash){var g=[],j;
-    for(j=0;j<d.n;j++)g.push(w2[0]+w2[1]*d[kind===''?view:kind][j]);
-    ctx.setLineDash(dash);poly(g,P,NAVY,1.4,0.3);ctx.setLineDash([]);}
-  function ghostView(w2,dash){var g=[],j,other=kind==='hi'?'raw':'hi';
-    for(j=0;j<d.n;j++)g.push(w2[0]+w2[1]*d[other][j]);
-    ctx.setLineDash(dash);poly(g,P,NAVY,1.4,0.3);ctx.setLineDash([]);}
-  ghost((scope==='cap'?COEF:COEFC)[kind],[6,4]);                       /* the other scope */
-  ghostView((scope==='cap'?COEFC:COEF)[kind==='hi'?'raw':'hi'],[2,3]); /* the other indicator */
-  poly(prd,P,NAVY,2,0.95);
-  poly(act,P,PCOL[pump],2.6,1);
+  var kind=view,w=(scope==='cap'?COEFC:COEF)[kind],d=BYID[pump],i;
+  var L=52,Rm=14,TOP=22,GAP=30,BOT=34;
+  var hA=Math.round((CH-TOP-GAP-BOT)*0.58),hB=CH-TOP-GAP-BOT-hA;
+  var aT=TOP,aB=aT+hA,bT=aB+GAP,bB=bT+hB,pw=CW-L-Rm;
+
+  /* ---------------- above: the scatter the model is fitted to ---------------- */
+  var lo=Infinity,hi=-Infinity;
+  TRAINP.concat([pump]).forEach(function(p){var x=BYID[p][kind],q=BYID[p];
+    for(var j=0;j<x.length;j++){if(q.n-j>CAP)continue;
+      if(x[j]<lo)lo=x[j];if(x[j]>hi)hi=x[j];}});
+  var xpad=(hi-lo)*0.05;lo-=xpad;hi+=xpad;
+  var A=frame(L,aT,pw,hA,lo,hi,0,CAP*1.04);
+  ctx.save();ctx.beginPath();ctx.rect(L,aT,pw,hA);ctx.clip();
+  /* one dot per six hours: enough to read the cloud, few enough to see through it */
+  function cloud(pid,rad,al){var q=BYID[pid],x=q[kind];
+    ctx.fillStyle=PCOL[pid];ctx.globalAlpha=al;
+    for(var j=0;j<x.length;j+=6){var y=q.n-j;if(y>CAP)continue;
+      ctx.beginPath();ctx.arc(A.px(x[j]),A.py(scope==='cap'?Math.min(y,CAP):y),rad,0,7);ctx.fill();}
+    ctx.globalAlpha=1;}
+  TRAINP.forEach(function(p){if(p!==pump)cloud(p,1.6,0.28);});
+  cloud(pump,2.4,0.85);
+  /* the fitted line, and the alternative fit dashed beside it: the two tilts, together */
+  function ruler(w2,wd,al,dash){ctx.strokeStyle=NAVY;ctx.lineWidth=wd;ctx.globalAlpha=al;
+    ctx.setLineDash(dash||[]);ctx.beginPath();
+    ctx.moveTo(A.px(lo),A.py(w2[0]+w2[1]*lo));ctx.lineTo(A.px(hi),A.py(w2[0]+w2[1]*hi));
+    ctx.stroke();ctx.setLineDash([]);ctx.globalAlpha=1;}
+  ruler((scope==='cap'?COEF:COEFC)[kind],1.4,0.32,[6,4]);
+  ruler(w,2.6,1);
   ctx.restore();
-  /* the testing hour: the gap between the two lines IS the error the calc box reports */
-  var t=nowOf(pump),yh=prd[t],ya=act[t];
-  var Xq=P.px(t),Yh=Math.max(TOP,Math.min(TOP+ph,P.py(yh))),Ya=Math.max(TOP,Math.min(TOP+ph,P.py(ya)));
-  ctx.strokeStyle=GREY;ctx.setLineDash([4,4]);ctx.lineWidth=1.4;
-  ctx.beginPath();ctx.moveTo(Xq,TOP);ctx.lineTo(Xq,TOP+ph);ctx.stroke();ctx.setLineDash([]);
+  var t=nowOf(pump),xq=BYID[pump][kind][t],yh=w[0]+w[1]*xq,ya=d.n-t;
+  var Xa=A.px(xq),Yp=Math.max(aT,Math.min(aB,A.py(yh)));
+  /* the actual is only marked where it really is: above H it is off this panel, and a ring
+     pinned to the frame would claim a point that is not there. Panel B shows it regardless. */
+  if(ya<=CAP){var Yv=A.py(ya);
+    ctx.strokeStyle=INK;ctx.lineWidth=2;
+    ctx.beginPath();ctx.moveTo(Xa,Yp);ctx.lineTo(Xa,Yv);ctx.stroke();
+    ctx.strokeStyle='rgba(255,255,255,0.9)';ctx.lineWidth=4;
+    ctx.beginPath();ctx.arc(Xa,Yv,8,0,7);ctx.stroke();
+    ctx.strokeStyle=INK;ctx.lineWidth=2;ctx.beginPath();ctx.arc(Xa,Yv,8,0,7);ctx.stroke();}
+  testDot(Xa,Yp);
+  lb('\\text{hours left}',L+4,aT-6);
+  /* the axis name sits in the free corner, not on the last tick */
+  lb('\\text{against }'+(kind==='raw'?'\\text{mm/s, }'+W+'\\text{-h mean}':'HI\\ (z)'),
+     L+pw,aT-6,{align:'right',color:NAVY});
+
+  /* ---------------- below: the same hours, over time ---------------- */
+  var ymax=Math.max(d.n,CAP)*1.03;
+  var B=frame(L,bT,pw,hB,0,Math.round(d.n*1.02),0,ymax);
+  if(CAP<ymax){ctx.fillStyle=BAND;ctx.globalAlpha=0.55;
+    ctx.fillRect(L,bT,pw,B.py(CAP)-bT);ctx.globalAlpha=1;
+    ctx.strokeStyle=GREY;ctx.lineWidth=1.1;ctx.setLineDash([5,4]);
+    ctx.beginPath();ctx.moveTo(L,B.py(CAP));ctx.lineTo(L+pw,B.py(CAP));ctx.stroke();ctx.setLineDash([]);
+    lb('\\text{beyond }H='+CAP,L+pw-6,B.py(CAP)-6,{align:'right',color:'#5b616e'});}
+  ctx.save();ctx.beginPath();ctx.rect(L,bT,pw,hB);ctx.clip();
+  var act=[],prd=[];
+  for(i=0;i<d.n;i++){act.push(d.n-i);prd.push(w[0]+w[1]*d[kind][i]);}
+  poly(prd,B,NAVY,1.8,0.95);
+  poly(act,B,PCOL[pump],2.4,1);
+  ctx.restore();
+  var Xb=B.px(t),Yhb=Math.max(bT,Math.min(bB,B.py(yh))),Yab=Math.max(bT,Math.min(bB,B.py(ya)));
+  ctx.strokeStyle=GREY;ctx.setLineDash([4,4]);ctx.lineWidth=1.3;
+  ctx.beginPath();ctx.moveTo(Xb,bT);ctx.lineTo(Xb,bB);ctx.stroke();ctx.setLineDash([]);
   ctx.strokeStyle=INK;ctx.lineWidth=2;
-  ctx.beginPath();ctx.moveTo(Xq,Yh);ctx.lineTo(Xq,Ya);ctx.stroke();
-  ctx.strokeStyle='rgba(255,255,255,0.9)';ctx.lineWidth=4;
-  ctx.beginPath();ctx.arc(Xq,Ya,8,0,7);ctx.stroke();
-  ctx.strokeStyle=INK;ctx.lineWidth=2;ctx.beginPath();ctx.arc(Xq,Ya,8,0,7);ctx.stroke();
-  testDot(Xq,Yh);
-  var rt=Xq>L+pw/2,lo2=Yh>Ya;
-  lb('\\widehat{RUL}='+fx(yh,0),Xq+(rt?-14:14),Yh+(lo2?18:-8),
+  ctx.beginPath();ctx.moveTo(Xb,Yhb);ctx.lineTo(Xb,Yab);ctx.stroke();
+  var rt=Xb>L+pw/2,lo2=Yhb>Yab;
+  lb('\\widehat{RUL}='+fx(yh,0),Xb+(rt?-12:12),Yhb+(lo2?16:-6),
      {align:rt?'right':'left',color:NAVY,bg:'rgba(255,255,255,0.9)'});
-  lb('\\text{actual }'+fx(ya,0),Xq+(rt?-14:14),Ya+(lo2?-8:18),
+  lb('\\text{actual }'+fx(ya,0),Xb+(rt?-12:12),Yab+(lo2?-6:16),
      {align:rt?'right':'left',color:INK,bg:'rgba(255,255,255,0.9)'});
-  lb('\\text{hours left}',L+4,TOP-8);
-  lb('\\text{from }'+(kind==='raw'?'\\text{mm/s, }'+W+'\\text{-h mean}':'HI\\ (z)'),
-     L+pw,TOP-8,{align:'right',color:NAVY});
-  lb('\\text{hour}',L+pw,TOP+ph+32,{align:'right'});
+  lb('\\text{hour}',L+pw,bB+30,{align:'right'});
 }
 
 function draw(){try{ctx.setTransform(SC,0,0,SC,0,0);ctx.clearRect(0,0,CW,CH);
@@ -497,10 +517,11 @@ function fillLegend(){
     T1P.forEach(function(p){h+=leg('background:'+PCOL[p],'\\text{'+pn(p)+(BYID[p].role==='censored'?' (running)':'')+'}');});
     h+=leg('background:'+BAND,'\\text{Baseline window}');
   }else{
-    h+=leg('background:'+PCOL[pump],'\\text{'+pn(pump)+'\\text{ ('+roleOf(pump)+'): hours left}}')
-      +leg('background:'+NAVY,'\\text{Predicted, hour by hour}')
-      +leg('background:'+NAVY+';opacity:0.32','\\text{Same model, '+(scope==='cap'?'drop':'cap')+'}')
-      +leg('background:'+NAVY+';opacity:0.32','\\text{Same model, '+(view==='hi'?'mm/s':'z')+'}')
+    TRAINP.forEach(function(p){if(p!==pump)
+      h+=leg('background:'+PCOL[p]+';opacity:0.45','\\text{'+pn(p)+'}');});
+    h+=leg('background:'+PCOL[pump],'\\text{'+pn(pump)+'\\text{ ('+roleOf(pump)+')}}')
+      +leg('background:'+NAVY,'\\text{The line, and what it predicts}')
+      +leg('background:'+NAVY+';opacity:0.32','\\text{Same line, '+(scope==='cap'?'drop':'cap')+'}')
       +leg('background:'+INK,'\\text{Error at }t')
       +leg('background:'+BAND,'\\text{Beyond }H');
   }
@@ -562,6 +583,10 @@ function fillScore(){
        +chip('\\text{'+(s.view==='hi'?'z':'mm/s')+'}')
        +chip('\\text{in-scope MAE }\\textbf{'+fx(s.inScope,2)+'}\\text{ h}')
        +chip('\\text{last 300 h }\\textbf{'+fx(s.yard,2)+'}\\text{ h}')
+       +(curTab===2?chip('\\text{'+pn(pump)+' bias }\\textbf{'+
+           (biasOf(pump,s.view,(scope==='cap'?COEFC:COEF)[s.view])<0?'-':'+')+
+           fx(Math.abs(biasOf(pump,s.view,(scope==='cap'?COEFC:COEF)[s.view])),0)+
+           '}\\text{ h}'):'')
        +'<span class="sp"></span>'
        +'<button class="rec" id="btn-rec"></button>'
        +(LAB_ROWS.length?'<button id="btn-clr"></button>':'');
@@ -632,25 +657,20 @@ function fillCalc(){
     var bi=biasOf(pump,kind,w);
     var FN=kind==='raw'?'\\bar x_{'+W+'}':'HI';
     h+=lline('Model',['\\widehat{RUL}('+FN+')='+fx(w[0],2)+'-'+fx(-w[1],2)+'\\,'+FN]);
+    /* the linear model and the substitution -- the scatter shows the fit, the scoreboard
+       carries the measures, so nothing else is written out here */
+    /* which rows the line was actually fitted to: capping keeps every hour and lays the
+       out-of-horizon ones flat, dropping keeps only the hours inside H */
     h+=lline('Fitting',scope==='cap'?
       ['\\text{least squares on EVERY hour of }'+
         TRAINP.map(function(q){return '\\text{'+pn(q)+'}';}).join(',\\ '),
-       '\\text{label capped at }'+CAP+'\\Rightarrow '+fx(100*SHARE,0)+'\\%\\text{ of the hours lie on the flat line}']:
+       '\\text{label capped at }'+CAP+'\\Rightarrow '+fx(100*SHARE,0)+
+       '\\%\\text{ of them lie on the flat line}']:
       ['\\text{least squares on the '+NTRAIN+' hours within }H='+CAP+'\\text{ h}',
        '\\text{of }'+TRAINP.map(function(q){return '\\text{'+pn(q)+'}';}).join(',\\ ')]);
     h+=lline('Testing hour',[FN+'('+t+')='+fx(f,2),
       '\\widehat{RUL}='+fx(w[0],2)+'-'+fx(-w[1],2)+'\\cdot'+fx(f,2)+'='+fx(yh,0)+'\\text{ h}',
-      '\\text{actual }'+fx(ya,0)+'\\text{ h}','\\text{error }'+fx(ya-yh,0)+'\\text{ h}']);
-    h+=lline('In scope',['\\text{'+NTEST+'\\text{ rows, RUL}}\\le '+CAP,
-      '\\text{-- a shorter }H\\text{ scores fewer, closer rows, so it is not comparable}']);
-    h+=lline('This pump',['\\text{'+pn(pump)+', '+roleOf(pump)+'}',
-      '\\text{signed error }'+(bi<0?'-':'+')+fx(Math.abs(bi),0)+
-      '\\text{ h -- the fleet mean cancels these, the pumps do not}']);
-    h+=lline('Last 300 h',['\\text{same rows at every }H\\text{: drop }'+fx(MAEL.filter[kind],2)+
-      '\\text{ h, cap }'+fx(MAEL.cap[kind],2)+'\\text{ h}',
-      '\\text{-- the flat rows tilt the line}']);
-    h+=lline('Try',['\\text{move }H\\text{ and Record: the in-scope number improves as the scope}',
-      '\\text{shrinks, while the fixed 300-h yardstick tells you what happened}']);}
+      '\\text{actual }'+fx(ya,0)+'\\text{ h}','\\text{error }'+fx(ya-yh,0)+'\\text{ h}']);}
   /* the scoreboard carries W and H at all times, so this line exists only to warn: the page
      must never quietly pass off a changed setting as the workflow's result */
   if(!atDefault())
@@ -684,7 +704,9 @@ function syncNow(){
   var d=BYID[pump],t=Math.min(nowOf(pump),d.n-1);NOWM[pump]=t;
   ['Rnow','Nnow'].forEach(function(id){var e=document.getElementById(id);
     e.max=d.n-1;e.value=t;});}
-function upd(){paintSeg();fillPumpHint();sizeCanvas();draw();fillLegend();fillTable();fillCalc();
+function upd(){paintSeg();fillPumpHint();
+  document.querySelector('.canvasbox').className='canvasbox'+(curTab===2?' two':'');
+  sizeCanvas();draw();fillLegend();fillTable();fillCalc();
   fillScore();fillLab();
   if(Math.round(cv.clientWidth)!==CW||Math.round(cv.clientHeight)!==CH){sizeCanvas();draw();}}
 function applyTab(i){curTab=i;
