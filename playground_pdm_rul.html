@@ -45,7 +45,7 @@
 </style>
 </head>
 <body class="pg distcls">
-<h2 class="sr-only" style="position:absolute;width:1px;height:1px;overflow:hidden">Introduction to Remaining Useful Life on the course's own seven pumps. Tab one: where the label comes from — a pump that ran to failure gives every hour a label, the hours left until that failure, capped at 720; a pump still running has no label yet. Tab two: the health indicator — pumps sit at different healthy vibration levels in mm per second, so the reading is smoothed over 24 hours and z-scored against the pump's own baseline window. Tab three: one linear regression from the indicator to the hours left, fitted on the four failed training pumps and read out step by step at any testing hour of a new pump.</h2>
+<h2 class="sr-only" style="position:absolute;width:1px;height:1px;overflow:hidden">Introduction to Remaining Useful Life on the course's own seven pumps. Tab one: where the label comes from — a pump that ran to failure gives every hour a label, the hours left until that failure; the model works inside a 720-hour planning horizon; a pump still running has no label yet. Tab two: the health indicator — pumps sit at different healthy vibration levels in mm per second, so the reading is smoothed over 24 hours and z-scored against the pump's own baseline window. Tab three: one linear regression from the indicator to the hours left, fitted on the four failed training pumps and read out step by step at any testing hour of a new pump.</h2>
 <div class="wrap">
   <div class="hdr"><h1 id="h1">Introduction to RUL</h1><div class="tabs" id="tabs"></div></div>
   <div class="layout" id="mainPanel">
@@ -87,13 +87,14 @@
 
      1 The label            RUL(t) = hours left until the failure that DID happen: on a pump
                             that ran to failure every hour gets its label by counting
-                            backwards; capped at 720 (beyond 30 days the plan is the same);
+                            backwards; hours with RUL > 720 sit beyond the 30-day
+                            planning horizon and are not used;
                             and the still-running PUMP-03 has no label at all -- censoring
      2 The health indicator pumps sit at different healthy mm/s levels, so the reading is
                             smoothed over 24 h and z-scored against the pump's OWN baseline
                             window (hours 23-222) -- the calc box does the arithmetic
      3 Predict              one linear regression, hours left from the indicator, fitted on
-                            every hour of the four failed training pumps; slide the testing
+                            the in-scope hours of the four failed training pumps; slide the testing
                             hour of a new pump and read the prediction out step by step
 
    Every number is computed here and cross-checked against pdm_rul_ref.py, which reads the
@@ -127,23 +128,25 @@ RULDATA.pumps.forEach(function(p){
   BYID[p.id]={n:n,vib:p.vib,raw:s,hi:hi,mu:m,sd:sd,role:p.role,
               vibSum:+p.vib.reduce(function(a,b){return a+b;},0).toFixed(3)};});
 
-/* the one model of the day: least squares over every hour of the four failed training pumps,
-   the same two-pass left-to-right arithmetic as pdm_rul_ref.py */
+/* the one model of the day: least squares over the in-scope hours (RUL <= 720) of the four
+   failed training pumps, target = the true RUL_hours -- the same rows the workflow's Row
+   Filter keeps, and the same two-pass arithmetic as pdm_rul_ref.py */
 function fitFull(kind){
-  var sx=0,sy=0,n=0,a,i,p,x;
+  var sx=0,sy=0,n=0,a,i,p,x,y;
   for(a=0;a<TRAINP.length;a++){p=TRAINP[a];x=BYID[p][kind];
-    for(i=0;i<x.length;i++){sx+=x[i];sy+=Math.min(BYID[p].n-i,CAP);n++;}}
+    for(i=0;i<x.length;i++){y=BYID[p].n-i;if(y>CAP)continue;sx+=x[i];sy+=y;n++;}}
   var mx=sx/n,my=sy/n,sxx=0,sxy=0;
   for(a=0;a<TRAINP.length;a++){p=TRAINP[a];x=BYID[p][kind];
-    for(i=0;i<x.length;i++){var yc=Math.min(BYID[p].n-i,CAP);
-      sxx+=(x[i]-mx)*(x[i]-mx);sxy+=(x[i]-mx)*(yc-my);}}
+    for(i=0;i<x.length;i++){y=BYID[p].n-i;if(y>CAP)continue;
+      sxx+=(x[i]-mx)*(x[i]-mx);sxy+=(x[i]-mx)*(y-my);}}
   var b=sxy/sxx;
   return [my-b*mx,b];}
 var COEF={raw:fitFull('raw'),hi:fitFull('hi')};
 function maeDeploy(kind){
   var w=COEF[kind],s=0,n=0;
   DEPLOYP.forEach(function(p){var x=BYID[p][kind],d=BYID[p];
-    for(var i=0;i<x.length;i++){s+=Math.abs(w[0]+w[1]*x[i]-Math.min(d.n-i,CAP));n++;}});
+    for(var i=0;i<x.length;i++){var y=d.n-i;if(y>CAP)continue;
+      s+=Math.abs(w[0]+w[1]*x[i]-y);n++;}});
   return s/n;}
 var MAED={raw:maeDeploy('raw'),hi:maeDeploy('hi')};
 
@@ -285,8 +288,8 @@ function draw3(lb){
   var pad=(hi-lo)*0.05;lo-=pad;hi+=pad;
   var P=frame(L,TOP,pw,ph,lo,hi,0,CAP+45);
   ctx.save();ctx.beginPath();ctx.rect(L,TOP,pw,ph);ctx.clip();
-  /* the 720-hour ceiling, drawn as its own line: the row of points sitting on it is the cap
-     at work (tab 1's lesson), not a glitch */
+  /* the 720-hour horizon, drawn as its own line: hours above it are outside the scope
+     the model is fitted and scored on (tab 1's lesson) */
   ctx.strokeStyle=GREY;ctx.lineWidth=1.2;ctx.setLineDash([5,4]);
   ctx.beginPath();ctx.moveTo(L,P.py(CAP));ctx.lineTo(L+pw,P.py(CAP));ctx.stroke();ctx.setLineDash([]);
   /* ONE LINE PER PUMP through its daily points (the table's own "one per day" sampling).
@@ -298,7 +301,7 @@ function draw3(lb){
     ctx.strokeStyle=PCOL[pid];ctx.lineWidth=wd;ctx.globalAlpha=al;ctx.beginPath();
     var first=true;
     for(var i3=0;i3<arr3.length;i3+=24){
-      var X3=P.px(arr3[i3]),Y3=P.py(Math.min(d3.n-i3,CAP));
+      var X3=P.px(arr3[i3]),Y3=P.py(d3.n-i3);
       first?ctx.moveTo(X3,Y3):ctx.lineTo(X3,Y3);first=false;}
     ctx.stroke();ctx.globalAlpha=1;}
   TRAINP.forEach(function(p3){path(p3,1.6,0.6);});   /* the paths the line was fitted on */
@@ -309,7 +312,7 @@ function draw3(lb){
   ctx.restore();
   /* the testing hour: its indicator value, the prediction ON the line, the actual as a ring */
   var t=nowOf(pump),xq=BYID[pump][kind][t],yh=w[0]+w[1]*xq,
-      ya=Math.min(BYID[pump].n-t,CAP);
+      ya=BYID[pump].n-t;
   var Xq=P.px(xq),Yh=Math.max(TOP,Math.min(TOP+ph,P.py(yh)));
   ctx.strokeStyle=INK;ctx.setLineDash([4,4]);ctx.lineWidth=1.3;
   ctx.beginPath();ctx.moveTo(Xq,TOP+ph);ctx.lineTo(Xq,Yh);ctx.stroke();ctx.setLineDash([]);
@@ -365,7 +368,7 @@ function fillTable(){
     val=function(i){return [String(i),fx(d.vib[i],3),fx(d.raw[i],3),fx(d.hi[i],2)];};}
   else{var kind=view,w=COEF[kind];ycol=2;
     cols=['\\text{Hour}',kind==='raw'?'\\text{Mean 24 h}':'HI','RUL\\text{, h }(y)','\\widehat{RUL}','y-\\widehat{RUL}'];
-    val=function(i){var f=d[kind][i],p2=w[0]+w[1]*f,ya=Math.min(d.n-i,CAP);
+    val=function(i){var f=d[kind][i],p2=w[0]+w[1]*f,ya=d.n-i;
       return [String(i),fx(f,kind==='raw'?3:2),String(ya),fx(p2,0),fx(ya-p2,0)];};}
   hd.innerHTML=cols.map(function(c){return '<th>'+kx(Wt(c))+'</th>';}).join('');
   document.getElementById('dtcap').innerHTML=
@@ -397,11 +400,14 @@ function fillCalc(){
       h+=lline('Testing hour',['RUL('+t+')=\\text{?}','\\text{(unknown until the pump fails)}']);
       h+=lline('So',['\\text{no label yet}\\ \\Rightarrow\\ \\text{these hours cannot train the model}']);
     }else{
-      var r=d.n-t,c=Math.min(r,CAP);
+      var r=d.n-t;
       h+=lline('Label',['\\text{'+pn(pump)+' failed at hour }'+d.n,'\\Rightarrow\\ RUL(t)='+d.n+'-t']);
       h+=lline('Testing hour',['RUL('+t+')='+d.n+'-'+t+'='+r+'\\text{ h}']);
-      h+=lline('Cap',['y=\\min('+r+',720)='+fx(c,0)+'\\text{ h}',
-        '\\text{(beyond 30 days the maintenance plan is the same)}']);}
+      h+=lline('Scope',r<=CAP?
+        ['RUL('+t+')='+r+'\\le 720\\text{ h}',
+         '\\text{inside the 30-day horizon -- this hour trains the model}']:
+        ['RUL('+t+')='+r+'>720\\text{ h}',
+         '\\text{beyond the horizon -- this hour is not used}']);}
   }else if(curTab===1){
     var w0=Math.min(t+1,W);
     h+=lline('Smooth',['\\bar x_{24}('+t+')=\\text{mean of hours }'+Math.max(0,t-W+1)+'\\text{..}'+t,
@@ -418,15 +424,15 @@ function fillCalc(){
       h+=lline('Indicator',['HI('+t+')=(\\bar x_{24}-\\mu)/\\sigma',
         '=('+fx(d.raw[t],3)+'-'+fx(d.mu,3)+')/'+fx(d.sd,3),'='+fx(d.hi[t],2)]);}
   }else{
-    var kind=view,w=COEF[kind],f=d[kind][t],yh=w[0]+w[1]*f,ya=Math.min(d.n-t,CAP);
+    var kind=view,w=COEF[kind],f=d[kind][t],yh=w[0]+w[1]*f,ya=d.n-t;
     var FN=kind==='raw'?'\\bar x_{24}':'HI';
     h+=lline('Model',['\\widehat{RUL}('+FN+')='+fx(w[0],2)+'-'+fx(-w[1],2)+'\\,'+FN]);
-    h+=lline('Fitting',['\\text{least squares on every hour of }'+
+    h+=lline('Fitting',['\\text{least squares on the hours within 720 h of }'+
       TRAINP.map(function(q){return '\\text{'+pn(q)+'}';}).join(',\\ ')]);
     h+=lline('Testing hour',[FN+'('+t+')='+fx(f,2),
       '\\widehat{RUL}='+fx(w[0],2)+'-'+fx(-w[1],2)+'\\cdot'+fx(f,2)+'='+fx(yh,0)+'\\text{ h}',
       '\\text{actual }'+fx(ya,0)+'\\text{ h}','\\text{error }'+fx(ya-yh,0)+'\\text{ h}']);
-    h+=lline('All hours',['\\text{mean }|\\text{error}|\\text{ over both new pumps}',
+    h+=lline('In scope',['\\text{mean }|\\text{error}|\\text{ over both new pumps, RUL}\\le 720',
       '='+fx(MAED[kind],2)+'\\text{ h}',
       kind==='hi'?'\\text{(mm/s: '+fx(MAED.raw,2)+' h)}':'\\text{(}z\\text{: '+fx(MAED.hi,2)+' h)}']);}
   el.innerHTML=h;}
@@ -482,12 +488,12 @@ window.LAB={
         var q=BYID[p.id],t2=Math.min(hh,q.n-1);
         var lab2=q.role==='censored'?null:q.n-t2;
         return {t:t2,smooth:+q.raw[t2].toFixed(6),hi:+q.hi[t2].toFixed(6),
-                rul:lab2,rulCap:lab2===null?null:Math.min(lab2,CAP)};});});
+                rul:lab2,inScope:lab2===null?null:lab2<=CAP};});});
     var kind=view,f=d[kind]?d[kind][t]:null,w=COEF[kind];
     return {tab:curTab,pump:pump,now:t,view:view,
       cap:CAP,window:W,base0:B0,base1:B1-1,
       label:d.role==='censored'?null:d.n-t,
-      labelCap:d.role==='censored'?null:Math.min(d.n-t,CAP),
+      inScope:d.role==='censored'?null:(d.n-t)<=CAP,
       smoothNow:+d.raw[t].toFixed(6),hiNow:+d.hi[t].toFixed(6),
       pred:(curTab===2&&f!==null)?+(w[0]+w[1]*f).toFixed(6):null,
       coef:{raw:[+COEF.raw[0].toFixed(6),+COEF.raw[1].toFixed(6)],
