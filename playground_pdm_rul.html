@@ -95,9 +95,11 @@
       <div class="dgrid">
         <div class="drow"><span class="dlab" id="lbl-hor"></span><input type="range" id="Rhor" min="240" max="1440" step="120" value="720"><input class="num" type="number" id="Nhor" min="240" max="1440" step="120" value="720"></div>
       </div></div>
+      <div id="grp-now">
       <div class="dhd" id="hd-now"></div>
       <div class="dgrid">
         <div class="drow" id="row-now"><span class="dlab" id="lbl-now"></span><input type="range" id="Rnow" min="0" max="1204" step="1" value="260"><input class="num" type="number" id="Nnow" min="0" max="1204" step="1" value="260"></div>
+      </div>
       </div>
     </div>
   </div>
@@ -186,6 +188,7 @@ function smoothOf(v){var c=[0],i;
 /* the timestamp column of the CSV, rebuilt from the first row: the readings are hourly, on
    the hour, with no gaps, so row i is t0 + i hours exactly (gen_pdm_rul_data.py asserts it).
    Printed to the hour, because a finer unit would say something the data does not. */
+var POSTN=4;   /* hours shown past the failure, where the readings stop */
 var MON=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
 function stampOf(pid,i){var p=BYID[pid].t0,d=new Date(Date.UTC(
   +p.slice(0,4),+p.slice(5,7)-1,+p.slice(8,10),+p.slice(11,13)));
@@ -352,44 +355,30 @@ function testDot(x,y){ctx.fillStyle='#222630';ctx.beginPath();ctx.arc(x,y,6,0,7)
 
 /* ============ tab 1 · the label: count backwards from the failure ============ */
 function draw1(lb){
-  var d=BYID[pump],t=nowOf(pump),cens=d.role==='censored';
-  var L=48,Rm=14,TOP=40,BOT=38,pw=CW-L-Rm,ph=CH-TOP-BOT;
+  var d=BYID[pump],cens=d.role==='censored';
+  var L=48,Rm=14,TOP=26,BOT=38,pw=CW-L-Rm,ph=CH-TOP-BOT;
   var lo=Infinity,hi=-Infinity,i;
   for(i=0;i<d.n;i++){if(d.vib[i]<lo)lo=d.vib[i];if(d.vib[i]>hi)hi=d.vib[i];}
-  var pad=(hi-lo)*0.08,xmax=Math.round(d.n*1.04);
+  /* the hours after the failure get a readable share of the axis: at POSTN alone they were
+     six pixels wide, which is drawn but not shown */
+  var pad=(hi-lo)*0.08,xmax=Math.round(d.n+Math.max(POSTN,d.n*0.05));
   var P=frame(L,TOP,pw,ph,0,xmax,lo-pad,hi+pad);
+  /* after the failure the machine is stopped: no readings exist there, so the panel says so
+     instead of drawing a line through nothing */
+  ctx.fillStyle=BAND;ctx.globalAlpha=0.55;
+  ctx.fillRect(P.px(d.n),TOP,L+pw-P.px(d.n),ph);ctx.globalAlpha=1;
   ctx.save();ctx.beginPath();ctx.rect(L,TOP,pw,ph);ctx.clip();
-  poly(d.vib,P,PCOL[pump],1.2,0.75);
+  poly(d.vib,P,PCOL[pump],1.2,0.8);
   ctx.restore();
-  /* now: the hour being asked about */
-  ctx.strokeStyle=GREY;ctx.setLineDash([4,4]);ctx.lineWidth=1.4;
-  ctx.beginPath();ctx.moveTo(P.px(t),TOP);ctx.lineTo(P.px(t),TOP+ph);ctx.stroke();ctx.setLineDash([]);
-  var rt=P.px(t)>L+pw/2;
-  lb('t='+t,P.px(t)+(rt?-8:8),TOP+ph-8,
-     {align:rt?'right':'left',color:'#5b616e',bg:'rgba(255,255,255,0.85)'});
   if(!cens){
-    /* the failure that DID happen, and the span between now and it IS the label */
     ctx.strokeStyle=FAILC;ctx.lineWidth=2;
     ctx.beginPath();ctx.moveTo(P.px(d.n),TOP);ctx.lineTo(P.px(d.n),TOP+ph);ctx.stroke();
     lb('\\text{failure}',P.px(d.n)-6,TOP+14,{align:'right',color:FAILC,bg:'rgba(255,255,255,0.85)'});
-    var ay=TOP-14;
-    ctx.strokeStyle=NAVY;ctx.lineWidth=2;
-    ctx.beginPath();ctx.moveTo(P.px(t),ay);ctx.lineTo(P.px(d.n),ay);ctx.stroke();
-    ctx.beginPath();ctx.moveTo(P.px(t),ay-5);ctx.lineTo(P.px(t),ay+5);ctx.stroke();
-    ctx.beginPath();ctx.moveTo(P.px(d.n),ay-5);ctx.lineTo(P.px(d.n),ay+5);ctx.stroke();
-    /* the span can end at the frame edge (RUL = 1), so the label stays inside it */
-    var mid=(P.px(t)+P.px(d.n))/2,near=mid>L+pw-52;
-    lb('RUL='+(d.n-t)+'\\text{ h}',near?L+pw:mid,ay-4,
-       {align:near?'right':'center',color:NAVY,bg:'rgba(255,255,255,0.9)'});
+    lb('\\text{no readings}',L+pw-4,TOP+ph-10,{align:'right',color:'#5b616e'});
   }else{
-    /* still running: the span has no right end yet, so the label does not exist yet */
-    var ay2=TOP-14;
-    ctx.strokeStyle=NAVY;ctx.lineWidth=2;ctx.setLineDash([5,4]);
-    ctx.beginPath();ctx.moveTo(P.px(t),ay2);ctx.lineTo(L+pw,ay2);ctx.stroke();ctx.setLineDash([]);
-    ctx.beginPath();ctx.moveTo(P.px(t),ay2-5);ctx.lineTo(P.px(t),ay2+5);ctx.stroke();
-    lb('RUL=\\text{?}',(P.px(t)+L+pw)/2,ay2-4,{align:'center',color:NAVY,bg:'rgba(255,255,255,0.9)'});
-    lb('\\text{still running}',L+pw-6,TOP+14,{align:'right',color:'#5b616e',bg:'rgba(255,255,255,0.85)'});}
-  lb('\\text{mm/s}',L+4,TOP-28);
+    lb('\\text{still running -- no failure to count back from}',
+       L+pw-6,TOP+14,{align:'right',color:'#5b616e',bg:'rgba(255,255,255,0.85)'});}
+  lb('\\text{mm/s}',L+4,TOP-8);
   lb('\\text{hour}',L+pw,TOP+ph+32,{align:'right'});
 }
 
@@ -510,9 +499,8 @@ function fillLegend(){
   if(curTab===0){
     var cens0=BYID[pump].role==='censored';
     h+=leg('background:'+PCOL[pump],'\\text{Vibration, hour by hour}')
-      +(cens0?'':leg('background:'+FAILC,'\\text{Failure}'))
-      +leg('background:'+NAVY,cens0?'RUL\\text{: unknown yet}':'RUL\\text{: hours left}')
-      +leg('background:'+GREY,'\\text{Testing hour}');
+      +(cens0?'':leg('background:'+FAILC,'\\text{Failure}')
+              +leg('background:'+BAND,'\\text{After: no readings}'));
   }else if(curTab===1){
     T1P.forEach(function(p){h+=leg('background:'+PCOL[p],'\\text{'+pn(p)+(BYID[p].role==='censored'?' (running)':'')+'}');});
     h+=leg('background:'+BAND,'\\text{Baseline window}');
@@ -534,8 +522,11 @@ function fillTable(){
   var Wt=function(x){return '\\textcolor{#fff}{'+x+'}';};
   var cols,val,ycol;
   if(curTab===0){cols=['\\text{Timestamp}','\\text{Vib, mm/s}','RUL'];ycol=2;
-    val=function(i){return ['\\text{'+stampOf(pump,i)+'}',fx(d.vib[i],3),
-                            cens?'\\text{?}':String(d.n-i)];};}
+    /* rows past the last reading: the clock keeps running, the machine does not, so the
+       vibration is missing and there is no label either */
+    val=function(i){return i>=d.n
+      ? ['\\text{'+stampOf(pump,i)+'}','\\text{--}','\\text{--}']
+      : ['\\text{'+stampOf(pump,i)+'}',fx(d.vib[i],3),cens?'\\text{?}':String(d.n-i)];};}
   else if(curTab===1){cols=['\\text{Hour }(t)','\\text{Vib}','\\text{Mean }'+W+'\\text{ h}','HI'];ycol=-1;
     val=function(i){return [String(i),fx(d.vib[i],3),fx(d.raw[i],3),fx(d.hi[i],2)];};}
   else{var kind=view,w=(scope==='cap'?COEFC:COEF)[kind];ycol=2;
@@ -553,12 +544,12 @@ function fillTable(){
   for(i=0;i<d.n;i+=24)rows.push(i);
   /* the label is built from the failure backwards, so the last hours are the point of tab 1:
      show them contiguously, ending at the final row where RUL = 1 */
-  if(curTab===0&&!cens)for(i=Math.max(0,d.n-12);i<d.n;i++)if(rows.indexOf(i)<0)rows.push(i);
-  if(rows.indexOf(t)<0)rows.push(t);
+  if(curTab===0&&!cens)for(i=Math.max(0,d.n-12);i<d.n+POSTN;i++)if(rows.indexOf(i)<0)rows.push(i);
+  if(curTab!==0&&rows.indexOf(t)<0)rows.push(t);   /* tab 1 has no testing hour */
   rows.sort(function(a,b){return a-b;});
   var h='';
   rows.forEach(function(i2){
-    h+='<tr'+(i2===t?' class="hl"':'')+'>'+val(i2).map(function(v,j){
+    h+='<tr'+(i2>=d.n?' class="te"':(curTab!==0&&i2===t?' class="hl"':''))+'>'+val(i2).map(function(v,j){
       return '<td'+(j===ycol?' class="ycol"':'')+'>'+kx(v)+'</td>';}).join('')+'</tr>';});
   tb.innerHTML=h;
   /* the table column is as tall as the figure column, and the testing hour stays in view */
@@ -576,7 +567,12 @@ function scoreNow(){
   return {W:W,H:CAP,scope:scope,view:kind,
           inScope:MAEIS[scope][kind],yard:MAEL[scope][kind]};}
 function fillScore(){
-  var s=scoreNow(),el=document.getElementById('scorebar');
+  var el=document.getElementById('scorebar');
+  /* tab 1 is the construction of the label: the settings of the model and the lab book have
+     nothing to do with it and do not appear there */
+  if(curTab===0){el.style.display='none';el.innerHTML='';return;}
+  el.style.display='';
+  var s=scoreNow();
   function chip(tex){return '<span class="sc">'+kx(tex)+'</span>';}
   var h=chip('W='+s.W+'\\text{ h}')+chip('H='+s.H+'\\text{ h}')
        +chip('\\text{'+(s.scope==='cap'?'cap':'drop')+'}')
@@ -603,7 +599,7 @@ function recordRow(){
   LAB_ROWS.push(s);upd();}
 function fillLab(){
   var el=document.getElementById('labtab');
-  if(!LAB_ROWS.length){el.style.display='none';el.innerHTML='';return;}
+  if(curTab===0||!LAB_ROWS.length){el.style.display='none';el.innerHTML='';return;}
   el.style.display='';
   var cur=rowKey(scoreNow());
   var head=['W','H','\\text{scope}','\\text{view}','\\text{in-scope MAE}','\\text{last 300 h}']
@@ -622,19 +618,16 @@ function lline(t,parts){
 function fillCalc(){
   var el=document.getElementById('mcalc'),d=BYID[pump],t=nowOf(pump),h='';
   if(curTab===0){
+    /* the calculation of RUL, and nothing else on this tab */
     if(d.role==='censored'){
-      h+=lline('Label',['\\text{'+pn(pump)+' is still running -- no failure to count back from}']);
-      h+=lline('Testing hour',['RUL('+t+')=\\text{?}','\\text{(unknown until the pump fails)}']);
-      h+=lline('So',['\\text{no label yet}\\ \\Rightarrow\\ \\text{these hours cannot train the model}']);
+      h+=lline('Failure',['\\text{'+pn(pump)+' has not failed}']);
+      h+=lline('RUL',['\\text{no failure to count back from}\\ \\Rightarrow\\ \\text{no label}']);
     }else{
-      var r=d.n-t;
-      h+=lline('Label',['\\text{'+pn(pump)+' failed at hour }'+d.n,'\\Rightarrow\\ RUL(t)='+d.n+'-t']);
-      h+=lline('Testing hour',['RUL('+t+')='+d.n+'-'+t+'='+r+'\\text{ h}']);
-      h+=lline('Scope',r<=CAP?
-        ['RUL('+t+')='+r+'\\le H='+CAP+'\\text{ h}',
-         '\\text{inside the planning horizon -- this hour trains the model}']:
-        ['RUL('+t+')='+r+'>H='+CAP+'\\text{ h}',
-         '\\text{beyond the horizon -- this hour is not used}']);}
+      h+=lline('Failure',['\\text{'+pn(pump)+' failed after '+stampOf(pump,d.n-1)+'}']);
+      h+=lline('RUL',['RUL=\\text{hours from the reading to the failure}',
+        '\\text{last reading '+stampOf(pump,d.n-1)+'}\\Rightarrow RUL=1',
+        '\\text{one hour earlier}\\Rightarrow RUL=2']);
+      h+=lline('After',['\\text{the machine is stopped: no reading, no label}']);}
   }else if(curTab===1){
     var w0=Math.min(t+1,W);
     h+=lline('Smooth',['\\bar x_{'+W+'}('+t+')=\\text{mean of hours }'+Math.max(0,t-W+1)+'\\text{..}'+t,
@@ -713,6 +706,7 @@ function applyTab(i){curTab=i;
   document.querySelectorAll('.tabbtn').forEach(function(b,j){b.className='tabbtn'+(j===i?' on':'');});
   if(pumpsOfTab().indexOf(pump)<0)pump=pumpsOfTab()[0];
   document.getElementById('grp-view').style.display=curTab===0?'none':'';
+  document.getElementById('grp-now').style.display=curTab===0?'none':'';
   document.getElementById('grp-win').style.display=curTab===1?'':'none';
   document.getElementById('grp-scope').style.display=curTab===2?'':'none';
   buildPumpSeg();syncNow();renderTexts();upd();}
