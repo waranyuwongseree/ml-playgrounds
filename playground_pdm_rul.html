@@ -28,9 +28,8 @@
   .excalc .ln+.ln{border-top:1px solid var(--line);padding-top:2px;margin-top:2px}
   .dtab{width:100%;border-collapse:collapse;font-size:15px}
   .dtab th{background:var(--navy);color:#fff;font-weight:400;padding:5px 5px;text-align:center;position:sticky;top:0;z-index:3}
-  .dtab td{padding:1px 6px;text-align:center;color:var(--ink);line-height:1.35;background:#fff}
+  .dtab td{padding:1px 5px;text-align:center;color:var(--ink);line-height:1.35;background:#fff}
   .dtab tr.hl td{background:#E6ECF8}          /* แถวของ testing hour */
-  .dtab tr.sep td{background:#F4F6FA;color:var(--muted);font-size:13px;padding:3px 6px}
   .dtab td.ycol{background:#fff3df;color:#7a4a06;font-weight:600}   /* คอลัมน์ป้าย y เหมือน intro */
   .dtab .katex{font-size:1em}
   .dtcap{font-size:13px;color:var(--muted);margin:0 0 4px}
@@ -283,7 +282,7 @@ function testDot(x,y){ctx.fillStyle='#222630';ctx.beginPath();ctx.arc(x,y,6,0,7)
 
 /* ============ tab 1 · the label: count backwards from the failure ============ */
 function draw1(lb){
-  var d=BYID[pump],cens=d.role==='censored';
+  var d=BYID[pump],cens=d.role==='censored',t=nowOf(pump);
   var L=48,Rm=14,TOP=26,BOT=38,pw=CW-L-Rm,ph=CH-TOP-BOT;
   var lo=Infinity,hi=-Infinity,i;
   for(i=0;i<d.n;i++){if(d.vib[i]<lo)lo=d.vib[i];if(d.vib[i]>hi)hi=d.vib[i];}
@@ -292,6 +291,8 @@ function draw1(lb){
   ctx.save();ctx.beginPath();ctx.rect(L,TOP,pw,ph);ctx.clip();
   poly(d.vib,P,PCOL[pump],1.2,0.8);
   ctx.restore();
+  ctx.strokeStyle=GREY;ctx.setLineDash([4,4]);ctx.lineWidth=1.4;
+  ctx.beginPath();ctx.moveTo(P.px(t),TOP);ctx.lineTo(P.px(t),TOP+ph);ctx.stroke();ctx.setLineDash([]);
   if(!cens){
     ctx.strokeStyle=FAILC;ctx.lineWidth=2;
     ctx.beginPath();ctx.moveTo(P.px(d.n),TOP);ctx.lineTo(P.px(d.n),TOP+ph);ctx.stroke();
@@ -437,52 +438,49 @@ function fillTable(){
   var Wt=function(x){return '\\textcolor{#fff}{'+x+'}';};
   var cols,val,ycol;
   /* every tab starts with the timestamp, and no number runs past two decimals */
-  if(curTab===0){cols=['\\text{Timestamp}','\\text{Vib, mm/s}','RUL'];ycol=2;
+  if(curTab===0){cols=['t','\\text{Timestamp}','\\text{Vib, mm/s}','RUL'];ycol=3;
     /* rows past the last reading: the clock keeps running, the machine does not, so the
        vibration is missing and there is no label either */
     val=function(i){return i>=d.n
-      ? ['\\text{'+stampOf(pump,i)+'}','\\text{--}','\\text{--}']
-      : ['\\text{'+stampOf(pump,i)+'}',fx(d.vib[i],2),cens?'\\text{--}':String(d.n-i)];};}
-  else if(curTab===1){cols=['\\text{Timestamp}','\\text{Vib}','\\text{Mean }'+W+'\\text{ h}','HI'];ycol=-1;
-    val=function(i){return ['\\text{'+stampOf(pump,i)+'}',fx(d.vib[i],2),
-                            fx(d.raw[i],2),fx(d.hi[i],2)];};}
-  else{var kind=view,w=COEF[kind];ycol=2;
-    cols=['\\text{Timestamp}',kind==='raw'?'\\text{Mean }'+W+'\\text{ h}':'HI','RUL','\\widehat{RUL}'];
+      ? [String(i),'\\text{'+stampOf(pump,i)+'}','\\text{--}','\\text{--}']
+      : [String(i),'\\text{'+stampOf(pump,i)+'}',fx(d.vib[i],2),
+         cens?'\\text{--}':String(d.n-i)];};}
+  else if(curTab===1){
+    cols=['t','\\text{Timestamp}','\\text{Vib, mm/s}','RUL','\\text{Mean }'+W+'\\text{ h}','HI'];ycol=3;
+    val=function(i){return [String(i),'\\text{'+stampOf(pump,i)+'}',fx(d.vib[i],2),
+                            cens?'\\text{--}':String(d.n-i),fx(d.raw[i],2),fx(d.hi[i],2)];};}
+  else{var kind=view,w=COEF[kind];ycol=3;
+    cols=['t','\\text{Timestamp}','\\text{Vib, mm/s}','RUL',
+          kind==='raw'?'\\text{Mean }'+W+'\\text{ h}':'HI','\\widehat{RUL}'];
     val=function(i){var f=d[kind][i],p2=w[0]+w[1]*f;
-      return ['\\text{'+stampOf(pump,i)+'}',fx(f,2),String(d.n-i),fx(p2,0)];};}
+      return [String(i),'\\text{'+stampOf(pump,i)+'}',fx(d.vib[i],2),String(d.n-i),
+              fx(f,2),fx(p2,0)];};}
   hd.innerHTML=cols.map(function(c){return '<th>'+kx(Wt(c))+'</th>';}).join('');
+  /* the data column is as wide as its columns need: four fit 300px, six do not */
+  document.getElementById('dleft').style.flexBasis=(300+Math.max(0,cols.length-4)*58)+'px';
   /* ONE sampling rule: the readings are hourly and the table shows consecutive hours. The
      window differs per tab because what matters differs, and the caption says which. */
   /* tab 1 reads the whole life at a day a row, then every hour where RUL runs low -- and
      says where it changes, instead of letting the timestamps jump without explanation.
      Tabs 2-3 show one window of consecutive hours around the testing hour. */
-  var rows=[],i,lo2,hi2,sepAt=-1;
+  var rows=[],i,lo2,hi2;
   if(curTab===0){
     var fine=Math.max(0,d.n-FINE);
     for(i=0;i<fine;i+=24)rows.push(i);
-    sepAt=rows.length;
     for(i=fine;i<(cens?d.n:d.n+POSTN);i++)rows.push(i);
   }else{
     lo2=Math.max(0,t-Math.floor(SPAN/2));hi2=Math.min(d.n,lo2+SPAN);
     lo2=Math.max(0,hi2-SPAN);
     for(i=lo2;i<hi2;i++)rows.push(i);}
-  document.getElementById('dtcap').innerHTML=
-    kx('\\text{'+pn(pump)+': hourly readings}')+' '
-    +kx(curTab===0?'\\text{-- one row per day, then every hour}'
-                  :'\\text{-- the '+SPAN+' hours around the testing hour}');
+  document.getElementById('dtcap').innerHTML='';
   var h='';
-  rows.forEach(function(i2,k){
-    /* the step changes here, and the table says so rather than leaving the reader to notice
-       that the timestamps stopped moving by a day */
-    if(k===sepAt)h+='<tr class="sep"><td colspan="'+cols.length+'">'
-      +kx('\\text{every hour from here}')+'</td></tr>';
-    h+='<tr'+(i2>=d.n?' class="te"':(curTab!==0&&i2===t?' class="hl"':''))+'>'+val(i2).map(function(v,j){
+  rows.forEach(function(i2){
+    h+='<tr'+(i2>=d.n?' class="te"':(i2===t?' class="hl"':''))+'>'+val(i2).map(function(v,j){
       return '<td'+(j===ycol?' class="ycol"':'')+'>'+kx(v)+'</td>';}).join('')+'</tr>';});
   tb.innerHTML=h;
   /* the table column is as tall as the figure column, and the testing hour stays in view */
   var dl=document.getElementById('dleft'),hlr=tb.querySelector('tr.hl');
   var mn=document.getElementById('main');
-  if(!hlr&&curTab===0)dl.scrollTop=0;
   if(innerWidth>820)dl.style.maxHeight=Math.max(260,Math.round(mn.getBoundingClientRect().height))+'px';
   else dl.style.maxHeight='300px';
   if(hlr)dl.scrollTop=Math.max(0,hlr.offsetTop-dl.clientHeight/2);}
@@ -498,12 +496,11 @@ function fillCalc(){
     if(d.role==='censored'){
       h+=lline('RUL',['\\text{'+pn(pump)+' has not failed}\\Rightarrow RUL=\\text{--}']);
     }else{
-      h+=lline('Failure',['\\text{'+stampOf(pump,d.n)+'}']);
-      h+=lline('RUL',['\\text{'+stampOf(pump,d.n-1)+'}\\Rightarrow RUL=1',
-        '\\text{'+stampOf(pump,d.n-2)+'}\\Rightarrow RUL=2',
-        '\\text{'+stampOf(pump,d.n-3)+'}\\Rightarrow RUL=3']);}
+      h+=lline('Failure',['\\text{'+stampOf(pump,d.n)+'}\\ (t='+d.n+')']);
+      h+=lline('RUL',['RUL('+t+')='+d.n+'-'+t+'='+(d.n-t)+'\\text{ h}']);}
   }else if(curTab===1){
-    /* mu, sigma and HI -- nothing else on this tab */
+    h+=lline('Window',['\\bar x_{'+W+'}('+t+')=\\text{mean of }t='+Math.max(0,t-W+1)+
+      '\\text{..}'+t+'='+fx(d.raw[t],2)]);
     h+=lline('Baseline',['\\mu='+fx(d.mu,2)+',\\ \\sigma='+fx(d.sd,2)]);
     h+=lline('HI',['HI=(\\bar x_{'+W+'}-\\mu)/\\sigma',
       '=('+fx(d.raw[t],2)+'-'+fx(d.mu,2)+')/'+fx(d.sd,2),'='+fx(d.hi[t],2)]);
@@ -549,7 +546,6 @@ function applyTab(i){curTab=i;
   document.querySelectorAll('.tabbtn').forEach(function(b,j){b.className='tabbtn'+(j===i?' on':'');});
   if(pumpsOfTab().indexOf(pump)<0)pump=pumpsOfTab()[0];
   document.getElementById('grp-view').style.display=curTab===0?'none':'';
-  document.getElementById('grp-now').style.display=curTab===0?'none':'';
   buildPumpSeg();syncNow();renderTexts();upd();}
 var tb2=document.getElementById('tabs');
 TABS.forEach(function(t,i){var el=document.createElement('button');el.className='tabbtn';
