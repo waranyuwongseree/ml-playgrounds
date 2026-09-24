@@ -67,6 +67,10 @@
       <div class="phint" id="pumphint" style="display:none"></div>
       <div id="grp-view"><div class="dhd" id="hd-view"></div>
       <div class="seg2" id="viewSeg"><button data-v="raw" id="vb-raw"></button><button data-v="hi" id="vb-hi" class="on"></button></div></div>
+      <div id="grp-win"><div class="dhd" id="hd-win"></div>
+      <div class="dgrid">
+        <div class="drow"><span class="dlab" id="lbl-win"></span><input type="range" id="Rwin" min="1" max="72" step="1" value="24"><input class="num" type="number" id="Nwin" min="1" max="72" step="1" value="24"></div>
+      </div></div>
       <div id="grp-now">
       <div class="dhd" id="hd-now"></div>
       <div class="dgrid">
@@ -138,9 +142,9 @@
 /* the workflow's own settings are the defaults; NB baseline rows are kept whatever W is,
    so the window starts where the mean is first complete (W-1) -- at W=24 that is the
    workflow's own rows 23..222 */
-/* the settings are the workflow's own and do not move: the 24-hour mean, the 720-hour
-   planning horizon, and the reference window at its own rows -- which is why the shaded
-   baseline stays where it is */
+/* the horizon and the reference window are the workflow's own and do not move -- the
+   baseline stays at its own rows whatever W is, which is why the shaded band no longer
+   slides when the window is widened. W itself is a control on the indicator tab. */
 var CAP=RULDATA.cap, W=RULDATA.win, B0=RULDATA.base0, B1=RULDATA.base1+1;
 /* one colour per pump, every pair dE >= 25 within any one legend -- measured, not assumed.
    The still-running pump is slate: the colour of "no label yet". */
@@ -228,6 +232,7 @@ function nowOf(pid){if(NOWM[pid]===undefined)NOWM[pid]=Math.min(260,BYID[pid].n-
 /* ---------------- KaTeX ---------------- */
 var MT={'h1':'\\text{Introduction to RUL}','hd-pump':'\\text{Pump}',
   'hd-view':'\\text{Health indicator}','vb-raw':'\\text{mm/s}','vb-hi':'z\\text{ vs baseline}',
+  'hd-win':'\\text{Smoothing window}','lbl-win':'W',
   'hd-now':'\\text{Testing hour}','lbl-now':'t'};
 var KXC={};
 function kx(t){if(KXC[t]!==undefined)return KXC[t];var r;
@@ -438,23 +443,22 @@ function fillTable(){
   var Wt=function(x){return '\\textcolor{#fff}{'+x+'}';};
   var cols,val,ycol;
   /* every tab starts with the timestamp, and no number runs past two decimals */
-  if(curTab===0){cols=['t','\\text{Timestamp}','\\text{Vib, mm/s}','RUL'];ycol=3;
+  if(curTab===0){cols=['\\text{Timestamp}','t','\\text{Vib}','RUL'];ycol=3;
     /* rows past the last reading: the clock keeps running, the machine does not, so the
        vibration is missing and there is no label either */
     val=function(i){return i>=d.n
-      ? [String(i),'\\text{'+stampOf(pump,i)+'}','\\text{--}','\\text{--}']
-      : [String(i),'\\text{'+stampOf(pump,i)+'}',fx(d.vib[i],2),
+      ? ['\\text{'+stampOf(pump,i)+'}',String(i),'\\text{--}','\\text{--}']
+      : ['\\text{'+stampOf(pump,i)+'}',String(i),fx(d.vib[i],2),
          cens?'\\text{--}':String(d.n-i)];};}
   else if(curTab===1){
-    cols=['t','\\text{Timestamp}','\\text{Vib, mm/s}','RUL','\\text{Mean }'+W+'\\text{ h}','HI'];ycol=3;
-    val=function(i){return [String(i),'\\text{'+stampOf(pump,i)+'}',fx(d.vib[i],2),
+    cols=['t','\\text{Vib}','RUL','\\text{Mean }'+W+'\\text{ h}','HI'];ycol=2;
+    val=function(i){return [String(i),fx(d.vib[i],2),
                             cens?'\\text{--}':String(d.n-i),fx(d.raw[i],2),fx(d.hi[i],2)];};}
-  else{var kind=view,w=COEF[kind];ycol=3;
-    cols=['t','\\text{Timestamp}','\\text{Vib, mm/s}','RUL',
+  else{var kind=view,w=COEF[kind];ycol=2;
+    cols=['t','\\text{Vib}','RUL',
           kind==='raw'?'\\text{Mean }'+W+'\\text{ h}':'HI','\\widehat{RUL}'];
     val=function(i){var f=d[kind][i],p2=w[0]+w[1]*f;
-      return [String(i),'\\text{'+stampOf(pump,i)+'}',fx(d.vib[i],2),String(d.n-i),
-              fx(f,2),fx(p2,0)];};}
+      return [String(i),fx(d.vib[i],2),String(d.n-i),fx(f,2),fx(p2,0)];};}
   hd.innerHTML=cols.map(function(c){return '<th>'+kx(Wt(c))+'</th>';}).join('');
   /* the data column is as wide as its columns need: four fit 300px, six do not */
   document.getElementById('dleft').style.flexBasis=(300+Math.max(0,cols.length-4)*58)+'px';
@@ -546,12 +550,18 @@ function applyTab(i){curTab=i;
   document.querySelectorAll('.tabbtn').forEach(function(b,j){b.className='tabbtn'+(j===i?' on':'');});
   if(pumpsOfTab().indexOf(pump)<0)pump=pumpsOfTab()[0];
   document.getElementById('grp-view').style.display=curTab===0?'none':'';
+  document.getElementById('grp-win').style.display=curTab===1?'':'none';
   buildPumpSeg();syncNow();renderTexts();upd();}
 var tb2=document.getElementById('tabs');
 TABS.forEach(function(t,i){var el=document.createElement('button');el.className='tabbtn';
   K('\\text{'+t.n+'}',el);el.addEventListener('click',function(){applyTab(i);});tb2.appendChild(el);});
 document.querySelectorAll('#viewSeg button').forEach(function(b){
   b.addEventListener('click',function(){view=b.getAttribute('data-v');upd();});});
+function setWin(v){W=Math.max(1,Math.min(72,Math.round(v)));
+  document.getElementById('Rwin').value=W;document.getElementById('Nwin').value=W;
+  rebuild();upd();}
+['Rwin','Nwin'].forEach(function(id){document.getElementById(id)
+  .addEventListener('input',function(){setWin(+this.value||1);});});
 ['Rnow','Nnow'].forEach(function(id){
   document.getElementById(id).addEventListener('input',function(){
     var v=Math.max(0,Math.min(BYID[pump].n-1,Math.round(+this.value||0)));
@@ -591,6 +601,8 @@ window.LAB={
     if(o.tab!=null){applyTab(Math.max(0,Math.min(2,+o.tab)));}
     if(o.pump&&BYID[o.pump]&&pumpsOfTab().indexOf(o.pump)>=0){pump=o.pump;syncNow();}
     if(o.view==='raw'||o.view==='hi'){view=o.view;}
+    if(o.W!=null){W=Math.max(1,Math.min(72,Math.round(+o.W)));
+      document.getElementById('Rwin').value=W;document.getElementById('Nwin').value=W;rebuild();}
     if(o.now!=null){NOWM[pump]=Math.max(0,Math.min(BYID[pump].n-1,Math.round(+o.now)));syncNow();}
     upd();}};
 
