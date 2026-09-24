@@ -10,15 +10,15 @@
 <style>
   /* intro-RUL — โครงเดียวกับ Introduction to Regression: ตารางข้อมูลซ้าย · กราฟ + legend +
      กล่องคำนวณ · control ขวา · ข้อมูลเป็นของจริงจากเวิร์กโฟลว์ Day 7 จึงไม่มีปุ่ม Resample */
-  :root{--panel-h:347px}   /* ความสูงจริงของ tab ที่ control สูงสุด (รวม margin) — ตรึงทุก tab เท่ากัน */
+  :root{--panel-h:371px}   /* ความสูงจริงของ tab ที่ control สูงสุด (รวม margin) — ตรึงทุก tab เท่ากัน */
   .layout{align-items:start}
-  .pg.distcls .canvasbox{height:260px}
+  .pg.distcls .canvasbox{height:224px}
   .distcls .stage{gap:6px}
   .canvasbox{position:relative}
   .cvlab{position:absolute;left:0;top:0;width:100%;height:100%;pointer-events:none;overflow:hidden;font-size:14px;line-height:1}
   .cvlab>span{position:absolute;white-space:nowrap;color:rgba(90,90,90,0.9)}
   .cvlab .katex{font-size:1em}
-  .excalc{background:#fff;border:1px solid var(--line);border-radius:12px;padding:5px 6px;font-size:14px;line-height:1.38;overflow:hidden}
+  .excalc{background:#fff;border:1px solid var(--line);border-radius:12px;padding:4px 6px;font-size:14px;line-height:1.3;overflow:hidden}
   .excalc .katex{font-size:1em}
   .excalc .ln{display:block;padding:1px 0}
   .excalc .ln>.lb{display:inline-block;margin:0 10px 2px 0;padding:1px 9px;border-radius:6px;background:#E6ECF8;color:var(--navy);font-size:13px;vertical-align:middle}
@@ -41,6 +41,25 @@
   .dleft{display:block;flex:0 0 300px;min-width:0;overflow-y:auto;overflow-x:hidden;border-radius:8px;position:relative}
   .main{display:flex;flex-direction:column;gap:6px;flex:1 1 auto;min-width:0}
   .classleg .clrow{display:flex;align-items:center;gap:14px;flex-wrap:wrap;color:#555}
+  /* the pinned scoreboard: what the levers currently read, in every mode */
+  .scorebar{display:flex;align-items:center;gap:8px;flex-wrap:wrap;
+            background:#F4F6FA;border:1px solid var(--line);border-radius:10px;padding:3px 8px}
+  .scorebar .sc{font-size:13px;color:#3d4657;white-space:nowrap}
+  .scorebar .sc b{color:var(--navy);font-weight:600}
+  .scorebar .katex{font-size:1em}
+  .scorebar .sp{flex:1 1 auto}
+  .scorebar button{font-size:15px;border:1px solid var(--line);border-radius:7px;
+                   padding:2px 12px;min-height:26px;cursor:pointer;background:#fff;color:#334155}
+  .scorebar button.rec{background:var(--navy);color:#fff;border-color:var(--navy)}
+  /* the lab book: one row per setting tried, until Clear */
+  .labtab{border:1px solid var(--line);border-radius:10px;overflow:hidden}
+  .labtab table{width:100%;border-collapse:collapse;font-size:13px}
+  .labtab th{background:#E6ECF8;color:var(--navy);font-weight:400;padding:3px 6px;text-align:center}
+  .labtab td{padding:2px 6px;text-align:center;color:var(--ink);background:#fff}
+  .labtab tr.cur td{background:#fff3df}
+  .labtab .katex{font-size:1em}
+  .phint{font-size:13px;color:var(--muted);margin:-4px 0 8px}
+  .phint .katex{font-size:1em}
   @media(max-width:820px){.stage.mod{flex-direction:column}.dleft{flex:none;width:100%;max-height:300px}}
 </style>
 </head>
@@ -55,12 +74,15 @@
       <div class="main" id="main">
         <div class="canvasbox"><canvas id="cv"></canvas></div>
         <div class="classleg" id="classleg"></div>
+        <div class="scorebar" id="scorebar"></div>
         <div class="excalc" id="mcalc"></div>
+        <div class="labtab" id="labtab" style="display:none"></div>
       </div>
     </div>
     <div class="panel">
       <div class="dhd" id="hd-pump"></div>
       <div class="seg2" id="pumpSeg"></div>
+      <div class="phint" id="pumphint" style="display:none"></div>
       <div id="grp-view"><div class="dhd" id="hd-view"></div>
       <div class="seg2" id="viewSeg"><button data-v="raw" id="vb-raw"></button><button data-v="hi" id="vb-hi" class="on"></button></div></div>
       <div id="grp-win"><div class="dhd" id="hd-win"></div>
@@ -188,7 +210,7 @@ function fitFull(kind,variant){
       sxx+=(x[i]-mx)*(x[i]-mx);sxy+=(x[i]-mx)*(y-my);}}
   var b=sxy/sxx;
   return [my-b*mx,b];}
-var COEF,COEFC,SHARE,MAED,MAEL,NTRAIN,NTEST;
+var COEF,COEFC,SHARE,MAED,MAEL,MAEIS,NTRAIN,NTEST;
 /* the story's scope study, re-derived: capping trains on every hour, so the hours whose
    true RUL >= 720 all land ON the horizon line -- that share is the flat the story shows */
 function shareFlat(){var flat=0,n=0;
@@ -227,12 +249,21 @@ function corrOf(kind){var X=[],Y=[],i;
                     sxy+=(X[i]-mx)*(Y[i]-my);}
   return Math.abs(sxy/Math.sqrt(sxx*syy));}
 function diagOf(pid){return {jitter:jitterOf(pid),corr:corrOf('hi')};}
+/* mean signed error of ONE pump: the fleet number cancels these out, so the only place a
+   learner can meet them is a pump at a time (that is why Predict now offers all six) */
+function biasOf(pid,kind,w){var d=BYID[pid],x=d[kind],s=0,c=0;
+  for(var i=0;i<x.length;i++){var y=d.n-i;if(y>CAP)continue;s+=w[0]+w[1]*x[i]-y;c++;}
+  return c?s/c:0;}
 function rebuild(){
   buildCols();
   COEF={raw:fitFull('raw','filter'),hi:fitFull('hi','filter')};
   COEFC={raw:fitFull('raw','cap'),hi:fitFull('hi','cap')};
   SHARE=shareFlat();NTRAIN=countTrain();
   var a=maeDeploy('raw',COEF.raw),b=maeDeploy('hi',COEF.hi);
+  /* in-scope MAE for BOTH fits: under Cap the scoreboard must report the Cap model, not the
+     Drop model's number wearing a different label */
+  MAEIS={filter:{raw:a.mae,hi:b.mae},
+         cap:{raw:maeDeploy('raw',COEFC.raw).mae,hi:maeDeploy('hi',COEFC.hi).mae}};
   MAED={raw:a.mae,hi:b.mae};NTEST=a.n;
   MAEL={filter:{raw:maeDeploy('raw',COEF.raw,true).mae,hi:maeDeploy('hi',COEF.hi,true).mae},
         cap:{raw:maeDeploy('raw',COEFC.raw,true).mae,hi:maeDeploy('hi',COEFC.hi,true).mae}};}
@@ -241,8 +272,12 @@ function atDefault(){return W===W0&&CAP===H0;}
 
 /* ---------------- state ---------------- */
 var TABS=[{n:'The label'},{n:'The health indicator'},{n:'Predict'}];
-var curTab=0,pump='PUMP-01',view='hi',scope='filter',NOWM={};
-function pumpsOfTab(){return curTab===2?DEPLOYP:T1P;}
+var curTab=0,pump='PUMP-01',view='hi',scope='filter',NOWM={},LAB_ROWS=[];
+/* Predict offers every pump that actually failed: the four the line was fitted on and the
+   two it has never seen. Their roles are named under the segment. */
+var SIXP=TRAINP.concat(DEPLOYP);
+function pumpsOfTab(){return curTab===2?SIXP:T1P;}
+function roleOf(pid){return BYID[pid].role==='train'?'trained on':'new';}
 function nowOf(pid){if(NOWM[pid]===undefined)NOWM[pid]=Math.min(260,BYID[pid].n-1);
   return NOWM[pid];}
 
@@ -252,7 +287,8 @@ var MT={'h1':'\\text{Introduction to RUL}','hd-pump':'\\text{Pump}',
   'hd-win':'\\text{Smoothing window}','lbl-win':'W',
   'hd-scope':'\\text{Planning horizon}','sb-filter':'\\text{Drop beyond }H','sb-cap':'\\text{Cap at }H',
   'lbl-hor':'H',
-  'hd-now':'\\text{Testing hour}','lbl-now':'t'};
+  'hd-now':'\\text{Testing hour}','lbl-now':'t',
+  'btn-rec':'\\text{Record}','btn-clr':'\\text{Clear}'};
 var KXC={};
 function kx(t){if(KXC[t]!==undefined)return KXC[t];var r;
   try{r=window.katex?katex.renderToString(t,{throwOnError:false}):t;}catch(e){r=t;}
@@ -395,6 +431,16 @@ function draw3(lb){
      modes and always agrees with the calc box. */
   var act=[],prd=[],i;
   for(i=0;i<d.n;i++){act.push(d.n-i);prd.push(w[0]+w[1]*d[kind][i]);}
+  /* the alternative you are NOT looking at, drawn faintly in the same colour: the other
+     scope, and the other indicator. Comparing two tilts stops being a memory test. */
+  function ghost(w2,dash){var g=[],j;
+    for(j=0;j<d.n;j++)g.push(w2[0]+w2[1]*d[kind===''?view:kind][j]);
+    ctx.setLineDash(dash);poly(g,P,NAVY,1.4,0.3);ctx.setLineDash([]);}
+  function ghostView(w2,dash){var g=[],j,other=kind==='hi'?'raw':'hi';
+    for(j=0;j<d.n;j++)g.push(w2[0]+w2[1]*d[other][j]);
+    ctx.setLineDash(dash);poly(g,P,NAVY,1.4,0.3);ctx.setLineDash([]);}
+  ghost((scope==='cap'?COEF:COEFC)[kind],[6,4]);                       /* the other scope */
+  ghostView((scope==='cap'?COEFC:COEF)[kind==='hi'?'raw':'hi'],[2,3]); /* the other indicator */
   poly(prd,P,NAVY,2,0.95);
   poly(act,P,PCOL[pump],2.6,1);
   ctx.restore();
@@ -440,8 +486,10 @@ function fillLegend(){
     T1P.forEach(function(p){h+=leg('background:'+PCOL[p],'\\text{'+pn(p)+(BYID[p].role==='censored'?' (running)':'')+'}');});
     h+=leg('background:'+BAND,'\\text{Baseline window}');
   }else{
-    h+=leg('background:'+PCOL[pump],'\\text{'+pn(pump)+'\\text{: hours left, what happened}}')
+    h+=leg('background:'+PCOL[pump],'\\text{'+pn(pump)+'\\text{ ('+roleOf(pump)+'): hours left}}')
       +leg('background:'+NAVY,'\\text{Predicted, hour by hour}')
+      +leg('background:'+NAVY+';opacity:0.32','\\text{Same model, '+(scope==='cap'?'drop':'cap')+'}')
+      +leg('background:'+NAVY+';opacity:0.32','\\text{Same model, '+(view==='hi'?'mm/s':'z')+'}')
       +leg('background:'+INK,'\\text{Error at }t')
       +leg('background:'+BAND,'\\text{Beyond }H');
   }
@@ -478,6 +526,49 @@ function fillTable(){
   if(innerWidth>820)dl.style.maxHeight=Math.max(260,Math.round(mn.getBoundingClientRect().height))+'px';
   else dl.style.maxHeight='300px';
   if(hlr)dl.scrollTop=Math.max(0,hlr.offsetTop-dl.clientHeight/2);}
+
+/* ---------------- the pinned scoreboard and the lab book ----------------
+   The scoreboard reads the same in every mode, so two settings can be compared without one
+   of the numbers disappearing; Record freezes the row so a sweep survives the next move. */
+function scoreNow(){
+  var kind=view;
+  return {W:W,H:CAP,scope:scope,view:kind,
+          inScope:MAEIS[scope][kind],yard:MAEL[scope][kind]};}
+function fillScore(){
+  var s=scoreNow(),el=document.getElementById('scorebar');
+  function chip(tex){return '<span class="sc">'+kx(tex)+'</span>';}
+  var h=chip('W='+s.W+'\\text{ h}')+chip('H='+s.H+'\\text{ h}')
+       +chip('\\text{'+(s.scope==='cap'?'cap':'drop')+'}')
+       +chip('\\text{'+(s.view==='hi'?'z':'mm/s')+'}')
+       +chip('\\text{in-scope MAE }\\textbf{'+fx(s.inScope,2)+'}\\text{ h}')
+       +chip('\\text{last 300 h }\\textbf{'+fx(s.yard,2)+'}\\text{ h}')
+       +'<span class="sp"></span>'
+       +'<button class="rec" id="btn-rec"></button>'
+       +(LAB_ROWS.length?'<button id="btn-clr"></button>':'');
+  el.innerHTML=h;
+  K(MT['btn-rec'],document.getElementById('btn-rec'));
+  document.getElementById('btn-rec').addEventListener('click',recordRow);
+  var cl=document.getElementById('btn-clr');
+  if(cl){K(MT['btn-clr'],cl);
+    cl.addEventListener('click',function(){LAB_ROWS=[];upd();});}}
+function rowKey(r){return [r.W,r.H,r.scope,r.view].join('/');}
+function recordRow(){
+  var s=scoreNow(),k=rowKey(s);
+  for(var i=0;i<LAB_ROWS.length;i++)if(rowKey(LAB_ROWS[i])===k)return;   /* no duplicates */
+  LAB_ROWS.push(s);upd();}
+function fillLab(){
+  var el=document.getElementById('labtab');
+  if(!LAB_ROWS.length){el.style.display='none';el.innerHTML='';return;}
+  el.style.display='';
+  var cur=rowKey(scoreNow());
+  var head=['W','H','\\text{scope}','\\text{view}','\\text{in-scope MAE}','\\text{last 300 h}']
+    .map(function(c){return '<th>'+kx(c)+'</th>';}).join('');
+  var body=LAB_ROWS.map(function(r){
+    var cells=[String(r.W),String(r.H),'\\text{'+(r.scope==='cap'?'cap':'drop')+'}',
+               '\\text{'+(r.view==='hi'?'z':'mm/s')+'}',fx(r.inScope,2),fx(r.yard,2)];
+    return '<tr'+(rowKey(r)===cur?' class="cur"':'')+'>'
+      +cells.map(function(v){return '<td>'+kx(v)+'</td>';}).join('')+'</tr>';}).join('');
+  el.innerHTML='<table><thead><tr>'+head+'</tr></thead><tbody>'+body+'</tbody></table>';}
 
 /* ---------------- calc box: the arithmetic, with the real numbers in it ---------------- */
 function lline(t,parts){
@@ -524,6 +615,7 @@ function fillCalc(){
       '\\text{-- find the window where the indicator agrees most}']);
   }else{
     var kind=view,w=(scope==='cap'?COEFC:COEF)[kind],f=d[kind][t],yh=w[0]+w[1]*f,ya=d.n-t;
+    var bi=biasOf(pump,kind,w);
     var FN=kind==='raw'?'\\bar x_{'+W+'}':'HI';
     h+=lline('Model',['\\widehat{RUL}('+FN+')='+fx(w[0],2)+'-'+fx(-w[1],2)+'\\,'+FN]);
     h+=lline('Fitting',scope==='cap'?
@@ -535,27 +627,30 @@ function fillCalc(){
     h+=lline('Testing hour',[FN+'('+t+')='+fx(f,2),
       '\\widehat{RUL}='+fx(w[0],2)+'-'+fx(-w[1],2)+'\\cdot'+fx(f,2)+'='+fx(yh,0)+'\\text{ h}',
       '\\text{actual }'+fx(ya,0)+'\\text{ h}','\\text{error }'+fx(ya-yh,0)+'\\text{ h}']);
-    if(scope==='filter')
-      h+=lline('In scope',['\\text{mean }|\\text{error}|\\text{ over both new pumps, RUL}\\le '+CAP,
-        '='+fx(MAED[kind],2)+'\\text{ h over '+NTEST+' rows}',
-        '\\text{-- a shorter }H\\text{ scores fewer, closer rows,}',
-        '\\text{so this number is not comparable}']);
-    h+=lline('Last 300 h',['\\text{the same rows at every }H\\text{:}',
-      '\\text{drop }'+fx(MAEL.filter[kind],2)+'\\text{ h}',
-      '\\text{cap }'+fx(MAEL.cap[kind],2)+'\\text{ h}',
+    h+=lline('In scope',['\\text{'+NTEST+'\\text{ rows, RUL}}\\le '+CAP,
+      '\\text{-- a shorter }H\\text{ scores fewer, closer rows, so it is not comparable}']);
+    h+=lline('This pump',['\\text{'+pn(pump)+', '+roleOf(pump)+'}',
+      '\\text{signed error }'+(bi<0?'-':'+')+fx(Math.abs(bi),0)+
+      '\\text{ h -- the fleet mean cancels these, the pumps do not}']);
+    h+=lline('Last 300 h',['\\text{same rows at every }H\\text{: drop }'+fx(MAEL.filter[kind],2)+
+      '\\text{ h, cap }'+fx(MAEL.cap[kind],2)+'\\text{ h}',
       '\\text{-- the flat rows tilt the line}']);
-    h+=lline('Try',['\\text{move }H\\text{: the in-scope number improves as the scope shrinks,}',
-      '\\text{while the fixed 300-h yardstick tells}','\\text{you what really happened}']);}
-  /* the page must never quietly pass off a changed setting as the workflow's result */
-  h+=lline('Setting',atDefault()?
-    ['W='+W0+'\\text{ h},\\ H='+H0+'\\text{ h}',
-     '\\text{-- the settings of the workflow,}','\\text{reproducing its Scorers}']:
-    ['W='+W+'\\text{ h},\\ H='+CAP+'\\text{ h}',
-     '\\text{-- changed from }W='+W0+',\\ H='+H0+'\\text{,}',
-     '\\text{so these numbers are yours, not those of the workflow}']);
+    h+=lline('Try',['\\text{move }H\\text{ and Record: the in-scope number improves as the scope}',
+      '\\text{shrinks, while the fixed 300-h yardstick tells you what happened}']);}
+  /* the scoreboard carries W and H at all times, so this line exists only to warn: the page
+     must never quietly pass off a changed setting as the workflow's result */
+  if(!atDefault())
+    h+=lline('Setting',['\\text{changed from }W='+W0+',\\ H='+H0+'\\text{,}',
+      '\\text{so these numbers are yours, not those of the workflow}']);
   el.innerHTML=h;}
 
 /* ---------------- controls ---------------- */
+function fillPumpHint(){
+  var el=document.getElementById('pumphint');
+  if(curTab!==2){el.style.display='none';el.innerHTML='';return;}
+  el.style.display='';
+  el.innerHTML=kx('\\text{'+TRAINP.map(pn).join(' ')+' trained on}')+' &nbsp; '
+              +kx('\\text{'+DEPLOYP.map(pn).join(' ')+' new}');}
 function buildPumpSeg(){
   var el=document.getElementById('pumpSeg');el.innerHTML='';
   pumpsOfTab().forEach(function(p){
@@ -575,7 +670,8 @@ function syncNow(){
   var d=BYID[pump],t=Math.min(nowOf(pump),d.n-1);NOWM[pump]=t;
   ['Rnow','Nnow'].forEach(function(id){var e=document.getElementById(id);
     e.max=d.n-1;e.value=t;});}
-function upd(){paintSeg();sizeCanvas();draw();fillLegend();fillTable();fillCalc();
+function upd(){paintSeg();fillPumpHint();sizeCanvas();draw();fillLegend();fillTable();fillCalc();
+  fillScore();fillLab();
   if(Math.round(cv.clientWidth)!==CW||Math.round(cv.clientHeight)!==CH){sizeCanvas();draw();}}
 function applyTab(i){curTab=i;
   document.querySelectorAll('.tabbtn').forEach(function(b,j){b.className='tabbtn'+(j===i?' on':'');});
@@ -635,6 +731,13 @@ window.LAB={
       coefCap:{raw:[+COEFC.raw[0].toFixed(6),+COEFC.raw[1].toFixed(6)],
                hi:[+COEFC.hi[0].toFixed(6),+COEFC.hi[1].toFixed(6)]},
       scope:scope,shareAtCap:+SHARE.toFixed(6),
+      score:{W:W,H:CAP,scope:scope,view:view,
+             inScope:+MAEIS[scope][view].toFixed(6),yard:+MAEL[scope][view].toFixed(6)},
+      labRows:LAB_ROWS.map(function(r){return {W:r.W,H:r.H,scope:r.scope,view:r.view,
+        inScope:+r.inScope.toFixed(6),yard:+r.yard.toFixed(6)};}),
+      maeInScope:{filter:{raw:+MAEIS.filter.raw.toFixed(6),hi:+MAEIS.filter.hi.toFixed(6)},
+                  cap:{raw:+MAEIS.cap.raw.toFixed(6),hi:+MAEIS.cap.hi.toFixed(6)}},
+      bias:+biasOf(pump,view,(scope==='cap'?COEFC:COEF)[view]).toFixed(6),
       H:CAP,Wwin:W,atDefault:atDefault(),nTrain:NTRAIN,nTest:NTEST,
       diag:(function(){var g=diagOf(pump);
         return {jitter:+g.jitter.toFixed(6),corr:+g.corr.toFixed(6)};})(),
@@ -653,6 +756,9 @@ window.LAB={
     if(o.H!=null){CAP=Math.max(240,Math.min(1440,Math.round(+o.H/120)*120));
       document.getElementById('Rhor').value=CAP;document.getElementById('Nhor').value=CAP;rebuild();}
     if(o.now!=null){NOWM[pump]=Math.max(0,Math.min(BYID[pump].n-1,Math.round(+o.now)));syncNow();}
+    /* last: a row records the setting this call has just produced, not the one before it */
+    if(o.clear)LAB_ROWS=[];
+    if(o.record)recordRow();
     upd();}};
 
 renderTexts();applyTab(0);
