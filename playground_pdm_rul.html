@@ -432,9 +432,7 @@ function fillLegend(){
     TRAINP.forEach(function(p){if(p!==pump)
       h+=leg('background:'+PCOL[p]+';opacity:0.45','\\text{'+pn(p)+'}');});
     h+=leg('background:'+PCOL[pump],'\\text{'+pn(pump)+'\\text{ ('+roleOf(pump)+')}}')
-      +leg('background:'+NAVY,'\\text{The line, and what it predicts}')
-      +leg('background:'+INK,'\\text{Error at }t')
-      +leg('background:'+BAND,'\\text{Beyond }H');
+      +leg('background:'+NAVY,'\\text{The line, and what it predicts}');
   }
   el.innerHTML=h+'</div>';}
 
@@ -513,9 +511,9 @@ function fillCalc(){
     var kind=view,w=COEF[kind],f=d[kind][t],yh=w[0]+w[1]*f,ya=d.n-t;
     var FN=kind==='raw'?vbar():'HI';
     h+=lline('Model',['\\widehat{RUL}('+FN+')='+fx(w[0],2)+'-'+fx(-w[1],2)+'\\,'+FN]);
-    h+=lline('Testing hour',[FN+'('+t+')='+fx(f,2),
-      '\\widehat{RUL}='+fx(w[0],2)+'-'+fx(-w[1],2)+'\\cdot'+fx(f,2)+'='+fx(yh,0)+'\\text{ h}',
-      '\\text{actual }'+fx(ya,0)+'\\text{ h}','\\text{error }'+fx(ya-yh,0)+'\\text{ h}']);}
+    h+=lline('Testing hour',
+      ['\\widehat{RUL}('+t+')='+fx(w[0],2)+'-'+fx(-w[1],2)+'\\cdot'+fx(f,2)+'='+fx(yh,0)+'\\text{ h}',
+       '\\text{actual }'+fx(ya,0)+'\\text{ h}','\\text{error }'+fx(ya-yh,0)+'\\text{ h}']);}
   el.innerHTML=h;}
 
 /* ---------------- controls ---------------- */
