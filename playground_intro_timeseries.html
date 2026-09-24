@@ -571,66 +571,51 @@ function lline(t,parts2){
   return '<span class="ln"><span class="lb">'+(t?kx('\\textbf{'+t+'}'):'')+'</span><span class="bd">'
     +parts2.map(function(p){return '<span>'+kx(p)+'</span>';}).join('')+'</span></span>';}
 function fillCalc(){
+  /* the arithmetic, and nothing that explains it in words */
   var el=document.getElementById('mcalc'),y=series(),n=y.length-1,h='';
   if(curTab===0){
     var t0=Math.round(gv('t0'));
     if(dsK==='custom'){
       var p=parts(t0),dow=DOW[(t0-1)%M];
       h+=lline('Trend',['40+b\\,(t-1)=40+'+fx(cur().b,2)+'\\cdot'+(t0-1)+'='+fx(p.tr,1)]);
-      h+=lline('Seasonal',['\\text{day }'+t0+'\\text{ is a '+dow+'}\\Rightarrow s='+fx(p.se,1),
-        '\\text{(the same seven values repeat)}']);
-      h+=lline('Noise',['\\varepsilon_{'+t0+'}='+fx(p.no,1),'\\text{(new draw on Resample)}']);
+      h+=lline('Seasonal',['\\text{day }'+t0+'\\text{ is a '+dow+'}\\Rightarrow s='+fx(p.se,1)]);
+      h+=lline('Noise',['\\varepsilon_{'+t0+'}='+fx(p.no,1)]);
       h+=lline('Sum',['y_{'+t0+'}='+fx(p.tr,1)+(p.se<0?'-':'+')+fx(Math.abs(p.se),1)
         +(p.no<0?'-':'+')+fx(Math.abs(p.no),1)+'='+fx(y[t0],1)]);
     }else{
       var pr=proc(),a=pr.c1[t0],e=pr.c2[t0];
       if(dsK==='ar'){
-        h+=lline('Memory',[fx(coefOf(),1)+'\\,(y_{'+(t0-1)+'}{-}40)='+fx(a,2),
-          '\\text{('+fx(coefOf(),1)+' of yesterday remains)}']);
+        h+=lline('Memory',[fx(coefOf(),1)+'\\,(y_{'+(t0-1)+'}{-}40)='+fx(a,2)]);
         h+=lline('Shock',['\\varepsilon_{'+t0+'}='+fx(e,2)]);
         h+=lline('Sum',['y_{'+t0+'}=40'+(a<0?'-':'+')+fx(Math.abs(a),2)
           +(e<0?'-':'+')+fx(Math.abs(e),2)+'='+fx(y[t0],1)]);
       }else if(dsK==='ma'){
         h+=lline('Shock',['\\varepsilon_{'+t0+'}='+fx(a,2)]);
-        h+=lline('Old shock',[fx(coefOf(),1)+'\\,\\varepsilon_{'+(t0-1)+'}='+fx(e,2),
-          '\\text{(yesterday echoes once, then is gone)}']);
+        h+=lline('Old shock',[fx(coefOf(),1)+'\\,\\varepsilon_{'+(t0-1)+'}='+fx(e,2)]);
         h+=lline('Sum',['y_{'+t0+'}=40'+(a<0?'-':'+')+fx(Math.abs(a),2)
           +(e<0?'-':'+')+fx(Math.abs(e),2)+'='+fx(y[t0],1)]);
       }else{
         h+=lline('Yesterday',['y_{'+(t0-1)+'}='+fx(a,1)]);
-        h+=lline('Shock',['\\varepsilon_{'+t0+'}='+fx(e,2),'\\text{(never forgotten -- it}',
-          '\\text{shifts every later day)}']);
+        h+=lline('Shock',['\\varepsilon_{'+t0+'}='+fx(e,2)]);
         h+=lline('Sum',['y_{'+t0+'}='+fx(a,1)+(e<0?'-':'+')+fx(Math.abs(e),2)+'='+fx(y[t0],1)]);
       }}
   }else if(curTab===1){
     var k=Math.round(gv('k')),yv=y.slice(1),r=acfOf(yv,k);
-    h+=lline('Pairs',['\\text{today against '+k+' days ago: }(y_{t-'+k+'},\\ y_t)',
-      '\\text{for }t='+(k+1)+'\\text{..}'+n+'\\ \\text{('+(n-k)+' pairs)}']);
+    h+=lline('Pairs',['(y_{t-'+k+'},\\ y_t)\\text{ for }t='+(k+1)+'\\text{..}'+n,
+      '('+(n-k)+')']);
     h+=lline('Correlation',['r_{'+k+'}=\\textstyle\\sum_t(y_t-\\bar y)(y_{t-'+k+'}-\\bar y)\\,/\\,\\sum_t(y_t-\\bar y)^2',
       '='+fx(r,2)]);
-    h+=lline('Read',['k=7\\ \\text{is one full week -- the season lines the pairs up;}',
-      '\\text{slide }k\\text{ and watch }r_k\\text{ move}']);
   }else if(curTab===2){
     var k2=Math.round(gv('k')),yv2=y.slice(1),pc=pacfList(yv2,14),bound=1.96/Math.sqrt(n);
-    h+=lline('ACF',['r_{'+k2+'}='+fx(acfOf(yv2,k2),2),
-      '\\text{-- the lag-'+k2+' correlation from the previous tab, one bar per lag}']);
-    h+=lline('PACF',['\\phi_{'+k2+','+k2+'}='+fx(pc[k2-1],2),
-      '\\text{-- the same correlation with lags }1..'+(k2-1)+'\\text{ already accounted for}']);
-    h+=lline('Band',['\\pm1.96/\\sqrt{'+n+'}=\\pm'+fx(bound,2),
-      '\\text{-- bars inside it look like noise}']);
+    h+=lline('ACF',['r_{'+k2+'}='+fx(acfOf(yv2,k2),2)]);
+    h+=lline('PACF',['\\phi_{'+k2+','+k2+'}='+fx(pc[k2-1],2)]);
+    h+=lline('Band',['\\pm1.96/\\sqrt{'+n+'}=\\pm'+fx(bound,2)]);
   }else{
-    /* intro level only: the chosen orders, one error number, the forecast.
-       The equations and the differencing theory live in the SARIMA playground. */
-    var o=ordOf(),fit=fitOf(o,y),F=fit.F,seas=(o.P||o.D||o.Q);
-    h+=lline('Model',[modelName(o),seas
-      ?'\\text{-- the }(P,D,Q)_7\\text{ terms look one week back}'
-      :'\\text{-- nothing in this model looks a week back}']);
-    h+=lline('Error',['\\sigma='+fx(F.sig,2),seas
-      ?'\\text{-- what the seasonal fit leaves unexplained}'
-      :'\\text{-- add }P,D,Q\\text{ and watch it drop on a seasonal series}']);
+    var o=ordOf(),fit=fitOf(o,y),F=fit.F;
+    h+=lline('Model',[modelName(o)]);
+    h+=lline('Error',['\\sigma='+fx(F.sig,2)]);
     h+=lline('Forecast',['\\widehat y_{'+(n+1)+'}='+fx(fit.fc[0],1),
-      '\\widehat y_{'+(n+H)+'}='+fx(fit.fc[H-1],1)+'\\pm'+fx(1.96*fit.se[H-1],1),
-      '\\text{-- the band widens with the horizon}']);
+      '\\widehat y_{'+(n+H)+'}='+fx(fit.fc[H-1],1)+'\\pm'+fx(1.96*fit.se[H-1],1)]);
   }
   el.innerHTML=h;}
 
