@@ -182,6 +182,15 @@ function smoothOf(v){var c=[0],i;
   var out=[];
   for(i=0;i<v.length;i++){var lo=Math.max(0,i-W+1);out.push((c[i+1]-c[lo])/(i+1-lo));}
   return out;}
+/* the timestamp column of the CSV, rebuilt from the first row: the readings are hourly, on
+   the hour, with no gaps, so row i is t0 + i hours exactly (gen_pdm_rul_data.py asserts it).
+   Printed to the hour, because a finer unit would say something the data does not. */
+var MON=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+function stampOf(pid,i){var p=BYID[pid].t0,d=new Date(Date.UTC(
+  +p.slice(0,4),+p.slice(5,7)-1,+p.slice(8,10),+p.slice(11,13)));
+  d.setUTCHours(d.getUTCHours()+i);
+  function two(v){return (v<10?'0':'')+v;}
+  return two(d.getUTCDate())+' '+MON[d.getUTCMonth()]+' '+two(d.getUTCHours())+':00';}
 var BYID={};
 function buildCols(){
   B0=W-1;B1=B0+NB;BYID={};
@@ -191,7 +200,7 @@ function buildCols(){
     var q=0;for(i=B0;i<B1;i++)q+=(s[i]-m)*(s[i]-m);
     var sd=Math.sqrt(q/(B1-B0-1));
     var hi=[];for(i=0;i<n;i++)hi.push((s[i]-m)/sd);
-    BYID[p.id]={n:n,vib:p.vib,raw:s,hi:hi,mu:m,sd:sd,role:p.role,
+    BYID[p.id]={n:n,vib:p.vib,raw:s,hi:hi,mu:m,sd:sd,role:p.role,t0:p.t0,
                 vibSum:+p.vib.reduce(function(a,b){return a+b;},0).toFixed(3)};});}
 
 /* the one model of the day: least squares over the in-scope hours (RUL <= 720) of the four
@@ -367,8 +376,10 @@ function draw1(lb){
     ctx.beginPath();ctx.moveTo(P.px(t),ay);ctx.lineTo(P.px(d.n),ay);ctx.stroke();
     ctx.beginPath();ctx.moveTo(P.px(t),ay-5);ctx.lineTo(P.px(t),ay+5);ctx.stroke();
     ctx.beginPath();ctx.moveTo(P.px(d.n),ay-5);ctx.lineTo(P.px(d.n),ay+5);ctx.stroke();
-    lb('RUL='+(d.n-t)+'\\text{ h}',(P.px(t)+P.px(d.n))/2,ay-4,
-       {align:'center',color:NAVY,bg:'rgba(255,255,255,0.9)'});
+    /* the span can end at the frame edge (RUL = 1), so the label stays inside it */
+    var mid=(P.px(t)+P.px(d.n))/2,near=mid>L+pw-52;
+    lb('RUL='+(d.n-t)+'\\text{ h}',near?L+pw:mid,ay-4,
+       {align:near?'right':'center',color:NAVY,bg:'rgba(255,255,255,0.9)'});
   }else{
     /* still running: the span has no right end yet, so the label does not exist yet */
     var ay2=TOP-14;
@@ -501,20 +512,29 @@ function fillTable(){
   var hd=document.getElementById('mthead'),tb=document.getElementById('mtbody');
   var Wt=function(x){return '\\textcolor{#fff}{'+x+'}';};
   var cols,val,ycol;
-  if(curTab===0){cols=['\\text{Hour }(t)','\\text{Vib, mm/s}','RUL\\text{, h }(y)'];ycol=2;
-    val=function(i){return [String(i),fx(d.vib[i],3),cens?'\\text{?}':String(d.n-i)];};}
+  if(curTab===0){cols=['\\text{Timestamp}','\\text{Vib, mm/s}','RUL'];ycol=2;
+    val=function(i){return ['\\text{'+stampOf(pump,i)+'}',fx(d.vib[i],3),
+                            cens?'\\text{?}':String(d.n-i)];};}
   else if(curTab===1){cols=['\\text{Hour }(t)','\\text{Vib}','\\text{Mean }'+W+'\\text{ h}','HI'];ycol=-1;
     val=function(i){return [String(i),fx(d.vib[i],3),fx(d.raw[i],3),fx(d.hi[i],2)];};}
   else{var kind=view,w=(scope==='cap'?COEFC:COEF)[kind];ycol=2;
-    cols=['\\text{Hour}',kind==='raw'?'\\text{Mean }'+W+'\\text{ h}':'HI','RUL\\text{, h }(y)','\\widehat{RUL}','y-\\widehat{RUL}'];
+    cols=['\\text{Hour}',kind==='raw'?'\\text{Mean }'+W+'\\text{ h}':'HI','RUL','\\widehat{RUL}','RUL-\\widehat{RUL}'];
     val=function(i){var f=d[kind][i],p2=w[0]+w[1]*f,ya=d.n-i;
       return [String(i),fx(f,kind==='raw'?3:2),String(ya),fx(p2,0),fx(ya-p2,0)];};}
   hd.innerHTML=cols.map(function(c){return '<th>'+kx(Wt(c))+'</th>';}).join('');
-  document.getElementById('dtcap').innerHTML=
-    kx('\\text{'+pn(pump)+': '+d.n+' hourly rows, one shown per day}');
+  /* two chunks, so a narrow data column can wrap the caption instead of overflowing it */
+  document.getElementById('dtcap').innerHTML=curTab===0
+    ? kx('\\text{'+pn(pump)+': '+d.n+'\\text{ hourly rows}}')+' '
+      +kx(cens?'\\text{still running -- no label}'
+              :'\\text{daily, then hour by hour to the failure}')
+    : kx('\\text{'+pn(pump)+': '+d.n+' hourly rows, one shown per day}');
   var rows=[],i;
   for(i=0;i<d.n;i+=24)rows.push(i);
-  if(rows.indexOf(t)<0){rows.push(t);rows.sort(function(a,b){return a-b;});}
+  /* the label is built from the failure backwards, so the last hours are the point of tab 1:
+     show them contiguously, ending at the final row where RUL = 1 */
+  if(curTab===0&&!cens)for(i=Math.max(0,d.n-12);i<d.n;i++)if(rows.indexOf(i)<0)rows.push(i);
+  if(rows.indexOf(t)<0)rows.push(t);
+  rows.sort(function(a,b){return a-b;});
   var h='';
   rows.forEach(function(i2){
     h+='<tr'+(i2===t?' class="hl"':'')+'>'+val(i2).map(function(v,j){
@@ -605,14 +625,8 @@ function fillCalc(){
         '\\mu='+fx(d.mu,3)+',\\ \\sigma='+fx(d.sd,3)]);
       h+=lline('Indicator',['HI('+t+')=(\\bar x_{'+W+'}-\\mu)/\\sigma',
         '=('+fx(d.raw[t],3)+'-'+fx(d.mu,3)+')/'+fx(d.sd,3),'='+fx(d.hi[t],2)]);}
-    var dg=diagOf(pump);
-    h+=lline('This window',['W='+W+'\\text{ h}',
-      '\\text{wobble }\\overline{|\\Delta HI|}='+fx(dg.jitter,3)+'\\text{ on '+pn(pump)+'}',
-      '\\text{agreement }|r|='+fx(dg.corr,3)+'\\text{ with the hours left,}',
-      '\\text{on the new pumps}']);
-    h+=lline('Try',['\\text{widen }W\\text{: the wobble keeps falling,}',
-      '\\text{but }|r|\\text{ peaks and then drops}',
-      '\\text{-- find the window where the indicator agrees most}']);
+    /* the smoothing, the baseline and the indicator -- the figure and the scoreboard carry
+       what widening W does, so the calc box does not repeat it in words */
   }else{
     var kind=view,w=(scope==='cap'?COEFC:COEF)[kind],f=d[kind][t],yh=w[0]+w[1]*f,ya=d.n-t;
     var bi=biasOf(pump,kind,w);
