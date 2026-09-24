@@ -242,6 +242,8 @@ function K(t,el){if(!el)return;try{katex.render(t,el,{throwOnError:false});}catc
 function renderTexts(){if(!window.katex)return;for(var id in MT)K(MT[id],document.getElementById(id));}
 function fx(v,d){return (Math.abs(v)<Math.pow(10,-d)/2?0:v).toFixed(d);}
 function pn(pid){return pid.replace('PUMP-0','P0');}
+/* the smoothed reading: the mean of Vib over W hours, with the window as its subscript */
+function vbar(){return '\\overline{\\text{Vib}}_{'+W+'\\text{h}}';}
 
 /* ---------------- canvas + KaTeX label overlay (the intro pages' own helper) ---------------- */
 var cv=document.getElementById('cv'),ctx=cv.getContext('2d'),SC=2,CW=640,CH=260;
@@ -330,7 +332,7 @@ function draw2(lb){
   ctx.beginPath();ctx.moveTo(P.px(t),TOP);ctx.lineTo(P.px(t),TOP+ph);ctx.stroke();ctx.setLineDash([]);
   testDot(P.px(t),P.py(Math.max(lo-pad,Math.min(hi+pad,val))));
   lb('\\text{baseline}',(P.px(B0)+P.px(B1-1))/2,TOP+14,{align:'center',color:'#5b616e'});
-  lb(view==='raw'?'\\text{mm/s, 24-h mean}':'HI\\ (z)',L+4,TOP-8);
+  lb(view==='raw'?vbar()+'\\text{, mm/s}':'HI\\ (z)',L+4,TOP-8);
   lb('\\text{hour}',L+pw,TOP+ph+32,{align:'right'});
 }
 
@@ -379,7 +381,7 @@ function draw3(lb){
   testDot(Xa,Yp);
   lb('\\text{hours left}',L+4,aT-6);
   /* the axis name sits in the free corner, not on the last tick */
-  lb('\\text{against }'+(kind==='raw'?'\\text{mm/s, }'+W+'\\text{-h mean}':'HI\\ (z)'),
+  lb('\\text{against }'+(kind==='raw'?vbar()+'\\text{, mm/s}':'HI\\ (z)'),
      L+pw,aT-6,{align:'right',color:NAVY});
 
   /* ---------------- below: the same hours, over time ---------------- */
@@ -451,14 +453,13 @@ function fillTable(){
       : ['\\text{'+stampOf(pump,i)+'}',String(i),fx(d.vib[i],2),
          cens?'\\text{--}':String(d.n-i)];};}
   else if(curTab===1){
-    cols=['t','\\text{Vib}','RUL','\\text{Mean }'+W+'\\text{ h}','HI'];ycol=2;
+    cols=['t','\\text{Vib}','RUL',vbar(),'HI'];ycol=2;
     val=function(i){return [String(i),fx(d.vib[i],2),
                             cens?'\\text{--}':String(d.n-i),fx(d.raw[i],2),fx(d.hi[i],2)];};}
-  else{var kind=view,w=COEF[kind];ycol=2;
-    cols=['t','\\text{Vib}','RUL',
-          kind==='raw'?'\\text{Mean }'+W+'\\text{ h}':'HI','\\widehat{RUL}'];
+  else{var kind=view,w=COEF[kind];ycol=1;
+    cols=['t','RUL',kind==='raw'?vbar():'HI','\\widehat{RUL}'];
     val=function(i){var f=d[kind][i],p2=w[0]+w[1]*f;
-      return [String(i),fx(d.vib[i],2),String(d.n-i),fx(f,2),fx(p2,0)];};}
+      return [String(i),String(d.n-i),fx(f,2),fx(p2,0)];};}
   hd.innerHTML=cols.map(function(c){return '<th>'+kx(Wt(c))+'</th>';}).join('');
   /* the data column is as wide as its columns need: four fit 300px, six do not */
   document.getElementById('dleft').style.flexBasis=(300+Math.max(0,cols.length-4)*58)+'px';
@@ -503,14 +504,14 @@ function fillCalc(){
       h+=lline('Failure',['\\text{'+stampOf(pump,d.n)+'}\\ (t='+d.n+')']);
       h+=lline('RUL',['RUL('+t+')='+d.n+'-'+t+'='+(d.n-t)+'\\text{ h}']);}
   }else if(curTab===1){
-    h+=lline('Window',['\\bar x_{'+W+'}('+t+')=\\text{mean of }t='+Math.max(0,t-W+1)+
+    h+=lline('Window',[vbar()+'('+t+')=\\text{mean of }t='+Math.max(0,t-W+1)+
       '\\text{..}'+t+'='+fx(d.raw[t],2)]);
     h+=lline('Baseline',['\\mu='+fx(d.mu,2)+',\\ \\sigma='+fx(d.sd,2)]);
-    h+=lline('HI',['HI=(\\bar x_{'+W+'}-\\mu)/\\sigma',
+    h+=lline('HI',['HI=('+vbar()+'-\\mu)/\\sigma',
       '=('+fx(d.raw[t],2)+'-'+fx(d.mu,2)+')/'+fx(d.sd,2),'='+fx(d.hi[t],2)]);
   }else{
     var kind=view,w=COEF[kind],f=d[kind][t],yh=w[0]+w[1]*f,ya=d.n-t;
-    var FN=kind==='raw'?'\\bar x_{'+W+'}':'HI';
+    var FN=kind==='raw'?vbar():'HI';
     h+=lline('Model',['\\widehat{RUL}('+FN+')='+fx(w[0],2)+'-'+fx(-w[1],2)+'\\,'+FN]);
     h+=lline('Testing hour',[FN+'('+t+')='+fx(f,2),
       '\\widehat{RUL}='+fx(w[0],2)+'-'+fx(-w[1],2)+'\\cdot'+fx(f,2)+'='+fx(yh,0)+'\\text{ h}',
