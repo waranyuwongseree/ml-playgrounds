@@ -30,6 +30,7 @@
   .dtab th{background:var(--navy);color:#fff;font-weight:400;padding:5px 5px;text-align:center;position:sticky;top:0;z-index:3}
   .dtab td{padding:1px 6px;text-align:center;color:var(--ink);line-height:1.35;background:#fff}
   .dtab tr.hl td{background:#E6ECF8}          /* แถวของ testing hour */
+  .dtab tr.sep td{background:#F4F6FA;color:var(--muted);font-size:13px;padding:3px 6px}
   .dtab td.ycol{background:#fff3df;color:#7a4a06;font-weight:600}   /* คอลัมน์ป้าย y เหมือน intro */
   .dtab .katex{font-size:1em}
   .dtcap{font-size:13px;color:var(--muted);margin:0 0 4px}
@@ -42,23 +43,6 @@
   .dleft{display:block;flex:0 0 300px;min-width:0;overflow-y:auto;overflow-x:hidden;border-radius:8px;position:relative}
   .main{display:flex;flex-direction:column;gap:6px;flex:1 1 auto;min-width:0}
   .classleg .clrow{display:flex;align-items:center;gap:14px;flex-wrap:wrap;color:#555}
-  /* the pinned scoreboard: what the levers currently read, in every mode */
-  .scorebar{display:flex;align-items:center;gap:8px;flex-wrap:wrap;
-            background:#F4F6FA;border:1px solid var(--line);border-radius:10px;padding:3px 8px}
-  .scorebar .sc{font-size:13px;color:#3d4657;white-space:nowrap}
-  .scorebar .sc b{color:var(--navy);font-weight:600}
-  .scorebar .katex{font-size:1em}
-  .scorebar .sp{flex:1 1 auto}
-  .scorebar button{font-size:15px;border:1px solid var(--line);border-radius:7px;
-                   padding:2px 12px;min-height:26px;cursor:pointer;background:#fff;color:#334155}
-  .scorebar button.rec{background:var(--navy);color:#fff;border-color:var(--navy)}
-  /* the lab book: one row per setting tried, until Clear */
-  .labtab{border:1px solid var(--line);border-radius:10px;overflow:hidden}
-  .labtab table{width:100%;border-collapse:collapse;font-size:13px}
-  .labtab th{background:#E6ECF8;color:var(--navy);font-weight:400;padding:3px 6px;text-align:center}
-  .labtab td{padding:2px 6px;text-align:center;color:var(--ink);background:#fff}
-  .labtab tr.cur td{background:#fff3df}
-  .labtab .katex{font-size:1em}
   .phint{font-size:13px;color:var(--muted);margin:-4px 0 8px}
   .phint .katex{font-size:1em}
   @media(max-width:820px){.stage.mod{flex-direction:column}.dleft{flex:none;width:100%;max-height:300px}}
@@ -75,9 +59,7 @@
       <div class="main" id="main">
         <div class="canvasbox"><canvas id="cv"></canvas></div>
         <div class="classleg" id="classleg"></div>
-        <div class="scorebar" id="scorebar"></div>
         <div class="excalc" id="mcalc"></div>
-        <div class="labtab" id="labtab" style="display:none"></div>
       </div>
     </div>
     <div class="panel">
@@ -86,15 +68,6 @@
       <div class="phint" id="pumphint" style="display:none"></div>
       <div id="grp-view"><div class="dhd" id="hd-view"></div>
       <div class="seg2" id="viewSeg"><button data-v="raw" id="vb-raw"></button><button data-v="hi" id="vb-hi" class="on"></button></div></div>
-      <div id="grp-win"><div class="dhd" id="hd-win"></div>
-      <div class="dgrid">
-        <div class="drow"><span class="dlab" id="lbl-win"></span><input type="range" id="Rwin" min="1" max="72" step="1" value="24"><input class="num" type="number" id="Nwin" min="1" max="72" step="1" value="24"></div>
-      </div></div>
-      <div id="grp-scope"><div class="dhd" id="hd-scope"></div>
-      <div class="seg2" id="scopeSeg"><button data-s="filter" id="sb-filter" class="on"></button><button data-s="cap" id="sb-cap"></button></div>
-      <div class="dgrid">
-        <div class="drow"><span class="dlab" id="lbl-hor"></span><input type="range" id="Rhor" min="240" max="1440" step="120" value="720"><input class="num" type="number" id="Nhor" min="240" max="1440" step="120" value="720"></div>
-      </div></div>
       <div id="grp-now">
       <div class="dhd" id="hd-now"></div>
       <div class="dgrid">
@@ -166,9 +139,10 @@
 /* the workflow's own settings are the defaults; NB baseline rows are kept whatever W is,
    so the window starts where the mean is first complete (W-1) -- at W=24 that is the
    workflow's own rows 23..222 */
-var H0=RULDATA.cap, W0=RULDATA.win, NB=RULDATA.base1+1-RULDATA.base0;
-var CAP=H0, W=W0, B0=W-1, B1=B0+NB;
-var YARD=300;      /* the fixed yardstick: the last 300 h before failure, at every horizon */
+/* the settings are the workflow's own and do not move: the 24-hour mean, the 720-hour
+   planning horizon, and the reference window at its own rows -- which is why the shaded
+   baseline stays where it is */
+var CAP=RULDATA.cap, W=RULDATA.win, B0=RULDATA.base0, B1=RULDATA.base1+1;
 /* one colour per pump, every pair dE >= 25 within any one legend -- measured, not assumed.
    The still-running pump is slate: the colour of "no label yet". */
 var PCOL={'PUMP-01':'#E07A5F','PUMP-02':'#5B8FB9','PUMP-03':'#5b616e','PUMP-04':'#6BA38C',
@@ -188,7 +162,9 @@ function smoothOf(v){var c=[0],i;
 /* the timestamp column of the CSV, rebuilt from the first row: the readings are hourly, on
    the hour, with no gaps, so row i is t0 + i hours exactly (gen_pdm_rul_data.py asserts it).
    Printed to the hour, because a finer unit would say something the data does not. */
-var POSTN=4;   /* hours shown past the failure, where the readings stop */
+var POSTN=4;    /* hours shown past the failure, where the readings stop */
+var SPAN=48;    /* tabs 2-3: consecutive hours around the testing hour */
+var FINE=24;    /* tab 1: the last hours before the failure, shown one by one */
 var MON=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
 function stampOf(pid,i){var p=BYID[pid].t0,d=new Date(Date.UTC(
   +p.slice(0,4),+p.slice(5,7)-1,+p.slice(8,10),+p.slice(11,13)));
@@ -197,7 +173,7 @@ function stampOf(pid,i){var p=BYID[pid].t0,d=new Date(Date.UTC(
   return two(d.getUTCDate())+' '+MON[d.getUTCMonth()]+' '+two(d.getUTCHours())+':00';}
 var BYID={};
 function buildCols(){
-  B0=W-1;B1=B0+NB;BYID={};
+  BYID={};
   RULDATA.pumps.forEach(function(p){
     var n=p.vib.length,s=smoothOf(p.vib),i;
     var m=0;for(i=B0;i<B1;i++)m+=s[i];m/=(B1-B0);
@@ -210,82 +186,38 @@ function buildCols(){
 /* the one model of the day: least squares over the in-scope hours (RUL <= 720) of the four
    failed training pumps, target = the true RUL_hours -- the same rows the workflow's Row
    Filter keeps, and the same two-pass arithmetic as pdm_rul_ref.py */
-function fitFull(kind,variant){
+function fitFull(kind){
   var sx=0,sy=0,n=0,a,i,p,x,y;
   for(a=0;a<TRAINP.length;a++){p=TRAINP[a];x=BYID[p][kind];
-    for(i=0;i<x.length;i++){y=BYID[p].n-i;
-      if(variant==='cap')y=Math.min(y,CAP);else if(y>CAP)continue;
-      sx+=x[i];sy+=y;n++;}}
+    for(i=0;i<x.length;i++){y=BYID[p].n-i;if(y>CAP)continue;sx+=x[i];sy+=y;n++;}}
   var mx=sx/n,my=sy/n,sxx=0,sxy=0;
   for(a=0;a<TRAINP.length;a++){p=TRAINP[a];x=BYID[p][kind];
-    for(i=0;i<x.length;i++){y=BYID[p].n-i;
-      if(variant==='cap')y=Math.min(y,CAP);else if(y>CAP)continue;
+    for(i=0;i<x.length;i++){y=BYID[p].n-i;if(y>CAP)continue;
       sxx+=(x[i]-mx)*(x[i]-mx);sxy+=(x[i]-mx)*(y-my);}}
   var b=sxy/sxx;
   return [my-b*mx,b];}
-var COEF,COEFC,SHARE,MAED,MAEL,MAEIS,NTRAIN,NTEST;
-/* the story's scope study, re-derived: capping trains on every hour, so the hours whose
-   true RUL >= 720 all land ON the horizon line -- that share is the flat the story shows */
-function shareFlat(){var flat=0,n=0;
-  TRAINP.forEach(function(p){var d=BYID[p];
-    for(var i=0;i<d.n;i++){if(d.n-i>=CAP)flat++;n++;}});
-  return flat/n;}
-/* in-scope MAE moves with the horizon because the SCORED ROWS move with it; the yardstick
-   scores the same last-300-h rows at every horizon, which is the only fair comparison */
-function maeDeploy(kind,w,late){
+var COEF,MAED,NTRAIN,NTEST;
+function maeDeploy(kind,w){
   var s=0,n=0;
   DEPLOYP.forEach(function(p){var x=BYID[p][kind],d=BYID[p];
-    for(var i=0;i<x.length;i++){var y=d.n-i;
-      if(late?(y>YARD):(y>CAP))continue;
+    for(var i=0;i<x.length;i++){var y=d.n-i;if(y>CAP)continue;
       s+=Math.abs(w[0]+w[1]*x[i]-y);n++;}});
   return {mae:s/n,n:n};}
 function countTrain(){var n=0;
   TRAINP.forEach(function(p){var d=BYID[p];
     for(var i=0;i<d.n;i++)if(d.n-i<=CAP)n++;});
   return n;}
-/* what the smoothing window costs and buys.
-   jitter  = mean |HI(t)-HI(t-1)| on the pump drawn, the wobble you can see in the figure
-   corr    = |correlation(HI, RUL)| over the in-scope hours of the two new pumps: scale-free,
-             so it is not disturbed by the baseline sd shrinking as W widens, and it is
-             exactly what a straight line can use */
-function jitterOf(pid){var d=BYID[pid],j=0,i;
-  for(i=1;i<d.n;i++)j+=Math.abs(d.hi[i]-d.hi[i-1]);
-  return j/(d.n-1);}
-function corrOf(kind){var X=[],Y=[],i;
-  DEPLOYP.forEach(function(p){var x=BYID[p][kind],d=BYID[p];
-    for(i=0;i<x.length;i++){var y=d.n-i;if(y>CAP)continue;X.push(x[i]);Y.push(y);}});
-  var nn=X.length,mx=0,my=0;
-  for(i=0;i<nn;i++){mx+=X[i];my+=Y[i];}
-  mx/=nn;my/=nn;
-  var sxx=0,syy=0,sxy=0;
-  for(i=0;i<nn;i++){sxx+=(X[i]-mx)*(X[i]-mx);syy+=(Y[i]-my)*(Y[i]-my);
-                    sxy+=(X[i]-mx)*(Y[i]-my);}
-  return Math.abs(sxy/Math.sqrt(sxx*syy));}
-function diagOf(pid){return {jitter:jitterOf(pid),corr:corrOf('hi')};}
-/* mean signed error of ONE pump: the fleet number cancels these out, so the only place a
-   learner can meet them is a pump at a time (that is why Predict now offers all six) */
-function biasOf(pid,kind,w){var d=BYID[pid],x=d[kind],s=0,c=0;
-  for(var i=0;i<x.length;i++){var y=d.n-i;if(y>CAP)continue;s+=w[0]+w[1]*x[i]-y;c++;}
-  return c?s/c:0;}
 function rebuild(){
   buildCols();
-  COEF={raw:fitFull('raw','filter'),hi:fitFull('hi','filter')};
-  COEFC={raw:fitFull('raw','cap'),hi:fitFull('hi','cap')};
-  SHARE=shareFlat();NTRAIN=countTrain();
+  COEF={raw:fitFull('raw'),hi:fitFull('hi')};
+  NTRAIN=countTrain();
   var a=maeDeploy('raw',COEF.raw),b=maeDeploy('hi',COEF.hi);
-  /* in-scope MAE for BOTH fits: under Cap the scoreboard must report the Cap model, not the
-     Drop model's number wearing a different label */
-  MAEIS={filter:{raw:a.mae,hi:b.mae},
-         cap:{raw:maeDeploy('raw',COEFC.raw).mae,hi:maeDeploy('hi',COEFC.hi).mae}};
-  MAED={raw:a.mae,hi:b.mae};NTEST=a.n;
-  MAEL={filter:{raw:maeDeploy('raw',COEF.raw,true).mae,hi:maeDeploy('hi',COEF.hi,true).mae},
-        cap:{raw:maeDeploy('raw',COEFC.raw,true).mae,hi:maeDeploy('hi',COEFC.hi,true).mae}};}
+  MAED={raw:a.mae,hi:b.mae};NTEST=a.n;}
 rebuild();
-function atDefault(){return W===W0&&CAP===H0;}
 
 /* ---------------- state ---------------- */
 var TABS=[{n:'The label'},{n:'The health indicator'},{n:'Predict'}];
-var curTab=0,pump='PUMP-01',view='hi',scope='filter',NOWM={},LAB_ROWS=[];
+var curTab=0,pump='PUMP-01',view='hi',NOWM={};
 /* Predict offers every pump that actually failed: the four the line was fitted on and the
    two it has never seen. Their roles are named under the segment. */
 var SIXP=TRAINP.concat(DEPLOYP);
@@ -297,11 +229,7 @@ function nowOf(pid){if(NOWM[pid]===undefined)NOWM[pid]=Math.min(260,BYID[pid].n-
 /* ---------------- KaTeX ---------------- */
 var MT={'h1':'\\text{Introduction to RUL}','hd-pump':'\\text{Pump}',
   'hd-view':'\\text{Health indicator}','vb-raw':'\\text{mm/s}','vb-hi':'z\\text{ vs baseline}',
-  'hd-win':'\\text{Smoothing window}','lbl-win':'W',
-  'hd-scope':'\\text{Planning horizon}','sb-filter':'\\text{Drop beyond }H','sb-cap':'\\text{Cap at }H',
-  'lbl-hor':'H',
-  'hd-now':'\\text{Testing hour}','lbl-now':'t',
-  'btn-rec':'\\text{Record}','btn-clr':'\\text{Clear}'};
+  'hd-now':'\\text{Testing hour}','lbl-now':'t'};
 var KXC={};
 function kx(t){if(KXC[t]!==undefined)return KXC[t];var r;
   try{r=window.katex?katex.renderToString(t,{throwOnError:false}):t;}catch(e){r=t;}
@@ -359,14 +287,8 @@ function draw1(lb){
   var L=48,Rm=14,TOP=26,BOT=38,pw=CW-L-Rm,ph=CH-TOP-BOT;
   var lo=Infinity,hi=-Infinity,i;
   for(i=0;i<d.n;i++){if(d.vib[i]<lo)lo=d.vib[i];if(d.vib[i]>hi)hi=d.vib[i];}
-  /* the hours after the failure get a readable share of the axis: at POSTN alone they were
-     six pixels wide, which is drawn but not shown */
-  var pad=(hi-lo)*0.08,xmax=Math.round(d.n+Math.max(POSTN,d.n*0.05));
+  var pad=(hi-lo)*0.08,xmax=Math.round(d.n*1.02);
   var P=frame(L,TOP,pw,ph,0,xmax,lo-pad,hi+pad);
-  /* after the failure the machine is stopped: no readings exist there, so the panel says so
-     instead of drawing a line through nothing */
-  ctx.fillStyle=BAND;ctx.globalAlpha=0.55;
-  ctx.fillRect(P.px(d.n),TOP,L+pw-P.px(d.n),ph);ctx.globalAlpha=1;
   ctx.save();ctx.beginPath();ctx.rect(L,TOP,pw,ph);ctx.clip();
   poly(d.vib,P,PCOL[pump],1.2,0.8);
   ctx.restore();
@@ -374,7 +296,6 @@ function draw1(lb){
     ctx.strokeStyle=FAILC;ctx.lineWidth=2;
     ctx.beginPath();ctx.moveTo(P.px(d.n),TOP);ctx.lineTo(P.px(d.n),TOP+ph);ctx.stroke();
     lb('\\text{failure}',P.px(d.n)-6,TOP+14,{align:'right',color:FAILC,bg:'rgba(255,255,255,0.85)'});
-    lb('\\text{no readings}',L+pw-4,TOP+ph-10,{align:'right',color:'#5b616e'});
   }else{
     lb('\\text{still running -- no failure to count back from}',
        L+pw-6,TOP+14,{align:'right',color:'#5b616e',bg:'rgba(255,255,255,0.85)'});}
@@ -414,7 +335,7 @@ function draw2(lb){
    where two tilts can be compared side by side. BELOW: the hour axis of tabs 1 and 2, what
    happened against what was predicted, with the error at the testing hour as the gap. */
 function draw3(lb){
-  var kind=view,w=(scope==='cap'?COEFC:COEF)[kind],d=BYID[pump],i;
+  var kind=view,w=COEF[kind],d=BYID[pump],i;
   var L=52,Rm=14,TOP=22,GAP=30,BOT=34;
   var hA=Math.round((CH-TOP-GAP-BOT)*0.58),hB=CH-TOP-GAP-BOT-hA;
   var aT=TOP,aB=aT+hA,bT=aB+GAP,bB=bT+hB,pw=CW-L-Rm;
@@ -431,17 +352,13 @@ function draw3(lb){
   function cloud(pid,rad,al){var q=BYID[pid],x=q[kind];
     ctx.fillStyle=PCOL[pid];ctx.globalAlpha=al;
     for(var j=0;j<x.length;j+=6){var y=q.n-j;if(y>CAP)continue;
-      ctx.beginPath();ctx.arc(A.px(x[j]),A.py(scope==='cap'?Math.min(y,CAP):y),rad,0,7);ctx.fill();}
+      ctx.beginPath();ctx.arc(A.px(x[j]),A.py(y),rad,0,7);ctx.fill();}
     ctx.globalAlpha=1;}
   TRAINP.forEach(function(p){if(p!==pump)cloud(p,1.6,0.28);});
   cloud(pump,2.4,0.85);
-  /* the fitted line, and the alternative fit dashed beside it: the two tilts, together */
-  function ruler(w2,wd,al,dash){ctx.strokeStyle=NAVY;ctx.lineWidth=wd;ctx.globalAlpha=al;
-    ctx.setLineDash(dash||[]);ctx.beginPath();
-    ctx.moveTo(A.px(lo),A.py(w2[0]+w2[1]*lo));ctx.lineTo(A.px(hi),A.py(w2[0]+w2[1]*hi));
-    ctx.stroke();ctx.setLineDash([]);ctx.globalAlpha=1;}
-  ruler((scope==='cap'?COEF:COEFC)[kind],1.4,0.32,[6,4]);
-  ruler(w,2.6,1);
+  /* the fitted line through the cloud */
+  ctx.strokeStyle=NAVY;ctx.lineWidth=2.6;ctx.beginPath();
+  ctx.moveTo(A.px(lo),A.py(w[0]+w[1]*lo));ctx.lineTo(A.px(hi),A.py(w[0]+w[1]*hi));ctx.stroke();
   ctx.restore();
   var t=nowOf(pump),xq=BYID[pump][kind][t],yh=w[0]+w[1]*xq,ya=d.n-t;
   var Xa=A.px(xq),Yp=Math.max(aT,Math.min(aB,A.py(yh)));
@@ -499,8 +416,7 @@ function fillLegend(){
   if(curTab===0){
     var cens0=BYID[pump].role==='censored';
     h+=leg('background:'+PCOL[pump],'\\text{Vibration, hour by hour}')
-      +(cens0?'':leg('background:'+FAILC,'\\text{Failure}')
-              +leg('background:'+BAND,'\\text{After: no readings}'));
+      +(cens0?'':leg('background:'+FAILC,'\\text{Failure}'));
   }else if(curTab===1){
     T1P.forEach(function(p){h+=leg('background:'+PCOL[p],'\\text{'+pn(p)+(BYID[p].role==='censored'?' (running)':'')+'}');});
     h+=leg('background:'+BAND,'\\text{Baseline window}');
@@ -509,7 +425,6 @@ function fillLegend(){
       h+=leg('background:'+PCOL[p]+';opacity:0.45','\\text{'+pn(p)+'}');});
     h+=leg('background:'+PCOL[pump],'\\text{'+pn(pump)+'\\text{ ('+roleOf(pump)+')}}')
       +leg('background:'+NAVY,'\\text{The line, and what it predicts}')
-      +leg('background:'+NAVY+';opacity:0.32','\\text{Same line, '+(scope==='cap'?'drop':'cap')+'}')
       +leg('background:'+INK,'\\text{Error at }t')
       +leg('background:'+BAND,'\\text{Beyond }H');
   }
@@ -521,95 +436,56 @@ function fillTable(){
   var hd=document.getElementById('mthead'),tb=document.getElementById('mtbody');
   var Wt=function(x){return '\\textcolor{#fff}{'+x+'}';};
   var cols,val,ycol;
+  /* every tab starts with the timestamp, and no number runs past two decimals */
   if(curTab===0){cols=['\\text{Timestamp}','\\text{Vib, mm/s}','RUL'];ycol=2;
     /* rows past the last reading: the clock keeps running, the machine does not, so the
        vibration is missing and there is no label either */
     val=function(i){return i>=d.n
       ? ['\\text{'+stampOf(pump,i)+'}','\\text{--}','\\text{--}']
-      : ['\\text{'+stampOf(pump,i)+'}',fx(d.vib[i],3),cens?'\\text{?}':String(d.n-i)];};}
-  else if(curTab===1){cols=['\\text{Hour }(t)','\\text{Vib}','\\text{Mean }'+W+'\\text{ h}','HI'];ycol=-1;
-    val=function(i){return [String(i),fx(d.vib[i],3),fx(d.raw[i],3),fx(d.hi[i],2)];};}
-  else{var kind=view,w=(scope==='cap'?COEFC:COEF)[kind];ycol=2;
-    cols=['\\text{Hour}',kind==='raw'?'\\text{Mean }'+W+'\\text{ h}':'HI','RUL','\\widehat{RUL}','RUL-\\widehat{RUL}'];
-    val=function(i){var f=d[kind][i],p2=w[0]+w[1]*f,ya=d.n-i;
-      return [String(i),fx(f,kind==='raw'?3:2),String(ya),fx(p2,0),fx(ya-p2,0)];};}
+      : ['\\text{'+stampOf(pump,i)+'}',fx(d.vib[i],2),cens?'\\text{--}':String(d.n-i)];};}
+  else if(curTab===1){cols=['\\text{Timestamp}','\\text{Vib}','\\text{Mean }'+W+'\\text{ h}','HI'];ycol=-1;
+    val=function(i){return ['\\text{'+stampOf(pump,i)+'}',fx(d.vib[i],2),
+                            fx(d.raw[i],2),fx(d.hi[i],2)];};}
+  else{var kind=view,w=COEF[kind];ycol=2;
+    cols=['\\text{Timestamp}',kind==='raw'?'\\text{Mean }'+W+'\\text{ h}':'HI','RUL','\\widehat{RUL}'];
+    val=function(i){var f=d[kind][i],p2=w[0]+w[1]*f;
+      return ['\\text{'+stampOf(pump,i)+'}',fx(f,2),String(d.n-i),fx(p2,0)];};}
   hd.innerHTML=cols.map(function(c){return '<th>'+kx(Wt(c))+'</th>';}).join('');
-  /* two chunks, so a narrow data column can wrap the caption instead of overflowing it */
-  document.getElementById('dtcap').innerHTML=curTab===0
-    ? kx('\\text{'+pn(pump)+': '+d.n+'\\text{ hourly rows}}')+' '
-      +kx(cens?'\\text{still running -- no label}'
-              :'\\text{daily, then hour by hour to the failure}')
-    : kx('\\text{'+pn(pump)+': '+d.n+' hourly rows, one shown per day}');
-  var rows=[],i;
-  for(i=0;i<d.n;i+=24)rows.push(i);
-  /* the label is built from the failure backwards, so the last hours are the point of tab 1:
-     show them contiguously, ending at the final row where RUL = 1 */
-  if(curTab===0&&!cens)for(i=Math.max(0,d.n-12);i<d.n+POSTN;i++)if(rows.indexOf(i)<0)rows.push(i);
-  if(curTab!==0&&rows.indexOf(t)<0)rows.push(t);   /* tab 1 has no testing hour */
-  rows.sort(function(a,b){return a-b;});
+  /* ONE sampling rule: the readings are hourly and the table shows consecutive hours. The
+     window differs per tab because what matters differs, and the caption says which. */
+  /* tab 1 reads the whole life at a day a row, then every hour where RUL runs low -- and
+     says where it changes, instead of letting the timestamps jump without explanation.
+     Tabs 2-3 show one window of consecutive hours around the testing hour. */
+  var rows=[],i,lo2,hi2,sepAt=-1;
+  if(curTab===0){
+    var fine=Math.max(0,d.n-FINE);
+    for(i=0;i<fine;i+=24)rows.push(i);
+    sepAt=rows.length;
+    for(i=fine;i<(cens?d.n:d.n+POSTN);i++)rows.push(i);
+  }else{
+    lo2=Math.max(0,t-Math.floor(SPAN/2));hi2=Math.min(d.n,lo2+SPAN);
+    lo2=Math.max(0,hi2-SPAN);
+    for(i=lo2;i<hi2;i++)rows.push(i);}
+  document.getElementById('dtcap').innerHTML=
+    kx('\\text{'+pn(pump)+': hourly readings}')+' '
+    +kx(curTab===0?'\\text{-- one row per day, then every hour}'
+                  :'\\text{-- the '+SPAN+' hours around the testing hour}');
   var h='';
-  rows.forEach(function(i2){
+  rows.forEach(function(i2,k){
+    /* the step changes here, and the table says so rather than leaving the reader to notice
+       that the timestamps stopped moving by a day */
+    if(k===sepAt)h+='<tr class="sep"><td colspan="'+cols.length+'">'
+      +kx('\\text{every hour from here}')+'</td></tr>';
     h+='<tr'+(i2>=d.n?' class="te"':(curTab!==0&&i2===t?' class="hl"':''))+'>'+val(i2).map(function(v,j){
       return '<td'+(j===ycol?' class="ycol"':'')+'>'+kx(v)+'</td>';}).join('')+'</tr>';});
   tb.innerHTML=h;
   /* the table column is as tall as the figure column, and the testing hour stays in view */
   var dl=document.getElementById('dleft'),hlr=tb.querySelector('tr.hl');
   var mn=document.getElementById('main');
+  if(!hlr&&curTab===0)dl.scrollTop=0;
   if(innerWidth>820)dl.style.maxHeight=Math.max(260,Math.round(mn.getBoundingClientRect().height))+'px';
   else dl.style.maxHeight='300px';
   if(hlr)dl.scrollTop=Math.max(0,hlr.offsetTop-dl.clientHeight/2);}
-
-/* ---------------- the pinned scoreboard and the lab book ----------------
-   The scoreboard reads the same in every mode, so two settings can be compared without one
-   of the numbers disappearing; Record freezes the row so a sweep survives the next move. */
-function scoreNow(){
-  var kind=view;
-  return {W:W,H:CAP,scope:scope,view:kind,
-          inScope:MAEIS[scope][kind],yard:MAEL[scope][kind]};}
-function fillScore(){
-  var el=document.getElementById('scorebar');
-  /* tab 1 is the construction of the label: the settings of the model and the lab book have
-     nothing to do with it and do not appear there */
-  if(curTab===0){el.style.display='none';el.innerHTML='';return;}
-  el.style.display='';
-  var s=scoreNow();
-  function chip(tex){return '<span class="sc">'+kx(tex)+'</span>';}
-  var h=chip('W='+s.W+'\\text{ h}')+chip('H='+s.H+'\\text{ h}')
-       +chip('\\text{'+(s.scope==='cap'?'cap':'drop')+'}')
-       +chip('\\text{'+(s.view==='hi'?'z':'mm/s')+'}')
-       +chip('\\text{in-scope MAE }\\textbf{'+fx(s.inScope,2)+'}\\text{ h}')
-       +chip('\\text{last 300 h }\\textbf{'+fx(s.yard,2)+'}\\text{ h}')
-       +(curTab===2?chip('\\text{'+pn(pump)+' bias }\\textbf{'+
-           (biasOf(pump,s.view,(scope==='cap'?COEFC:COEF)[s.view])<0?'-':'+')+
-           fx(Math.abs(biasOf(pump,s.view,(scope==='cap'?COEFC:COEF)[s.view])),0)+
-           '}\\text{ h}'):'')
-       +'<span class="sp"></span>'
-       +'<button class="rec" id="btn-rec"></button>'
-       +(LAB_ROWS.length?'<button id="btn-clr"></button>':'');
-  el.innerHTML=h;
-  K(MT['btn-rec'],document.getElementById('btn-rec'));
-  document.getElementById('btn-rec').addEventListener('click',recordRow);
-  var cl=document.getElementById('btn-clr');
-  if(cl){K(MT['btn-clr'],cl);
-    cl.addEventListener('click',function(){LAB_ROWS=[];upd();});}}
-function rowKey(r){return [r.W,r.H,r.scope,r.view].join('/');}
-function recordRow(){
-  var s=scoreNow(),k=rowKey(s);
-  for(var i=0;i<LAB_ROWS.length;i++)if(rowKey(LAB_ROWS[i])===k)return;   /* no duplicates */
-  LAB_ROWS.push(s);upd();}
-function fillLab(){
-  var el=document.getElementById('labtab');
-  if(curTab===0||!LAB_ROWS.length){el.style.display='none';el.innerHTML='';return;}
-  el.style.display='';
-  var cur=rowKey(scoreNow());
-  var head=['W','H','\\text{scope}','\\text{view}','\\text{in-scope MAE}','\\text{last 300 h}']
-    .map(function(c){return '<th>'+kx(c)+'</th>';}).join('');
-  var body=LAB_ROWS.map(function(r){
-    var cells=[String(r.W),String(r.H),'\\text{'+(r.scope==='cap'?'cap':'drop')+'}',
-               '\\text{'+(r.view==='hi'?'z':'mm/s')+'}',fx(r.inScope,2),fx(r.yard,2)];
-    return '<tr'+(rowKey(r)===cur?' class="cur"':'')+'>'
-      +cells.map(function(v){return '<td>'+kx(v)+'</td>';}).join('')+'</tr>';}).join('');
-  el.innerHTML='<table><thead><tr>'+head+'</tr></thead><tbody>'+body+'</tbody></table>';}
 
 /* ---------------- calc box: the arithmetic, with the real numbers in it ---------------- */
 function lline(t,parts){
@@ -620,55 +496,24 @@ function fillCalc(){
   if(curTab===0){
     /* the calculation of RUL, and nothing else on this tab */
     if(d.role==='censored'){
-      h+=lline('Failure',['\\text{'+pn(pump)+' has not failed}']);
-      h+=lline('RUL',['\\text{no failure to count back from}\\ \\Rightarrow\\ \\text{no label}']);
+      h+=lline('RUL',['\\text{'+pn(pump)+' has not failed}\\Rightarrow RUL=\\text{--}']);
     }else{
-      h+=lline('Failure',['\\text{'+pn(pump)+' failed after '+stampOf(pump,d.n-1)+'}']);
-      h+=lline('RUL',['RUL=\\text{hours from the reading to the failure}',
-        '\\text{last reading '+stampOf(pump,d.n-1)+'}\\Rightarrow RUL=1',
-        '\\text{one hour earlier}\\Rightarrow RUL=2']);
-      h+=lline('After',['\\text{the machine is stopped: no reading, no label}']);}
+      h+=lline('Failure',['\\text{'+stampOf(pump,d.n)+'}']);
+      h+=lline('RUL',['\\text{'+stampOf(pump,d.n-1)+'}\\Rightarrow RUL=1',
+        '\\text{'+stampOf(pump,d.n-2)+'}\\Rightarrow RUL=2',
+        '\\text{'+stampOf(pump,d.n-3)+'}\\Rightarrow RUL=3']);}
   }else if(curTab===1){
-    var w0=Math.min(t+1,W);
-    h+=lline('Smooth',['\\bar x_{'+W+'}('+t+')=\\text{mean of hours }'+Math.max(0,t-W+1)+'\\text{..}'+t,
-      '='+fx(d.raw[t],3)+'\\text{ mm/s}'+(w0<W?'\\ \\text{('+w0+'-hour window so far)}':'')]);
-    if(view==='raw'){
-      /* one span per pump so the line can wrap instead of being clipped at the card edge */
-      var bl=T1P.map(function(p){return '\\text{'+pn(p)+' }'+fx(BYID[p].mu,2);});
-      h+=lline('Baselines',['\\text{healthy means differ:}'].concat(bl)
-        .concat(['\\text{-- mm/s cannot be compared across pumps}']));
-      h+=lline('So',['\\text{measure each pump against its own baseline}\\ \\Rightarrow\\ z']);
-    }else{
-      h+=lline('Baseline',['\\text{hours }'+B0+'\\text{--}'+(B1-1)+'\\text{ of '+pn(pump)+' itself:}',
-        '\\mu='+fx(d.mu,3)+',\\ \\sigma='+fx(d.sd,3)]);
-      h+=lline('Indicator',['HI('+t+')=(\\bar x_{'+W+'}-\\mu)/\\sigma',
-        '=('+fx(d.raw[t],3)+'-'+fx(d.mu,3)+')/'+fx(d.sd,3),'='+fx(d.hi[t],2)]);}
-    /* the smoothing, the baseline and the indicator -- the figure and the scoreboard carry
-       what widening W does, so the calc box does not repeat it in words */
+    /* mu, sigma and HI -- nothing else on this tab */
+    h+=lline('Baseline',['\\mu='+fx(d.mu,2)+',\\ \\sigma='+fx(d.sd,2)]);
+    h+=lline('HI',['HI=(\\bar x_{'+W+'}-\\mu)/\\sigma',
+      '=('+fx(d.raw[t],2)+'-'+fx(d.mu,2)+')/'+fx(d.sd,2),'='+fx(d.hi[t],2)]);
   }else{
-    var kind=view,w=(scope==='cap'?COEFC:COEF)[kind],f=d[kind][t],yh=w[0]+w[1]*f,ya=d.n-t;
-    var bi=biasOf(pump,kind,w);
+    var kind=view,w=COEF[kind],f=d[kind][t],yh=w[0]+w[1]*f,ya=d.n-t;
     var FN=kind==='raw'?'\\bar x_{'+W+'}':'HI';
     h+=lline('Model',['\\widehat{RUL}('+FN+')='+fx(w[0],2)+'-'+fx(-w[1],2)+'\\,'+FN]);
-    /* the linear model and the substitution -- the scatter shows the fit, the scoreboard
-       carries the measures, so nothing else is written out here */
-    /* which rows the line was actually fitted to: capping keeps every hour and lays the
-       out-of-horizon ones flat, dropping keeps only the hours inside H */
-    h+=lline('Fitting',scope==='cap'?
-      ['\\text{least squares on EVERY hour of }'+
-        TRAINP.map(function(q){return '\\text{'+pn(q)+'}';}).join(',\\ '),
-       '\\text{label capped at }'+CAP+'\\Rightarrow '+fx(100*SHARE,0)+
-       '\\%\\text{ of them lie on the flat line}']:
-      ['\\text{least squares on the '+NTRAIN+' hours within }H='+CAP+'\\text{ h}',
-       '\\text{of }'+TRAINP.map(function(q){return '\\text{'+pn(q)+'}';}).join(',\\ ')]);
     h+=lline('Testing hour',[FN+'('+t+')='+fx(f,2),
       '\\widehat{RUL}='+fx(w[0],2)+'-'+fx(-w[1],2)+'\\cdot'+fx(f,2)+'='+fx(yh,0)+'\\text{ h}',
       '\\text{actual }'+fx(ya,0)+'\\text{ h}','\\text{error }'+fx(ya-yh,0)+'\\text{ h}']);}
-  /* the scoreboard carries W and H at all times, so this line exists only to warn: the page
-     must never quietly pass off a changed setting as the workflow's result */
-  if(!atDefault())
-    h+=lline('Setting',['\\text{changed from }W='+W0+',\\ H='+H0+'\\text{,}',
-      '\\text{so these numbers are yours, not those of the workflow}']);
   el.innerHTML=h;}
 
 /* ---------------- controls ---------------- */
@@ -691,8 +536,7 @@ function paintSeg(){
     b.className=b.getAttribute('data-p')===pump?'on':'';});
   document.querySelectorAll('#viewSeg button').forEach(function(b){
     b.className=b.getAttribute('data-v')===view?'on':'';});
-  document.querySelectorAll('#scopeSeg button').forEach(function(b){
-    b.className=b.getAttribute('data-s')===scope?'on':'';});}
+}
 function syncNow(){
   var d=BYID[pump],t=Math.min(nowOf(pump),d.n-1);NOWM[pump]=t;
   ['Rnow','Nnow'].forEach(function(id){var e=document.getElementById(id);
@@ -700,33 +544,18 @@ function syncNow(){
 function upd(){paintSeg();fillPumpHint();
   document.querySelector('.canvasbox').className='canvasbox'+(curTab===2?' two':'');
   sizeCanvas();draw();fillLegend();fillTable();fillCalc();
-  fillScore();fillLab();
   if(Math.round(cv.clientWidth)!==CW||Math.round(cv.clientHeight)!==CH){sizeCanvas();draw();}}
 function applyTab(i){curTab=i;
   document.querySelectorAll('.tabbtn').forEach(function(b,j){b.className='tabbtn'+(j===i?' on':'');});
   if(pumpsOfTab().indexOf(pump)<0)pump=pumpsOfTab()[0];
   document.getElementById('grp-view').style.display=curTab===0?'none':'';
   document.getElementById('grp-now').style.display=curTab===0?'none':'';
-  document.getElementById('grp-win').style.display=curTab===1?'':'none';
-  document.getElementById('grp-scope').style.display=curTab===2?'':'none';
   buildPumpSeg();syncNow();renderTexts();upd();}
 var tb2=document.getElementById('tabs');
 TABS.forEach(function(t,i){var el=document.createElement('button');el.className='tabbtn';
   K('\\text{'+t.n+'}',el);el.addEventListener('click',function(){applyTab(i);});tb2.appendChild(el);});
 document.querySelectorAll('#viewSeg button').forEach(function(b){
   b.addEventListener('click',function(){view=b.getAttribute('data-v');upd();});});
-document.querySelectorAll('#scopeSeg button').forEach(function(b){
-  b.addEventListener('click',function(){scope=b.getAttribute('data-s');upd();});});
-function setWin(v){W=Math.max(1,Math.min(72,Math.round(v)));
-  document.getElementById('Rwin').value=W;document.getElementById('Nwin').value=W;
-  rebuild();upd();}
-function setHor(v){CAP=Math.max(240,Math.min(1440,Math.round(v/120)*120));
-  document.getElementById('Rhor').value=CAP;document.getElementById('Nhor').value=CAP;
-  rebuild();upd();}
-['Rwin','Nwin'].forEach(function(id){document.getElementById(id)
-  .addEventListener('input',function(){setWin(+this.value||1);});});
-['Rhor','Nhor'].forEach(function(id){document.getElementById(id)
-  .addEventListener('input',function(){setHor(+this.value||720);});});
 ['Rnow','Nnow'].forEach(function(id){
   document.getElementById(id).addEventListener('input',function(){
     var v=Math.max(0,Math.min(BYID[pump].n-1,Math.round(+this.value||0)));
@@ -749,7 +578,7 @@ window.LAB={
         var lab2=q.role==='censored'?null:q.n-t2;
         return {t:t2,smooth:+q.raw[t2].toFixed(6),hi:+q.hi[t2].toFixed(6),
                 rul:lab2,inScope:lab2===null?null:lab2<=CAP};});});
-    var kind=view,f=d[kind]?d[kind][t]:null,w=(scope==='cap'?COEFC:COEF)[kind];
+    var kind=view,f=d[kind]?d[kind][t]:null,w=COEF[kind];
     return {tab:curTab,pump:pump,now:t,view:view,
       cap:CAP,window:W,base0:B0,base1:B1-1,
       label:d.role==='censored'?null:d.n-t,
@@ -758,21 +587,7 @@ window.LAB={
       pred:(curTab===2&&f!==null)?+(w[0]+w[1]*f).toFixed(6):null,
       coef:{raw:[+COEF.raw[0].toFixed(6),+COEF.raw[1].toFixed(6)],
             hi:[+COEF.hi[0].toFixed(6),+COEF.hi[1].toFixed(6)]},
-      coefCap:{raw:[+COEFC.raw[0].toFixed(6),+COEFC.raw[1].toFixed(6)],
-               hi:[+COEFC.hi[0].toFixed(6),+COEFC.hi[1].toFixed(6)]},
-      scope:scope,shareAtCap:+SHARE.toFixed(6),
-      score:{W:W,H:CAP,scope:scope,view:view,
-             inScope:+MAEIS[scope][view].toFixed(6),yard:+MAEL[scope][view].toFixed(6)},
-      labRows:LAB_ROWS.map(function(r){return {W:r.W,H:r.H,scope:r.scope,view:r.view,
-        inScope:+r.inScope.toFixed(6),yard:+r.yard.toFixed(6)};}),
-      maeInScope:{filter:{raw:+MAEIS.filter.raw.toFixed(6),hi:+MAEIS.filter.hi.toFixed(6)},
-                  cap:{raw:+MAEIS.cap.raw.toFixed(6),hi:+MAEIS.cap.hi.toFixed(6)}},
-      bias:+biasOf(pump,view,(scope==='cap'?COEFC:COEF)[view]).toFixed(6),
-      H:CAP,Wwin:W,atDefault:atDefault(),nTrain:NTRAIN,nTest:NTEST,
-      diag:(function(){var g=diagOf(pump);
-        return {jitter:+g.jitter.toFixed(6),corr:+g.corr.toFixed(6)};})(),
-      maeLast300:{filter:{raw:+MAEL.filter.raw.toFixed(6),hi:+MAEL.filter.hi.toFixed(6)},
-                  cap:{raw:+MAEL.cap.raw.toFixed(6),hi:+MAEL.cap.hi.toFixed(6)}},
+      nTrain:NTRAIN,nTest:NTEST,
       maeDeploy:{raw:+MAED.raw.toFixed(6),hi:+MAED.hi.toFixed(6)},
       checksums:cs,probes:probes,
       pumpChoices:pumpsOfTab().slice()};},
@@ -780,15 +595,7 @@ window.LAB={
     if(o.tab!=null){applyTab(Math.max(0,Math.min(2,+o.tab)));}
     if(o.pump&&BYID[o.pump]&&pumpsOfTab().indexOf(o.pump)>=0){pump=o.pump;syncNow();}
     if(o.view==='raw'||o.view==='hi'){view=o.view;}
-    if(o.scope==='filter'||o.scope==='cap'){scope=o.scope;}
-    if(o.W!=null){W=Math.max(1,Math.min(72,Math.round(+o.W)));
-      document.getElementById('Rwin').value=W;document.getElementById('Nwin').value=W;rebuild();}
-    if(o.H!=null){CAP=Math.max(240,Math.min(1440,Math.round(+o.H/120)*120));
-      document.getElementById('Rhor').value=CAP;document.getElementById('Nhor').value=CAP;rebuild();}
     if(o.now!=null){NOWM[pump]=Math.max(0,Math.min(BYID[pump].n-1,Math.round(+o.now)));syncNow();}
-    /* last: a row records the setting this call has just produced, not the one before it */
-    if(o.clear)LAB_ROWS=[];
-    if(o.record)recordRow();
     upd();}};
 
 renderTexts();applyTab(0);
