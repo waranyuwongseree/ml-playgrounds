@@ -74,6 +74,9 @@
         <div class="drow"><span class="dlab" id="lbl-sg"></span><input type="range" id="Rsg" min="0.5" max="4" step="0.5" value="1"><input class="num" type="number" id="Nsg" min="0.5" max="4" step="0.5" value="1"></div>
         <div class="drow"><span class="dlab" id="lbl-n"></span><input type="range" id="Rn" min="28" max="84" step="7" value="56"><input class="num" type="number" id="Nn" min="28" max="84" step="7" value="56"></div>
       </div></div>
+      <div id="grp-proc"><div class="dgrid">
+        <div class="drow"><span class="dlab" id="lbl-co"></span><input type="range" id="Rco" min="-0.9" max="0.9" step="0.1" value="0.7"><input class="num" type="number" id="Nco" min="-0.9" max="0.9" step="0.1" value="0.7"></div>
+      </div></div>
       <div id="grp-lag"><div class="dhd" id="hd-lag"></div>
       <div class="dgrid">
         <div class="drow"><span class="dlab" id="lbl-k"></span><input type="range" id="Rk" min="1" max="14" step="1" value="7"><input class="num" type="number" id="Nk" min="1" max="14" step="1" value="7"></div>
@@ -142,6 +145,16 @@ var DS={ar:{phi:0.7,sg:1,n:56,seed:20101},
         ma:{th:0.8,sg:1,n:56,seed:30010},
         rw:{sg:1,n:56,seed:40301}};
 var dsK='custom',ZNP={};
+/* the coefficient each process is built from: a lever, opening on the value the reference
+   pins, and kept per dataset so switching back finds what you left */
+function coefOf(){return dsK==='ar'?DS.ar.phi:dsK==='ma'?DS.ma.th:0;}
+/* a negative coefficient turns the plus into a minus, it does not print both */
+function sgn(){var c=coefOf();return (c<0?'-':'+')+fx(Math.abs(c),1);}
+function setCoef(v){
+  v=Math.max(-0.9,Math.min(0.9,Math.round(v*10)/10));
+  if(dsK==='ar')DS.ar.phi=v;else if(dsK==='ma')DS.ma.th=v;else return;
+  SERC={};FITC={};                       /* both caches are keyed without the coefficient */
+  document.getElementById('Rco').value=v;document.getElementById('Nco').value=v;}
 function cur(){if(dsK==='custom')return {b:gv('b'),A:gv('A'),sg:gv('sg'),n:Math.round(gv('n')),zn:ZN};
   var d=DS[dsK];if(!ZNP[dsK])ZNP[dsK]=znOf(d.seed);
   return {b:0,A:0,sg:d.sg,n:d.n,zn:ZNP[dsK]};}
@@ -481,11 +494,11 @@ function fillLegend(){
       +leg('background:'+CSE,'\\text{Seasonal, size }A')
       +leg('background:'+CNO,'\\text{Noise, sd }\\sigma')
       +leg('background:'+CS,'\\text{The sum }y_t');
-    else if(dsK==='ar')h+=leg('background:'+CTR,'\\text{Memory, }0.7(y_{t-1}-40)')
+    else if(dsK==='ar')h+=leg('background:'+CTR,'\\text{Memory, }'+fx(coefOf(),1)+'(y_{t-1}-40)')
       +leg('background:'+CNO,'\\text{Shock }\\varepsilon_t')
       +leg('background:'+CS,'\\text{The sum }y_t');
     else if(dsK==='ma')h+=leg('background:'+CNO,'\\text{Shock }\\varepsilon_t')
-      +leg('background:'+CTR,'\\text{Old shock, }0.8\\,\\varepsilon_{t-1}')
+      +leg('background:'+CTR,'\\text{Old shock, }'+fx(coefOf(),1)+'\\,\\varepsilon_{t-1}')
       +leg('background:'+CS,'\\text{The sum }y_t');
     else h+=leg('background:'+CNO,'\\text{Shock }\\varepsilon_t')
       +leg('background:'+CS,'y_t=y_{t-1}+\\varepsilon_t');}
@@ -512,8 +525,8 @@ function fillTable(){
       for(var t=1;t<=n;t++){var p=parts(t);
         rows.push({hl:t===t0,cells:[String(t),fx(p.tr,1),fx(p.se,1),fx(p.no,1),fx(y[t],1)],yc:4});}
     }else{var pr=proc();
-      cols=dsK==='ar'?['\\text{Day }(t)','0.7\\,(y_{t-1}{-}40)','\\varepsilon_t','y_t']
-          :dsK==='ma'?['\\text{Day }(t)','\\varepsilon_t','0.8\\,\\varepsilon_{t-1}','y_t']
+      cols=dsK==='ar'?['\\text{Day }(t)',fx(coefOf(),1)+'\\,(y_{t-1}{-}40)','\\varepsilon_t','y_t']
+          :dsK==='ma'?['\\text{Day }(t)','\\varepsilon_t',fx(coefOf(),1)+'\\,\\varepsilon_{t-1}','y_t']
                      :['\\text{Day }(t)','y_{t-1}','\\varepsilon_t','y_t'];
       cap=dsK==='ar'?'\\text{'+n+' days of an AR(1) process}'
          :dsK==='ma'?'\\text{'+n+' days of an MA(1) process}'
@@ -540,7 +553,7 @@ function fillTable(){
         fx(fit.fc[h2]-1.96*fit.se[h2],1),fx(fit.fc[h2]+1.96*fit.se[h2],1)],yc:-1});
   }
   hd.innerHTML=cols.map(function(c){return '<th>'+kx(Wt(c))+'</th>';}).join('');
-  document.getElementById('dtcap').innerHTML=kx(cap);
+  document.getElementById('dtcap').innerHTML='';
   var h='';
   rows.forEach(function(r){
     h+='<tr'+(r.hl?' class="hl"':(r.te?' class="te"':''))+'>'+r.cells.map(function(v,j){
@@ -571,14 +584,14 @@ function fillCalc(){
     }else{
       var pr=proc(),a=pr.c1[t0],e=pr.c2[t0];
       if(dsK==='ar'){
-        h+=lline('Memory',['0.7\\,(y_{'+(t0-1)+'}{-}40)='+fx(a,2),
-          '\\text{(0.7 of yesterday remains)}']);
+        h+=lline('Memory',[fx(coefOf(),1)+'\\,(y_{'+(t0-1)+'}{-}40)='+fx(a,2),
+          '\\text{('+fx(coefOf(),1)+' of yesterday remains)}']);
         h+=lline('Shock',['\\varepsilon_{'+t0+'}='+fx(e,2)]);
         h+=lline('Sum',['y_{'+t0+'}=40'+(a<0?'-':'+')+fx(Math.abs(a),2)
           +(e<0?'-':'+')+fx(Math.abs(e),2)+'='+fx(y[t0],1)]);
       }else if(dsK==='ma'){
         h+=lline('Shock',['\\varepsilon_{'+t0+'}='+fx(a,2)]);
-        h+=lline('Old shock',['0.8\\,\\varepsilon_{'+(t0-1)+'}='+fx(e,2),
+        h+=lline('Old shock',[fx(coefOf(),1)+'\\,\\varepsilon_{'+(t0-1)+'}='+fx(e,2),
           '\\text{(yesterday echoes once, then is gone)}']);
         h+=lline('Sum',['y_{'+t0+'}=40'+(a<0?'-':'+')+fx(Math.abs(a),2)
           +(e<0?'-':'+')+fx(Math.abs(e),2)+'='+fx(y[t0],1)]);
@@ -627,13 +640,18 @@ function fillEq(){
   /* the levers, shown IN the equation they steer; a process shows its own recursion */
   var el=document.getElementById('eqline');
   K(dsK==='custom'?'y_t=40+b\\,(t-1)+A\\,s_t+\\sigma\\,\\varepsilon_t'
-    :dsK==='ar'?'y_t=40+0.7\\,(y_{t-1}-40)+\\varepsilon_t'
-    :dsK==='ma'?'y_t=40+\\varepsilon_t+0.8\\,\\varepsilon_{t-1}'
+    :dsK==='ar'?'y_t=40'+sgn()+'\\,(y_{t-1}-40)+\\varepsilon_t'
+    :dsK==='ma'?'y_t=40+\\varepsilon_t'+sgn()+'\\,\\varepsilon_{t-1}'
     :'y_t=y_{t-1}+\\varepsilon_t,\\ y_0=40',el);}
 function syncRows(){
   /* the component levers live on the data tabs; the model tab is for the orders (and Hick:
      at most six simultaneous levers) */
   document.getElementById('grp-custom').style.display=(dsK==='custom'&&curTab!==3)?'':'none';
+  var proc2=(dsK==='ar'||dsK==='ma')&&curTab!==3;
+  document.getElementById('grp-proc').style.display=proc2?'':'none';
+  if(proc2){K(dsK==='ar'?'\\phi':'\\theta',document.getElementById('lbl-co'));
+    document.getElementById('Rco').value=coefOf();
+    document.getElementById('Nco').value=coefOf();}
   document.getElementById('grp-resample').style.display=dsK==='custom'?'':'none';
   document.getElementById('grp-lag').style.display=(curTab===1||curTab===2)?'':'none';
   document.getElementById('grp-ex').style.display=curTab===0?'':'none';
@@ -655,6 +673,8 @@ document.querySelectorAll('#dsSeg button').forEach(function(b){
   var Re=document.getElementById('R'+b),Ne=document.getElementById('N'+b);
   Re.addEventListener('input',function(){Ne.value=Re.value;FITC={};upd();});
   Ne.addEventListener('input',function(){Re.value=Ne.value;FITC={};upd();});});
+['Rco','Nco'].forEach(function(id){document.getElementById(id)
+  .addEventListener('input',function(){setCoef(+this.value||0);upd();});});
 document.getElementById('resample').addEventListener('click',function(){
   seed=(seed*1664525+1013904223)>>>0;regen(seed);FITC={};upd();});
 window.addEventListener('resize',function(){sizeCanvas();upd();});
@@ -666,6 +686,7 @@ window.LAB={
     var pc=pacfList(yv,14).map(function(v){return +v.toFixed(6);});
     var out={tab:curTab,seed:seed,n:n,ds:dsK,b:cur().b,A:cur().A,sg:cur().sg,
       k:Math.round(gv('k')),t0:Math.round(gv('t0')),ord:ordOf(),m:M,level:LEVEL,
+      coef:coefOf(),
       y:yv.map(function(v){return +v.toFixed(1);}),acf:ac,pacf:pc,
       bound:+(1.96/Math.sqrt(n)).toFixed(6)};
     if(curTab===3){var fit=fitOf(ordOf(),y),F=fit.F;
@@ -685,6 +706,7 @@ window.LAB={
     if(o.model==='arima'||o.model==='sarima'){
       ['p','d','q'].forEach(function(b2){sv(b2,1);});
       ['P','D','Q'].forEach(function(b2){sv(b2,o.model==='sarima'?1:0);});}
+    if(o.coef!=null)setCoef(+o.coef);
     if(o.tab!=null)applyTab(Math.max(0,Math.min(3,+o.tab)));
     else upd();}};
 
