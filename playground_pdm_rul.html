@@ -10,7 +10,7 @@
 <style>
   /* intro-RUL — โครงเดียวกับ Introduction to Regression: ตารางข้อมูลซ้าย · กราฟ + legend +
      กล่องคำนวณ · control ขวา · ข้อมูลเป็นของจริงจากเวิร์กโฟลว์ Day 7 จึงไม่มีปุ่ม Resample */
-  :root{--panel-h:234px}   /* ความสูงจริงของ tab ที่ control สูงสุด (รวม margin) — ตรึงทุก tab เท่ากัน */
+  :root{--panel-h:304px}   /* ความสูงจริงของ tab ที่ control สูงสุด (รวม margin) — ตรึงทุก tab เท่ากัน */
   .layout{align-items:start}
   .pg.distcls .canvasbox{height:260px}
   .distcls .stage{gap:6px}
@@ -45,7 +45,7 @@
 </style>
 </head>
 <body class="pg distcls">
-<h2 class="sr-only" style="position:absolute;width:1px;height:1px;overflow:hidden">Introduction to Remaining Useful Life on the course's own seven pumps. Tab one: where the label comes from — a pump that ran to failure gives every hour a label, the hours left until that failure; the model works inside a 720-hour planning horizon; a pump still running has no label yet. Tab two: the health indicator — pumps sit at different healthy vibration levels in mm per second, so the reading is smoothed over 24 hours and z-scored against the pump's own baseline window. Tab three: one linear regression from the indicator to the hours left, fitted on the four failed training pumps and read out step by step at any testing hour of a new pump.</h2>
+<h2 class="sr-only" style="position:absolute;width:1px;height:1px;overflow:hidden">Introduction to Remaining Useful Life on the course's own seven pumps. Tab one: where the label comes from — a pump that ran to failure gives every hour a label, the hours left until that failure; the model works inside a 720-hour planning horizon; a pump still running has no label yet. Tab two: the health indicator — pumps sit at different healthy vibration levels in mm per second, so the reading is smoothed over 24 hours and z-scored against the pump's own baseline window. Tab three: one linear regression from the indicator to the hours left, fitted on the four failed training pumps and read out step by step at any testing hour of a new pump. A scope control on the predict tab compares dropping the hours beyond the horizon against capping their label at 720: capping lays over a third of the training hours on a flat line and makes the late predictions worse.</h2>
 <div class="wrap">
   <div class="hdr"><h1 id="h1">Introduction to RUL</h1><div class="tabs" id="tabs"></div></div>
   <div class="layout" id="mainPanel">
@@ -63,6 +63,8 @@
       <div class="seg2" id="pumpSeg"></div>
       <div id="grp-view"><div class="dhd" id="hd-view"></div>
       <div class="seg2" id="viewSeg"><button data-v="raw" id="vb-raw"></button><button data-v="hi" id="vb-hi" class="on"></button></div></div>
+      <div id="grp-scope"><div class="dhd" id="hd-scope"></div>
+      <div class="seg2" id="scopeSeg"><button data-s="filter" id="sb-filter" class="on"></button><button data-s="cap" id="sb-cap"></button></div></div>
       <div class="dhd" id="hd-now"></div>
       <div class="dgrid">
         <div class="drow" id="row-now"><span class="dlab" id="lbl-now"></span><input type="range" id="Rnow" min="0" max="1204" step="1" value="260"><input class="num" type="number" id="Nnow" min="0" max="1204" step="1" value="260"></div>
@@ -99,7 +101,13 @@
 
    Every number is computed here and cross-checked against pdm_rul_ref.py, which reads the
    workflow's own CSVs and refuses to run unless this same model reproduces all four Numeric
-   Scorers (129.6724/0.5215 · 93.7817/0.7580 · 64.0899/0.8936 · 47.6038/0.9383).
+   Scorers (129.3705/0.3833 · 108.4016/0.6112 · 76.8054/0.8200 · 51.5509/0.9073).
+
+   RIT 2026-09-24: follow the reworked workflow -- a horizon, not a cap -- and port the
+   story's measured argument (its scope page): capping the label instead of dropping the
+   out-of-horizon hours lays 37% of the training hours on a flat line at 720, tilts the
+   regression, and costs ~7 h of MAE in the last 300 h before failure. The Scope control
+   on Predict shows exactly that, with the story's own numbers re-derived here.
    ========================================================================================== */
 var CAP=RULDATA.cap, W=RULDATA.win, B0=RULDATA.base0, B1=RULDATA.base1+1;
 /* one colour per pump, every pair dE >= 25 within any one legend -- measured, not assumed.
@@ -131,28 +139,42 @@ RULDATA.pumps.forEach(function(p){
 /* the one model of the day: least squares over the in-scope hours (RUL <= 720) of the four
    failed training pumps, target = the true RUL_hours -- the same rows the workflow's Row
    Filter keeps, and the same two-pass arithmetic as pdm_rul_ref.py */
-function fitFull(kind){
+function fitFull(kind,variant){
   var sx=0,sy=0,n=0,a,i,p,x,y;
   for(a=0;a<TRAINP.length;a++){p=TRAINP[a];x=BYID[p][kind];
-    for(i=0;i<x.length;i++){y=BYID[p].n-i;if(y>CAP)continue;sx+=x[i];sy+=y;n++;}}
+    for(i=0;i<x.length;i++){y=BYID[p].n-i;
+      if(variant==='cap')y=Math.min(y,CAP);else if(y>CAP)continue;
+      sx+=x[i];sy+=y;n++;}}
   var mx=sx/n,my=sy/n,sxx=0,sxy=0;
   for(a=0;a<TRAINP.length;a++){p=TRAINP[a];x=BYID[p][kind];
-    for(i=0;i<x.length;i++){y=BYID[p].n-i;if(y>CAP)continue;
+    for(i=0;i<x.length;i++){y=BYID[p].n-i;
+      if(variant==='cap')y=Math.min(y,CAP);else if(y>CAP)continue;
       sxx+=(x[i]-mx)*(x[i]-mx);sxy+=(x[i]-mx)*(y-my);}}
   var b=sxy/sxx;
   return [my-b*mx,b];}
-var COEF={raw:fitFull('raw'),hi:fitFull('hi')};
-function maeDeploy(kind){
-  var w=COEF[kind],s=0,n=0;
+var COEF={raw:fitFull('raw','filter'),hi:fitFull('hi','filter')};
+var COEFC={raw:fitFull('raw','cap'),hi:fitFull('hi','cap')};
+/* the story's scope study, re-derived: capping trains on every hour, so the hours whose
+   true RUL >= 720 all land ON the horizon line -- that share is the flat the story shows */
+function shareFlat(){var flat=0,n=0;
+  TRAINP.forEach(function(p){var d=BYID[p];
+    for(var i=0;i<d.n;i++){if(d.n-i>=CAP)flat++;n++;}});
+  return flat/n;}
+var SHARE=shareFlat();
+function maeDeploy(kind,w,late){
+  var s=0,n=0;
   DEPLOYP.forEach(function(p){var x=BYID[p][kind],d=BYID[p];
     for(var i=0;i<x.length;i++){var y=d.n-i;if(y>CAP)continue;
+      if(late&&y>300)continue;
       s+=Math.abs(w[0]+w[1]*x[i]-y);n++;}});
   return s/n;}
-var MAED={raw:maeDeploy('raw'),hi:maeDeploy('hi')};
+var MAED={raw:maeDeploy('raw',COEF.raw),hi:maeDeploy('hi',COEF.hi)};
+var MAEL={filter:{raw:maeDeploy('raw',COEF.raw,true),hi:maeDeploy('hi',COEF.hi,true)},
+          cap:{raw:maeDeploy('raw',COEFC.raw,true),hi:maeDeploy('hi',COEFC.hi,true)}};
 
 /* ---------------- state ---------------- */
 var TABS=[{n:'The label'},{n:'The health indicator'},{n:'Predict'}];
-var curTab=0,pump='PUMP-01',view='hi',NOWM={};
+var curTab=0,pump='PUMP-01',view='hi',scope='filter',NOWM={};
 function pumpsOfTab(){return curTab===2?DEPLOYP:T1P;}
 function nowOf(pid){if(NOWM[pid]===undefined)NOWM[pid]=Math.min(260,BYID[pid].n-1);
   return NOWM[pid];}
@@ -160,6 +182,7 @@ function nowOf(pid){if(NOWM[pid]===undefined)NOWM[pid]=Math.min(260,BYID[pid].n-
 /* ---------------- KaTeX ---------------- */
 var MT={'h1':'\\text{Introduction to RUL}','hd-pump':'\\text{Pump}',
   'hd-view':'\\text{Health indicator}','vb-raw':'\\text{mm/s}','vb-hi':'z\\text{ vs baseline}',
+  'hd-scope':'\\text{Hours beyond 720}','sb-filter':'\\text{Drop}','sb-cap':'\\text{Cap at 720}',
   'hd-now':'\\text{Testing hour}','lbl-now':'t'};
 var KXC={};
 function kx(t){if(KXC[t]!==undefined)return KXC[t];var r;
@@ -280,7 +303,7 @@ function draw2(lb){
 
 /* ============ tab 3 · predict: hours left from the indicator ============ */
 function draw3(lb){
-  var kind=view,w=COEF[kind];
+  var kind=view,w=(scope==='cap'?COEFC:COEF)[kind];
   var L=48,Rm=14,TOP=26,BOT=38,pw=CW-L-Rm,ph=CH-TOP-BOT;
   var lo=Infinity,hi=-Infinity;
   TRAINP.concat([pump]).forEach(function(p){var arr=BYID[p][kind];
@@ -297,14 +320,15 @@ function draw3(lb){
      line straight across the pump joins of a Loop End table -- the course's exec gate even
      bans that pairing. The playground has no such limit, so each pump's path down to failure
      is its own line, and the four training paths visibly disagree in mm/s. */
-  function path(pid,wd,al){var d3=BYID[pid],arr3=d3[kind];
+  function path(pid,wd,al,bend){var d3=BYID[pid],arr3=d3[kind];
     ctx.strokeStyle=PCOL[pid];ctx.lineWidth=wd;ctx.globalAlpha=al;ctx.beginPath();
     var first=true;
     for(var i3=0;i3<arr3.length;i3+=24){
-      var X3=P.px(arr3[i3]),Y3=P.py(d3.n-i3);
+      var y3=d3.n-i3;if(bend)y3=Math.min(y3,CAP);   /* capped labels lie ON the horizon */
+      var X3=P.px(arr3[i3]),Y3=P.py(y3);
       first?ctx.moveTo(X3,Y3):ctx.lineTo(X3,Y3);first=false;}
     ctx.stroke();ctx.globalAlpha=1;}
-  TRAINP.forEach(function(p3){path(p3,1.6,0.6);});   /* the paths the line was fitted on */
+  TRAINP.forEach(function(p3){path(p3,1.6,0.6,scope==='cap');});   /* the fitted paths */
   path(pump,3,1);                                    /* the chosen new pump, on top */
   /* the model */
   ctx.strokeStyle=NAVY;ctx.lineWidth=2.6;ctx.beginPath();
@@ -316,15 +340,18 @@ function draw3(lb){
   var Xq=P.px(xq),Yh=Math.max(TOP,Math.min(TOP+ph,P.py(yh)));
   ctx.strokeStyle=INK;ctx.setLineDash([4,4]);ctx.lineWidth=1.3;
   ctx.beginPath();ctx.moveTo(Xq,TOP+ph);ctx.lineTo(Xq,Yh);ctx.stroke();ctx.setLineDash([]);
+  /* the actual can exceed the axis (RUL beyond the horizon early in life): clamp the ring
+     to the frame, and when the two labels land close, put them on opposite sides */
+  var Ya=Math.max(TOP,Math.min(TOP+ph,P.py(ya)));
   ctx.strokeStyle='rgba(255,255,255,0.9)';ctx.lineWidth=4;
-  ctx.beginPath();ctx.arc(Xq,P.py(ya),9,0,7);ctx.stroke();
-  ctx.strokeStyle=INK;ctx.lineWidth=2;ctx.beginPath();ctx.arc(Xq,P.py(ya),9,0,7);ctx.stroke();
+  ctx.beginPath();ctx.arc(Xq,Ya,9,0,7);ctx.stroke();
+  ctx.strokeStyle=INK;ctx.lineWidth=2;ctx.beginPath();ctx.arc(Xq,Ya,9,0,7);ctx.stroke();
   testDot(Xq,Yh);
-  var rt=Xq>L+pw/2;
+  var rt=Xq>L+pw/2,ra=Math.abs(Ya-Yh)<26?!rt:rt;
   lb('\\widehat{RUL}='+fx(yh,0)+'\\text{ h}',Xq+(rt?-12:12),Yh-10,
      {align:rt?'right':'left',color:NAVY,bg:'rgba(255,255,255,0.9)'});
-  lb('\\text{actual }'+fx(ya,0),Xq+(rt?-12:12),P.py(ya)+18,
-     {align:rt?'right':'left',color:INK,bg:'rgba(255,255,255,0.9)'});
+  lb('\\text{actual }'+fx(ya,0),Xq+(ra?-12:12),Ya+18,
+     {align:ra?'right':'left',color:INK,bg:'rgba(255,255,255,0.9)'});
   lb('\\text{hours left}',L+4,TOP-8);
   lb(kind==='raw'?'\\text{mm/s, 24-h mean}':'HI\\ (z)',L+pw,TOP+ph+32,{align:'right'});
 }
@@ -366,7 +393,7 @@ function fillTable(){
     val=function(i){return [String(i),fx(d.vib[i],3),cens?'\\text{?}':String(d.n-i)];};}
   else if(curTab===1){cols=['\\text{Hour }(t)','\\text{Vib}','\\text{Mean 24 h}','HI'];ycol=-1;
     val=function(i){return [String(i),fx(d.vib[i],3),fx(d.raw[i],3),fx(d.hi[i],2)];};}
-  else{var kind=view,w=COEF[kind];ycol=2;
+  else{var kind=view,w=(scope==='cap'?COEFC:COEF)[kind];ycol=2;
     cols=['\\text{Hour}',kind==='raw'?'\\text{Mean 24 h}':'HI','RUL\\text{, h }(y)','\\widehat{RUL}','y-\\widehat{RUL}'];
     val=function(i){var f=d[kind][i],p2=w[0]+w[1]*f,ya=d.n-i;
       return [String(i),fx(f,kind==='raw'?3:2),String(ya),fx(p2,0),fx(ya-p2,0)];};}
@@ -424,17 +451,26 @@ function fillCalc(){
       h+=lline('Indicator',['HI('+t+')=(\\bar x_{24}-\\mu)/\\sigma',
         '=('+fx(d.raw[t],3)+'-'+fx(d.mu,3)+')/'+fx(d.sd,3),'='+fx(d.hi[t],2)]);}
   }else{
-    var kind=view,w=COEF[kind],f=d[kind][t],yh=w[0]+w[1]*f,ya=d.n-t;
+    var kind=view,w=(scope==='cap'?COEFC:COEF)[kind],f=d[kind][t],yh=w[0]+w[1]*f,ya=d.n-t;
     var FN=kind==='raw'?'\\bar x_{24}':'HI';
     h+=lline('Model',['\\widehat{RUL}('+FN+')='+fx(w[0],2)+'-'+fx(-w[1],2)+'\\,'+FN]);
-    h+=lline('Fitting',['\\text{least squares on the hours within 720 h of }'+
-      TRAINP.map(function(q){return '\\text{'+pn(q)+'}';}).join(',\\ ')]);
+    h+=lline('Fitting',scope==='cap'?
+      ['\\text{least squares on EVERY hour of }'+
+        TRAINP.map(function(q){return '\\text{'+pn(q)+'}';}).join(',\\ '),
+       '\\text{label capped at 720}\\Rightarrow '+fx(100*SHARE,0)+'\\%\\text{ of the hours lie on the flat line}']:
+      ['\\text{least squares on the hours within 720 h of }'+
+        TRAINP.map(function(q){return '\\text{'+pn(q)+'}';}).join(',\\ ')]);
     h+=lline('Testing hour',[FN+'('+t+')='+fx(f,2),
       '\\widehat{RUL}='+fx(w[0],2)+'-'+fx(-w[1],2)+'\\cdot'+fx(f,2)+'='+fx(yh,0)+'\\text{ h}',
       '\\text{actual }'+fx(ya,0)+'\\text{ h}','\\text{error }'+fx(ya-yh,0)+'\\text{ h}']);
-    h+=lline('In scope',['\\text{mean }|\\text{error}|\\text{ over both new pumps, RUL}\\le 720',
-      '='+fx(MAED[kind],2)+'\\text{ h}',
-      kind==='hi'?'\\text{(mm/s: '+fx(MAED.raw,2)+' h)}':'\\text{(}z\\text{: '+fx(MAED.hi,2)+' h)}']);}
+    if(scope==='filter')
+      h+=lline('In scope',['\\text{mean }|\\text{error}|\\text{ over both new pumps, RUL}\\le 720',
+        '='+fx(MAED[kind],2)+'\\text{ h}',
+        kind==='hi'?'\\text{(mm/s: '+fx(MAED.raw,2)+' h)}':'\\text{(}z\\text{: '+fx(MAED.hi,2)+' h)}']);
+    h+=lline('Last 300 h',['\\text{mean }|\\text{error}|\\text{ close to failure:}',
+      '\\text{drop }'+fx(MAEL.filter[kind],2)+'\\text{ h}',
+      '\\text{cap }'+fx(MAEL.cap[kind],2)+'\\text{ h}',
+      '\\text{-- the flat rows tilt the line}']);}
   el.innerHTML=h;}
 
 /* ---------------- controls ---------------- */
@@ -450,7 +486,9 @@ function paintSeg(){
   document.querySelectorAll('#pumpSeg button').forEach(function(b){
     b.className=b.getAttribute('data-p')===pump?'on':'';});
   document.querySelectorAll('#viewSeg button').forEach(function(b){
-    b.className=b.getAttribute('data-v')===view?'on':'';});}
+    b.className=b.getAttribute('data-v')===view?'on':'';});
+  document.querySelectorAll('#scopeSeg button').forEach(function(b){
+    b.className=b.getAttribute('data-s')===scope?'on':'';});}
 function syncNow(){
   var d=BYID[pump],t=Math.min(nowOf(pump),d.n-1);NOWM[pump]=t;
   ['Rnow','Nnow'].forEach(function(id){var e=document.getElementById(id);
@@ -461,12 +499,15 @@ function applyTab(i){curTab=i;
   document.querySelectorAll('.tabbtn').forEach(function(b,j){b.className='tabbtn'+(j===i?' on':'');});
   if(pumpsOfTab().indexOf(pump)<0)pump=pumpsOfTab()[0];
   document.getElementById('grp-view').style.display=curTab===0?'none':'';
+  document.getElementById('grp-scope').style.display=curTab===2?'':'none';
   buildPumpSeg();syncNow();renderTexts();upd();}
 var tb2=document.getElementById('tabs');
 TABS.forEach(function(t,i){var el=document.createElement('button');el.className='tabbtn';
   K('\\text{'+t.n+'}',el);el.addEventListener('click',function(){applyTab(i);});tb2.appendChild(el);});
 document.querySelectorAll('#viewSeg button').forEach(function(b){
   b.addEventListener('click',function(){view=b.getAttribute('data-v');upd();});});
+document.querySelectorAll('#scopeSeg button').forEach(function(b){
+  b.addEventListener('click',function(){scope=b.getAttribute('data-s');upd();});});
 ['Rnow','Nnow'].forEach(function(id){
   document.getElementById(id).addEventListener('input',function(){
     var v=Math.max(0,Math.min(BYID[pump].n-1,Math.round(+this.value||0)));
@@ -489,7 +530,7 @@ window.LAB={
         var lab2=q.role==='censored'?null:q.n-t2;
         return {t:t2,smooth:+q.raw[t2].toFixed(6),hi:+q.hi[t2].toFixed(6),
                 rul:lab2,inScope:lab2===null?null:lab2<=CAP};});});
-    var kind=view,f=d[kind]?d[kind][t]:null,w=COEF[kind];
+    var kind=view,f=d[kind]?d[kind][t]:null,w=(scope==='cap'?COEFC:COEF)[kind];
     return {tab:curTab,pump:pump,now:t,view:view,
       cap:CAP,window:W,base0:B0,base1:B1-1,
       label:d.role==='censored'?null:d.n-t,
@@ -498,6 +539,11 @@ window.LAB={
       pred:(curTab===2&&f!==null)?+(w[0]+w[1]*f).toFixed(6):null,
       coef:{raw:[+COEF.raw[0].toFixed(6),+COEF.raw[1].toFixed(6)],
             hi:[+COEF.hi[0].toFixed(6),+COEF.hi[1].toFixed(6)]},
+      coefCap:{raw:[+COEFC.raw[0].toFixed(6),+COEFC.raw[1].toFixed(6)],
+               hi:[+COEFC.hi[0].toFixed(6),+COEFC.hi[1].toFixed(6)]},
+      scope:scope,shareAtCap:+SHARE.toFixed(6),
+      maeLast300:{filter:{raw:+MAEL.filter.raw.toFixed(6),hi:+MAEL.filter.hi.toFixed(6)},
+                  cap:{raw:+MAEL.cap.raw.toFixed(6),hi:+MAEL.cap.hi.toFixed(6)}},
       maeDeploy:{raw:+MAED.raw.toFixed(6),hi:+MAED.hi.toFixed(6)},
       checksums:cs,probes:probes,
       pumpChoices:pumpsOfTab().slice()};},
@@ -505,6 +551,7 @@ window.LAB={
     if(o.tab!=null){applyTab(Math.max(0,Math.min(2,+o.tab)));}
     if(o.pump&&BYID[o.pump]&&pumpsOfTab().indexOf(o.pump)>=0){pump=o.pump;syncNow();}
     if(o.view==='raw'||o.view==='hi'){view=o.view;}
+    if(o.scope==='filter'||o.scope==='cap'){scope=o.scope;}
     if(o.now!=null){NOWM[pump]=Math.max(0,Math.min(BYID[pump].n-1,Math.round(+o.now)));syncNow();}
     upd();}};
 
