@@ -127,7 +127,7 @@
       <div class="seg2 sm" id="xSeg"><button data-x="0" class="on"></button><button data-x="1"></button></div>
       <div class="hrow"><span class="dlab" id="lbl-H"></span>
         <div class="seg2 sm" id="hSeg" style="flex:1;margin:0"><button data-h="7">7</button><button data-h="14" class="on">14</button><button data-h="21">21</button><button data-h="28">28</button></div></div>
-      <div class="seg2 sm" id="wSeg" style="margin-bottom:2px"><button data-w="1" class="on">ตัดแถวอุ่นเครื่อง</button><button data-w="0">เก็บทุกแถว</button></div></div>
+      <div class="seg2 sm" id="wSeg" style="margin-bottom:2px"><button data-w="1" class="on"></button><button data-w="0"></button></div></div>
       <div class="tgls" id="grp-resample"><button class="primary" id="resample" style="width:100%"></button></div>
     </div>
   </div>
@@ -385,20 +385,20 @@ function modelName(o){var s='('+o.p+','+o.d+','+o.q+')',X=o.x?'X':'';
 /* ---------------- the two verdicts (ORDER sections 3-4), written from the numbers ------- */
 function acfVerdict(fit){
   var ls=fit.out.slice(0,8).join(', ')+(fit.out.length>8?' …':'');
-  var l1='หลุดแถบ '+fit.out.length+' จาก '+KR+' lag'
+  var l1='outside the band: '+fit.out.length+' of '+KR+' lags'
     +(fit.out.length?' — lag '+ls:'');
   var l2;
-  if(fit.racf[1]<-0.35)l2='diff เกินจำเป็น ลด d ลง ไม่ใช่เติม q';
+  if(fit.racf[1]<-0.35)l2='over-differenced — lower d, do not add q';
   else if(fit.out.indexOf(7)>=0||fit.out.indexOf(14)>=0||fit.out.indexOf(21)>=0)
-    l2='ส่วน seasonal ยังไม่ถูก ลองปรับ P D Q';
-  else if(fit.out.some(function(k){return k<=3;}))l2='พจน์ p หรือ q ยังไม่พอ เพิ่มทีละหนึ่ง';
-  else if(fit.out.length)l2='หลงเหลือที่ lag สูงซึ่งมีคู่ข้อมูลน้อย ถือเป็นสัญญาณรบกวน';
-  else l2='residual สะอาด โครงสร้างเวลาถูกจับหมดแล้ว ที่เหลือคือขนาดของความคลาดเคลื่อน';
+    l2='the seasonal part is not right — adjust P, D, Q';
+  else if(fit.out.some(function(k){return k<=3;}))l2='p or q is short — add one at a time';
+  else if(fit.out.length)l2='only high lags escape, few pairs there — noise';
+  else l2='residuals are clean — the time structure is captured; what is left is the size of the error';
   return {l1:l1,l2:l2};}
 function scoreVerdict(fit){
-  if(fit.sc.mape>fit.scN.mape)return 'โมเดลยังแพ้การทายว่าเหมือนสัปดาห์ที่แล้ว';
+  if(fit.sc.mape>fit.scN.mape)return 'the model still loses to the seasonal naive';
   if(Math.abs(fit.sc.signed)>0.5*fit.sc.mae)
-    return 'พยากรณ์เอียงไปทางเดียวเกือบทุกวัน ไม่ใช่ความคลาดเคลื่อนสุ่ม';
+    return 'the forecasts lean one way almost every day — not random error';
   return '';}
 
 /* ---------------- KaTeX ---------------- */
@@ -427,7 +427,7 @@ function renderTexts(){if(!window.katex)return;for(var id in MT)K(MT[id],documen
   document.querySelectorAll('#hSeg button').forEach(function(b){
     K(b.getAttribute('data-h'),b);});
   var wb=document.querySelectorAll('#wSeg button');
-  K('\\text{ตัดแถวอุ่นเครื่อง}',wb[0]);K('\\text{เก็บทุกแถว}',wb[1]);}
+  K('\\text{Trim warm-up}',wb[0]);K('\\text{Keep all rows}',wb[1]);}
 
 /* ---------------- canvas + KaTeX overlay ---------------- */
 var cv=document.getElementById('cv'),ctx=cv.getContext('2d'),SC=2,CW=640,CH=260;
@@ -780,7 +780,7 @@ function fillCalc(){
     var o=ordOf(),fit=fitOf(o,y);
     h+=lline('Model',[modelName(o)]);
     if(o.x)h+=lline('External',['\\widehat\\beta='+fx(fit.beta,2),
-      '\\text{'+(XTYPE==='temp'?'ต่อองศา':'ต่อเหตุการณ์')+'}']);
+      '\\text{'+(XTYPE==='temp'?'per °C':'per event')+'}']);
   }
   el.innerHTML=h;}
 
@@ -791,9 +791,9 @@ function fillSdNote(){
   var o=ordOf(),y=series(),fit=fitOf(o,y);
   var h=kxw('sd residual')+' '+kx('='+fx(fit.sdE,2));
   if(o.d>=1){var f0=fitOf({p:o.p,d:o.d-1,q:o.q,P:o.P,D:o.D,Q:o.Q,x:o.x},y);
-    if(fit.sdE>f0.sdE)h+=' <b>'+kxw('· d เกิน: sd ขึ้นจาก')+' '+kx(fx(f0.sdE,2))+'</b>';}
+    if(fit.sdE>f0.sdE)h+=' <b>'+kxw('· d too high: sd up from')+' '+kx(fx(f0.sdE,2))+'</b>';}
   if(o.D>=1){var f1=fitOf({p:o.p,d:o.d,q:o.q,P:o.P,D:o.D-1,Q:o.Q,x:o.x},y);
-    if(fit.sdE>f1.sdE)h+=' <b>'+kxw('· D เกิน: sd ขึ้นจาก')+' '+kx(fx(f1.sdE,2))+'</b>';}
+    if(fit.sdE>f1.sdE)h+=' <b>'+kxw('· D too high: sd up from')+' '+kx(fx(f1.sdE,2))+'</b>';}
   el.innerHTML=h;}
 
 /* ---------------- controls ---------------- */
