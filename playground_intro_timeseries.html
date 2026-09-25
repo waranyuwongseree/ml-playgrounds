@@ -665,8 +665,6 @@ function fillCalc(){
       }}
   }else if(curTab===1){
     var k=Math.round(gv('k')),yv=y.slice(1),r=acfOf(yv,k);
-    h+=lline('Pairs',['(y_{t-'+k+'},\\ y_t)\\text{ for }t='+(k+1)+'\\text{..}'+n,
-      '('+(n-k)+')']);
     h+=lline('Correlation',['r_{'+k+'}=\\textstyle\\sum_t(y_t-\\bar y)(y_{t-'+k+'}-\\bar y)\\,/\\,\\sum_t(y_t-\\bar y)^2',
       '='+fx(r,2)]);
   }else if(curTab===2){
