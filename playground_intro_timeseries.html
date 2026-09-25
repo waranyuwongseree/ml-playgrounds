@@ -10,7 +10,7 @@
 <style>
   /* intro-timeseries — โครงเดียวกับ Introduction to Regression / RUL: ตารางข้อมูลซ้าย ·
      กราฟ + legend + กล่องคำนวณ · control ขวา */
-  :root{--panel-h:537px}   /* วัดจาก tab ที่ control สูงสุดแล้วตรึงทุก tab เท่ากัน */
+  :root{--panel-h:536px}   /* วัดจาก tab ที่ control สูงสุดแล้วตรึงทุก tab เท่ากัน */
   .layout{align-items:start}
   .pg.distcls .canvasbox{height:260px}
   .pg.distcls .canvasbox.tall{height:345px}   /* tab 4: สี่กราฟเรียงคอลัมน์เดียว */
@@ -126,7 +126,6 @@
         <div class="drow"><span class="dlab" id="lbl-Q"></span><input type="range" id="RQ" min="0" max="1" step="1" value="0"><input class="num" type="number" id="NQ" min="0" max="1" step="1" value="0"></div>
       </div>
       <div class="sdnote" id="sdNote"></div>
-      <div class="seg2 sm" id="xSeg"><button data-x="0" class="on"></button><button data-x="1"></button></div>
       <div class="hrow"><span class="dlab" id="lbl-H"></span>
         <div class="seg2 sm" id="hSeg" style="flex:1;margin:0"><button data-h="7">7</button><button data-h="14" class="on">14</button><button data-h="21">21</button><button data-h="28">28</button></div></div>
       <div class="seg2 sm" id="wSeg" style="margin-bottom:2px"><button data-w="1" class="on"></button><button data-w="0"></button></div></div>
@@ -181,24 +180,11 @@ function meanOf(a){var s=0,i;for(i=0;i<a.length;i++)s+=a[i];return s/a.length;}
 /* ---------------- state ---------------- */
 var M=7,LEVEL=40,KS=21,DOW=['Mon','Tue','Wed','Thu','Fri','Sat','Sun'];
 var SEAS=[1.5,2.5,2.5,2,1,-4,-5.5];
-var dsK='custom',curTab=0,XIN=0,HSEL=14,WARM=1;
+var dsK='custom',curTab=0,HSEL=14,WARM=1;
 var CSEED=12345;              /* Custom's noise seed; Resample moves THIS one only */
 /* the six presets: fixed seeds, chosen so the printed series' acf1/acf7/pacf1 land on the
    answer table in the 2026-09-25 order at 2 dp */
 var PN=280,PSEED={noise:99880,ar:73643,ma:145206,walk:70114,wk:71157,tw:79504};
-
-/* ---------------- the known external variable x (Custom only) ----------------
-   Temperature (default): AR(1) wiggle around an annual sine — the shape of the workflow's
-   ambient_temp_c. Event: the 0/1 calendar. Both from FIXED seeds over 98 days, so the
-   holdout's x values are known to the forecast; Resample must not move either. */
-var XTSEED=90101,XCACHE=null;
-function xNow(){
-  if(XCACHE)return XCACHE;
-  var o=[null],t,z=znOf(XTSEED,98),w=0;
-  for(t=1;t<=98;t++){w=rnd(0.6*w+z[t-1],2);
-    o.push(rnd(29+7*Math.sin(2*Math.PI*(t-105)/365)+w,1));}
-  XCACHE=o;return o;}
-function xbarOf(n){var X=xNow(),s=0,t;for(t=1;t<=n;t++)s+=X[t];return s/n;}
 
 /* ---------------- Custom: y_t = 40 + b(t-1) + A s_t + c (x_t - xbar) + sigma e_t ------- */
 function cur(){return {b:dsK==='custom'?gv('b'):0,A:dsK==='custom'?gv('A'):0,
@@ -332,26 +318,13 @@ function fitModel(o,y){
   var yv=y.slice(1),n=yv.length,He=heffOf(n);
   var tr=yv.slice(0,n-He),ops=[];if(o.d)ops.push(1);if(o.D)ops.push(M);
   var stages=diffChain(tr,ops),z=stages[stages.length-1],mu=0;
-  /* x is known over ALL n days: differenced the same way, split at the train boundary */
-  var hasX=dsK==='custom',beta=0,xm=0,xdT=null,xdF=null;
-  if(hasX){var X=xNow(),xb=xbarOf(n),xa0=[],t2;
-    for(t2=1;t2<=n;t2++)xa0.push(X[t2]-xb);
-    var xs=diffChain(xa0,ops),xa=xs[xs.length-1];
-    xdT=xa.slice(0,z.length);xdF=xa.slice(z.length,z.length+He);}
   if(!ops.length){mu=meanOf(z);z=z.map(function(v){return v-mu;});}
-  if(o.x&&hasX){
-    if(!ops.length)xm=meanOf(xdT);
-    var nu=0,de2=0,i2;
-    for(i2=0;i2<z.length;i2++){nu+=z[i2]*(xdT[i2]-xm);de2+=(xdT[i2]-xm)*(xdT[i2]-xm);}
-    beta=de2>1e-9?nu/de2:0;
-    z=z.map(function(v,i3){return v-beta*(xdT[i3]-xm);});}
   var F=fitSARIMA(z,o.p,o.q,o.P,o.Q,M);
   var zf=z.slice(),ef=F.e.slice(),wf=[],h,i,j;
   for(h=0;h<He;h++){var t=zf.length,v=0;
     for(i=1;i<F.A.length;i++)v+=-F.A[i]*((t-i>=0)?zf[t-i]:0);
     for(j=1;j<F.B.length;j++)v+=F.B[j]*((t-j>=0)?ef[t-j]:0);
     zf.push(v);ef.push(0);wf.push(v);}
-  if(o.x&&hasX)for(h=0;h<He;h++)wf[h]+=beta*(xdF[h]-xm);
   var fc=undiffChain(stages,ops,wf).map(function(v){return v+mu;});
   var psi=psiWeights(F.A,F.B,ops,He),se=[],acc=0;
   for(h=0;h<He;h++){acc+=psi[h]*psi[h];se.push(F.sig*Math.sqrt(acc));}
@@ -364,35 +337,32 @@ function fitModel(o,y){
   var racf=acfRow(E,KR),rpacf=[1].concat(pacfList(E,KR));
   var moeAe=moeACF(racf,E.length),moePe=moePACF(KR,E.length);
   var out=[];for(i=1;i<=KR;i++)if(Math.abs(racf[i])>moeAe[i])out.push(i);
-  return {F:F,ops:ops,He:He,fc:fc,se:se,beta:beta,truth:truth,naive:nv,
+  return {F:F,ops:ops,He:He,fc:fc,se:se,truth:truth,naive:nv,
           sc:scOf(truth,fc),scN:scOf(truth,nv),
           E:E,racf:racf,rpacf:rpacf,moeA:moeAe,moeP:moePe,out:out,sdE:sdOf(E)};}
 var FITC={};
 function ordOf(){return {p:Math.round(gv('p')),d:Math.round(gv('d')),q:Math.round(gv('q')),
-                         P:Math.round(gv('P')),D:Math.round(gv('D')),Q:Math.round(gv('Q')),
-                         x:dsK==='custom'?XIN:0};}
+                         P:Math.round(gv('P')),D:Math.round(gv('D')),Q:Math.round(gv('Q'))};}
 function fitKey(o){var c=cur();
   return dsK+'/'+(dsK==='custom'?CSEED:PSEED[dsK])+'/'+c.b+'/'+c.A+'/'+c.sg+'/'+c.n
-    +'/'+HSEL+'/'+WARM+'/'+o.p+o.d+o.q+o.P+o.D+o.Q+o.x;}
+    +'/'+HSEL+'/'+WARM+'/'+o.p+o.d+o.q+o.P+o.D+o.Q;}
 function fitOf(o,y){var key=fitKey(o);
   if(!FITC[key])FITC[key]=fitModel(o,y);
   return FITC[key];}
-function modelName(o){var s='('+o.p+','+o.d+','+o.q+')',X=o.x?'X':'';
-  return (o.P||o.D||o.Q)?'\\text{SARIMA'+X+'}'+s+'('+o.P+','+o.D+','+o.Q+')_7'
-                        :'\\text{ARIMA'+X+'}'+s;}
+function modelName(o){var s='('+o.p+','+o.d+','+o.q+')';
+  return (o.P||o.D||o.Q)?'\\text{SARIMA}'+s+'('+o.P+','+o.D+','+o.Q+')_7'
+                        :'\\text{ARIMA}'+s;}
 
 
 /* ---------------- KaTeX ---------------- */
 var MT={'h1':'\\text{Introduction to Time Series}','resample':'\\text{Resample noise}',
-  'hd-data':'\\text{Dataset}','ds-custom':'\\text{Custom}','ds-noise':'\\text{Noise}',
-  'ds-ar':'\\text{AR}(1)','ds-ma':'\\text{MA}(1)','ds-walk':'\\text{Walk}',
-  'ds-wk':'\\text{Weekly}','ds-tw':'\\text{Trend+Weekly}',
-  'lbl-b':'T_t=40+b\\,(t-1)','lbl-A':'S_t=A\\,s_t',
-  'lbl-sg':'I_t=\\sigma\\,\\varepsilon_t','lbl-n':'n',
+  'hd-data':'\\text{Dataset}','ds-custom':'\\text{Custom}','ds-noise':'\\text{Ex 1}',
+  'ds-ar':'\\text{Ex 2}','ds-ma':'\\text{Ex 3}','ds-walk':'\\text{Ex 4}',
+  'ds-wk':'\\text{Ex 5}','ds-tw':'\\text{Ex 6}',
+  'lbl-n':'n',
   'hd-lag':'\\text{Lag}','lbl-k':'k','hd-ex':'\\text{Testing day}','lbl-t0':'t',
   'hd-model':'\\text{Model }(p,d,q)(P,D,Q)_7','lbl-H':'H',
   'lbl-p':'p','lbl-d':'d','lbl-q':'q','lbl-P':'P','lbl-D':'D','lbl-Q':'Q'};
-var XT_MT={'x0':'\\text{no }x','x1':'\\text{with }x'};
 var KXC={};
 function kxw(txt){return txt.split(' ').filter(function(w){return w;})
   .map(function(w){return kx('\\text{'+w+'}');}).join(' ');}
@@ -401,8 +371,6 @@ function kx(t){if(KXC[t]!==undefined)return KXC[t];var r;
   if(t.length<26&&window.katex)KXC[t]=r;return r;}
 function K(t,el){if(!el)return;try{katex.render(t,el,{throwOnError:false});}catch(e){el.textContent=t;}}
 function renderTexts(){if(!window.katex)return;for(var id in MT)K(MT[id],document.getElementById(id));
-  var xb=document.querySelectorAll('#xSeg button');
-  K(XT_MT.x0,xb[0]);K(XT_MT.x1,xb[1]);
   document.querySelectorAll('#hSeg button').forEach(function(b){
     K(b.getAttribute('data-h'),b);});
   var wb=document.querySelectorAll('#wSeg button');
@@ -463,16 +431,17 @@ function frame(box,x0,x1,y0,y1,ticksX,ticksY){
    stems from lag 0 (always 1.0), shaded significance area from the per-lag margins,
    escapes recoloured, y pinned to [-1, 1] */
 function corrPanel(lb,box,vals,moe,title,opts){
+  /* lag 0 is the trivial 1.0: the panel runs from lag 1 */
   opts=opts||{};var K2=vals.length-1,k;
-  function PX(kk){return box.l+(kk+0.5)/(K2+1)*(box.r-box.l);}
+  function PX(kk){return box.l+(kk-0.5)/K2*(box.r-box.l);}
   function PY(v){return box.b-(v+1)/2*(box.b-box.t);}
   ctx.strokeStyle='rgba(128,128,128,0.45)';ctx.lineWidth=1;
   ctx.strokeRect(box.l,box.t,box.r-box.l,box.b-box.t);
   /* shaded band */
   ctx.fillStyle=BAND;ctx.beginPath();
-  for(k=0;k<=K2;k++){var X=PX(k),Yt=PY(Math.min(1,moe[k]));
-    k===0?ctx.moveTo(X,Yt):ctx.lineTo(X,Yt);}
-  for(k=K2;k>=0;k--)ctx.lineTo(PX(k),PY(Math.max(-1,-moe[k])));
+  for(k=1;k<=K2;k++){var X=PX(k),Yt=PY(Math.min(1,moe[k]));
+    k===1?ctx.moveTo(X,Yt):ctx.lineTo(X,Yt);}
+  for(k=K2;k>=1;k--)ctx.lineTo(PX(k),PY(Math.max(-1,-moe[k])));
   ctx.closePath();ctx.fill();
   ctx.strokeStyle='#9aa3b2';ctx.lineWidth=1;
   ctx.beginPath();ctx.moveTo(box.l,PY(0));ctx.lineTo(box.r,PY(0));ctx.stroke();
@@ -481,21 +450,21 @@ function corrPanel(lb,box,vals,moe,title,opts){
   var yls=(box.b-box.t)>=48?[-1,0,1]:[0];
   yls.forEach(function(v){ctx.fillText(String(v),box.l-4,PY(v));});
   /* stems */
-  for(k=0;k<=K2;k++){var v2=vals[k],esc=k>0&&Math.abs(v2)>moe[k];
-    ctx.fillStyle=k===0?INK:(esc?CRD:CTR);
+  for(k=1;k<=K2;k++){var v2=vals[k],esc=Math.abs(v2)>moe[k];
+    ctx.fillStyle=esc?CRD:CTR;
     ctx.fillRect(PX(k)-1.1,Math.min(PY(0),PY(v2)),2.2,Math.abs(PY(v2)-PY(0)));}
   /* chosen-lag guide (tabs 2-3) */
   if(opts.guideK!=null){ctx.strokeStyle=GREY;ctx.setLineDash([4,4]);ctx.lineWidth=1.1;
     ctx.beginPath();ctx.moveTo(PX(opts.guideK),box.t);ctx.lineTo(PX(opts.guideK),box.b);
     ctx.stroke();ctx.setLineDash([]);}
   if(!opts.noTicks){ctx.fillStyle='rgba(90,90,90,0.9)';ctx.textAlign='center';ctx.textBaseline='alphabetic';
-    (opts.ticks||[0,7,14]).forEach(function(l2){if(l2<=K2)ctx.fillText(String(l2),PX(l2),box.b+14);});}
+    (opts.ticks||[1,7,14]).forEach(function(l2){if(l2>=1&&l2<=K2)ctx.fillText(String(l2),PX(l2),box.b+14);});}
   lb(title,box.r-4,box.t+12,{align:'right'});
 }
 
 /* ---------------- tabs ---------------- */
 var TABS=[{n:'Build the series'},{n:'Correlation at a lag'},{n:'ACF and PACF'},
-          {n:'ARIMA to SARIMAX'}];
+          {n:'ARIMA and SARIMA'}];
 
 /* ============ tab 1 · build the series: the components, then the sum ============ */
 function draw1(lb,y){
@@ -533,7 +502,9 @@ function draw1(lb,y){
     top+=hh+gap;});
   /* the calculation down to y_t, each term in its strip's colour */
   if(dsK==='custom'){var p0=parts(t0);
-    lb('y_{'+t0+'}=\\textcolor{'+CTR+'}{'+fx(p0.tr,1)+'}'
+    lb('y_{'+t0+'}=\\textcolor{'+CTR+'}{T_{'+t0+'}}+\\textcolor{'+CSE+'}{S_{'+t0+'}}'
+      +'+\\textcolor{'+CNO+'}{I_{'+t0+'}}'
+      +'=\\textcolor{'+CTR+'}{'+fx(p0.tr,1)+'}'
       +(p0.se<0?'-':'+')+'\\textcolor{'+CSE+'}{'+fx(Math.abs(p0.se),1)+'}'
       +(p0.no<0?'-':'+')+'\\textcolor{'+CNO+'}{'+fx(Math.abs(p0.no),1)+'}'
       +'=\\textcolor{'+CS+'}{'+fx(y[t0],1)+'}',
@@ -545,8 +516,8 @@ function draw1(lb,y){
 function draw2(lb,y){
   var n=y.length-1,k=Math.round(gv('k'));
   var L=52,Rm=14;
-  var tsB=Math.round(CH*0.2),side=CH-38-(tsB+44),mid=(L+CW-Rm)/2;
-  var ts={l:Math.round(mid-side/2),r:Math.round(mid+side/2),t:8,b:tsB};
+  var tsB=Math.round(CH*0.22);
+  var ts={l:L,r:CW-Rm,t:8,b:tsB};
   var yv=y.slice(1),sp=spanOf(yv);
   var xt=[1,14,28,42,56];
   var Pt=frame(ts,1,n,sp[0],sp[1],xt.filter(function(v){return v<=n;}),
@@ -556,7 +527,7 @@ function draw2(lb,y){
   ctx.restore();
   lb('y_t',ts.l-8,ts.t+12,{align:'right'});
   lb('t\\text{, d}',ts.r,ts.b+30,{align:'right'});
-  var sx={l:ts.l,r:ts.r,t:ts.b+44,b:CH-38};
+  var sx={l:L,r:CW-Rm,t:ts.b+44,b:CH-38};
   var md=rnd((sp[0]+sp[1])/2,0);
   var P=frame(sx,sp[0],sp[1],sp[0],sp[1],
               [md],
@@ -590,7 +561,7 @@ function draw3(lb,y){
   lb('y_t',L-8,ts.t+12,{align:'right'});
   lb('t\\text{, d}',CW-Rm,ts.b+28,{align:'right'});
   corrPanel(lb,{l:L,r:CW-Rm,t:Y(136),b:Y(262)},ac,mA,'\\text{ACF}',{guideK:k,noTicks:true});
-  corrPanel(lb,{l:L,r:CW-Rm,t:Y(286),b:Y(404)},pc,mP,'\\text{PACF}',{guideK:k,ticks:[0,7,14]});
+  corrPanel(lb,{l:L,r:CW-Rm,t:Y(286),b:Y(404)},pc,mP,'\\text{PACF}',{guideK:k,ticks:[1,7,14]});
   lb('\\text{lag }k',CW-Rm,Y(402)+20,{align:'right'});
 }
 
@@ -638,7 +609,7 @@ function draw4(lb,y){
   var ac={l:L,r:CW-Rm,t:Y(178),b:Y(238)};
   corrPanel(lb,ac,fit.racf,fit.moeA,'\\text{ACF}',{noTicks:true});
   var pc={l:L,r:CW-Rm,t:Y(254),b:Y(314)};
-  corrPanel(lb,pc,fit.rpacf,fit.moeP,'\\text{PACF}',{ticks:[0,7,14]});
+  corrPanel(lb,pc,fit.rpacf,fit.moeP,'\\text{PACF}',{ticks:[1,7,14]});
   lb('\\text{lag }k',CW-Rm,Y(312)+20,{align:'right'});
 }
 
@@ -663,26 +634,7 @@ var P1={noise:{eq:'y_t=50+\\varepsilon_t,\\ \\varepsilon\\sim N(0,2)',
   tw:{eq:'y_t=50+T_t+5\\sin(2\\pi t/7)+\\varepsilon_t',
     comps:[{h:'T_t',lb:'Trend',col:CTR},{h:'5\\sin(2\\pi t/7)',lb:'Weekly',col:CSE},
            {h:'\\varepsilon_t',lb:'Shock',col:CNO}]}};
-function fillLegend(){
-  var el=document.getElementById('classleg'),h='<div class="clrow">';
-  if(curTab===0){
-    if(dsK==='custom')h+=leg('background:'+CTR,'\\text{Trend }T_t')
-      +leg('background:'+CSE,'\\text{Seasonal }S_t')
-      +leg('background:'+CNO,'\\text{Irregular }I_t')
-      +leg('background:'+CS,'\\text{The sum }y_t');
-    else{P1[dsK].comps.forEach(function(c){h+=leg('background:'+c.col,c.h);});
-      h+=leg('background:'+CS,'\\text{The sum }y_t');}}
-  else if(curTab===1)h+=leg('background:'+CS,'\\text{Pair }(y_{t-k},\\ y_t)');
-  else if(curTab===2)h+=leg('background:'+CTR,'\\text{Inside the band}')
-    +leg('background:'+CRD,'\\text{Outside the band}')
-    +leg('background:#c9d9ea','\\text{Bartlett band}');
-  else h+=leg('background:'+CS,'\\text{The series}')
-    +leg('background:'+NAVY,'\\text{Forecasts}')
-    +leg('background:#c9d9ea','95\\%\\text{ band}')
-    +leg('background:rgba(120,126,140,0.85)','\\text{Seasonal naive}')
-    +leg('background:'+CNO,'\\text{Residuals}')
-    +leg('background:'+CRD,'\\text{Outside the band}');
-  el.innerHTML=h+'</div>';}
+function fillLegend(){}
 
 /* ---------------- scoreboard (tab 4), Numeric Scorer vocabulary ---------------- */
 function fillScore(){
@@ -781,7 +733,6 @@ function fillCalc(){
   }else{
     var o=ordOf(),fit=fitOf(o,y);
     h+=lline('Model',[modelName(o)]);
-    if(o.x)h+=lline('External',['\\widehat\\beta='+fx(fit.beta,2),'\\text{per °C}']);
   }
   el.innerHTML=h;}
 
@@ -800,16 +751,21 @@ function fillSdNote(){
 /* ---------------- controls ---------------- */
 function paintDs(){document.querySelectorAll('#dsSeg button, #dsSeg2 button').forEach(function(b){
   b.className=b.getAttribute('data-ds')===dsK?'on':'';});
-  document.querySelectorAll('#xSeg button').forEach(function(b){
-    b.className=b.getAttribute('data-x')===String(XIN)?'on':'';});
   document.querySelectorAll('#hSeg button').forEach(function(b){
     b.className=b.getAttribute('data-h')===String(HSEL)?'on':'';});
   document.querySelectorAll('#wSeg button').forEach(function(b){
     b.className=b.getAttribute('data-w')===String(WARM)?'on':'';});}
 function fillEq(){
   var el=document.getElementById('eqline');
-  K(dsK==='custom'?'y_t=T_t+S_t+I_t'
-    :P1[dsK].eq,el);}
+  if(dsK==='custom')K('y_t=T_t+S_t+I_t',el);else el.innerHTML='';
+  /* the term equations carry the CURRENT lever value in place, coloured */
+  if(dsK==='custom'){
+    K('T_t=40+\\textcolor{#1e3a8a}{'+fx(gv('b'),2)+'}\\,(t-1)',
+      document.getElementById('lbl-b'));
+    K('S_t=\\textcolor{#1e3a8a}{'+fx(gv('A'),1)+'}\\,s_t',
+      document.getElementById('lbl-A'));
+    K('I_t=\\textcolor{#1e3a8a}{'+fx(gv('sg'),1)+'}\\,\\varepsilon_t',
+      document.getElementById('lbl-sg'));}}
 function syncRows(){
   /* the component levers live on the data tabs and on Custom only (the presets are fixed
      draws with fixed seeds); the model tab is for the orders */
@@ -818,7 +774,7 @@ function syncRows(){
   document.getElementById('dsSeg').style.display=curTab<=1?'none':'';
   document.getElementById('dsSeg2').style.display=curTab<=1?'none':'';
   document.getElementById('ds-custom').style.display=curTab===2?'none':'';
-  document.getElementById('classleg').style.display=curTab===0?'none':'';
+  document.getElementById('classleg').style.display='none';
   document.getElementById('mcalc').style.display=curTab===0?'none':'';
   document.getElementById('grp-custom').style.display=(cust&&dataTab)?'':'none';
   document.getElementById('grp-noise').style.display=(cust&&dataTab)?'':'none';
@@ -826,7 +782,6 @@ function syncRows(){
   document.getElementById('grp-lag').style.display=(curTab===1||curTab===2)?'':'none';
   document.getElementById('grp-ex').style.display=curTab===0?'':'none';
   document.getElementById('grp-model').style.display=curTab===3?'':'none';
-  document.getElementById('xSeg').style.display=cust?'':'none';
   var n=cur().n;
   ['Rt0','Nt0'].forEach(function(id){var e=document.getElementById(id);e.max=n;});
   if(gv('t0')>n)sv('t0',n);}
@@ -845,8 +800,6 @@ TABS.forEach(function(t,i){var el=document.createElement('button');el.className=
   K('\\text{'+t.n+'}',el);el.addEventListener('click',function(){applyTab(i);});tb2.appendChild(el);});
 document.querySelectorAll('#dsSeg button, #dsSeg2 button').forEach(function(b){
   b.addEventListener('click',function(){dsK=b.getAttribute('data-ds');upd();});});
-document.querySelectorAll('#xSeg button').forEach(function(b){
-  b.addEventListener('click',function(){XIN=+b.getAttribute('data-x');upd();});});
 document.querySelectorAll('#hSeg button').forEach(function(b){
   b.addEventListener('click',function(){HSEL=+b.getAttribute('data-h');upd();});});
 document.querySelectorAll('#wSeg button').forEach(function(b){
@@ -876,7 +829,7 @@ window.LAB={
                ths:F.ths.map(function(v){return +v.toFixed(4);}),
                Phis:F.Phis.map(function(v){return +v.toFixed(4);}),
                Ths:F.Ths.map(function(v){return +v.toFixed(4);}),
-               beta:+fit.beta.toFixed(6),He:fit.He,nE:fit.E.length,
+               He:fit.He,nE:fit.E.length,
                sdE:+fit.sdE.toFixed(6),
                fc:fit.fc.map(function(v){return +v.toFixed(6);}),
                se:fit.se.map(function(v){return +v.toFixed(6);}),
@@ -897,7 +850,6 @@ window.LAB={
     if(o.seed!=null&&dsK==='custom'&&+o.seed!==CSEED){CSEED=+o.seed;FITC={};}
     if(o.H!=null){HSEL=+o.H;FITC={};}
     if(o.warm!=null){WARM=+o.warm?1:0;FITC={};}
-    if(o.x!=null)XIN=Math.round(+o.x)?1:0;
     ['b','A','sg','n','k','t0','p','d','q','P','D','Q'].forEach(function(b2){
       if(o[b2]!=null){sv(b2,+o[b2]);FITC={};}});
     if(o.tab!=null)applyTab(Math.max(0,Math.min(3,+o.tab)));
