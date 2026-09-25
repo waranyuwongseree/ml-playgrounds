@@ -83,8 +83,8 @@
       <div class="main" id="main">
         <div class="canvasbox"><canvas id="cv"></canvas></div>
         <div class="classleg" id="classleg"></div>
-        <div class="scb" id="scb" style="display:none"></div>
         <div class="excalc" id="mcalc"></div>
+        <div class="scb" id="scb" style="display:none"></div>
       </div>
     </div>
     <div class="panel">
@@ -108,7 +108,7 @@
       </div></div>
       <div id="grp-lag"><div class="dhd" id="hd-lag"></div>
       <div class="dgrid">
-        <div class="drow"><span class="dlab" id="lbl-k"></span><input type="range" id="Rk" min="1" max="14" step="1" value="7"><input class="num" type="number" id="Nk" min="1" max="14" step="1" value="7"></div>
+        <div class="drow"><span class="dlab" id="lbl-k"></span><input type="range" id="Rk" min="1" max="21" step="1" value="7"><input class="num" type="number" id="Nk" min="1" max="21" step="1" value="7"></div>
       </div></div>
       <div id="grp-ex"><div class="dhd" id="hd-ex"></div>
       <div class="dgrid">
@@ -177,7 +177,7 @@ function fx(v,d){return (Math.abs(v)<Math.pow(10,-d)/2?0:v).toFixed(d);}
 function meanOf(a){var s=0,i;for(i=0;i<a.length;i++)s+=a[i];return s/a.length;}
 
 /* ---------------- state ---------------- */
-var M=7,LEVEL=40,DOW=['Mon','Tue','Wed','Thu','Fri','Sat','Sun'];
+var M=7,LEVEL=40,KS=21,DOW=['Mon','Tue','Wed','Thu','Fri','Sat','Sun'];
 var SEAS=[1.5,2.5,2.5,2,1,-4,-5.5];
 var dsK='custom',curTab=0,XIN=0,XTYPE='temp',HSEL=14,WARM=1;
 var CSEED=12345;              /* Custom's noise seed; Resample moves THIS one only */
@@ -453,7 +453,7 @@ function labs(c){var p=c.parentElement,Ly=p.querySelector('.cvlab');
     if(o.wrapKx){s.style.top=(oy+y)+'px';return;}
     var sr=s.getBoundingClientRect(),base=pr.getBoundingClientRect().top-sr.top;
     s.style.top=(oy+(o.vt==='middle'?y-sr.height/2:y-base))+'px';};}
-var CS='#E07A5F',CTR='#5B8FB9',CSE='#6BA38C',CNO='#B07AAE',CEX='#C08A2D',NAVY='#1e3a8a',
+var CS='#E07A5F',CTR='#5B8FB9',CSE='#6BA38C',CNO='#B07AAE',CEX='#C08A2D',CRD='#B0503A',NAVY='#1e3a8a',
     GREY='#8b95a6',INK='#334155',BAND='rgba(91,143,185,0.18)';
 function spanOf(a){var lo=Infinity,hi=-Infinity,i;
   for(i=0;i<a.length;i++){if(a[i]==null)continue;if(a[i]<lo)lo=a[i];if(a[i]>hi)hi=a[i];}
@@ -503,7 +503,7 @@ function corrPanel(lb,box,vals,moe,title,opts){
   yls.forEach(function(v){ctx.fillText(String(v),box.l-4,PY(v));});
   /* stems */
   for(k=0;k<=K2;k++){var v2=vals[k],esc=k>0&&Math.abs(v2)>moe[k];
-    ctx.fillStyle=k===0?INK:(esc?CS:CTR);
+    ctx.fillStyle=k===0?INK:(esc?CRD:CTR);
     ctx.fillRect(PX(k)-1.1,Math.min(PY(0),PY(v2)),2.2,Math.abs(PY(v2)-PY(0)));}
   /* chosen-lag guide (tabs 2-3) */
   if(opts.guideK!=null){ctx.strokeStyle=GREY;ctx.setLineDash([4,4]);ctx.lineWidth=1.1;
@@ -535,7 +535,7 @@ function draw1(lb,y){
         :dsK==='wk'?[{col:CSE,arr:pr.c1.slice(1)},{col:CNO,arr:pr.c2.slice(1)}]
         :[{col:CTR,arr:pr.c1.slice(1)},{col:CSE,arr:pr.c2.slice(1)},{col:CNO,arr:pr.c3.slice(1)}])
       .concat([{col:CS,arr:y.slice(1)}]);}
-  var k=rows.length,L=76,Rm=14,gap=k>4?8:12,h3=k>4?32:44,hy=CH-38-(k-1)*(h3+gap)-8;
+  var k=rows.length,L=52,Rm=14,gap=k>4?8:12,h3=k>4?32:44,hy=CH-38-(k-1)*(h3+gap)-8;
   var top=8,xt=[1,14,28,42,56,70,84,140,210,280].filter(function(v){return v<=n;});
   if(n>84)xt=[1,70,140,210,280].filter(function(v){return v<=n;});
   rows.forEach(function(r,i){
@@ -575,7 +575,7 @@ function draw2(lb,y){
 
 /* ============ tab 3 · ACF and PACF of the series, KNIME format ============ */
 function draw3(lb,y){
-  var n=y.length-1,k=Math.round(gv('k')),yv=y.slice(1),K2=14;
+  var n=y.length-1,k=Math.round(gv('k')),yv=y.slice(1),K2=KS;
   var ac=acfRow(yv,K2),pc=[1].concat(pacfList(yv,K2));
   var mA=moeACF(ac,n),mP=moePACF(K2,n);
   var L=52,Rm=14,hh=(CH-46-26)/2;
@@ -599,7 +599,7 @@ function draw4(lb,y){
   var pad=(hi-lo)*0.08;lo-=pad;hi+=pad;
   var xt=n>100?[1,70,140,210,280]:[1,14,28,42,56,70,84];
   var P=frame(box,1,n,lo,hi,xt.filter(function(v){return v<=n;}),
-              [rnd(lo+(hi-lo)*0.15,0),rnd(lo+(hi-lo)*0.85,0)]);
+              [rnd(lo+(hi-lo)*0.2,0),rnd(lo+(hi-lo)*0.6,0)]);
   ctx.save();ctx.beginPath();ctx.rect(box.l,box.t,box.r-box.l,box.b-box.t);ctx.clip();
   ctx.fillStyle=BAND;ctx.beginPath();
   for(i=0;i<He;i++){var X=P.px(n-He+1+i);
@@ -612,7 +612,7 @@ function draw4(lb,y){
   lineOf(P,fit.naive,n-He+1,'rgba(120,126,140,0.85)',1.4);
   lineOf(P,fit.fc,n-He+1,NAVY,2.2);
   ctx.restore();
-  lb('y_t',L-8,(box.t+box.b)/2,{align:'right',vt:'middle'});
+  lb('y_t',L-8,box.t+12,{align:'right'});
   lb('t\\text{, d}',CW-Rm,box.b+28,{align:'right'});
   /* 2 · Residuals over the training days */
   var rs={l:L,r:CW-Rm,t:Y(120),b:Y(154)};
@@ -663,16 +663,17 @@ function fillLegend(){
       +leg('background:'+CNO,'\\text{Noise}')
       +leg('background:'+CS,'\\text{The sum }y_t');
     else{P1[dsK].comps.forEach(function(c){h+=leg('background:'+c.col,c.h);});
-      h+=leg('background:'+CS,'y_t');}}
+      h+=leg('background:'+CS,'\\text{The sum }y_t');}}
   else if(curTab===1)h+=leg('background:'+CS,'\\text{Pair }(y_{t-k},\\ y_t)');
   else if(curTab===2)h+=leg('background:'+CTR,'\\text{Inside the band}')
-    +leg('background:'+CS,'\\text{Outside}')
+    +leg('background:'+CRD,'\\text{Outside the band}')
     +leg('background:#c9d9ea','\\text{Bartlett band}');
   else h+=leg('background:'+CS,'\\text{The series}')
     +leg('background:'+NAVY,'\\text{Forecasts}')
     +leg('background:#c9d9ea','95\\%\\text{ band}')
     +leg('background:rgba(120,126,140,0.85)','\\text{Seasonal naive}')
-    +leg('background:'+CNO,'\\text{Residuals}');
+    +leg('background:'+CNO,'\\text{Residuals}')
+    +leg('background:'+CRD,'\\text{Outside the band}');
   el.innerHTML=h+'</div>';}
 
 /* ---------------- scoreboard (tab 4), Numeric Scorer vocabulary ---------------- */
@@ -715,13 +716,13 @@ function fillTable(){
     cols=['\\text{Day }(t)','y_{t-'+k+'}','y_t'];
     for(var t2=k+1;t2<=n;t2++)rows.push({hl:false,cells:[String(t2),fx(y[t2-k],1),fx(y[t2],1)],yc:-1});
   }else if(curTab===2){
-    var k3=Math.round(gv('k')),yv=y.slice(1),pc=pacfList(yv,14),ac2=acfRow(yv,14),mA=moeACF(ac2,n);
+    var k3=Math.round(gv('k')),yv=y.slice(1),pc=pacfList(yv,KS),ac2=acfRow(yv,KS),mA=moeACF(ac2,n);
     cols=['\\text{Lag }(k)','\\text{ACF }r_k','\\text{PACF }\\phi_{kk}','\\text{moe}_k'];
-    for(var k4=1;k4<=14;k4++)
+    for(var k4=1;k4<=KS;k4++)
       rows.push({hl:k4===k3,cells:[String(k4),fx(ac2[k4],2),fx(pc[k4-1],2),fx(mA[k4],2)],yc:-1});
   }else{
     var fit=fitOf(ordOf(),y),He=fit.He;
-    cols=['\\text{Day}','y_t','\\widehat{y}','\\text{low}','\\text{high}'];
+    cols=['\\text{Day }(t)','y_t','\\widehat{y}','\\text{low}','\\text{high}'];
     for(var h2=0;h2<He;h2++)
       rows.push({hl:false,te:true,cells:[String(n-He+1+h2),fx(fit.truth[h2],1),fx(fit.fc[h2],1),
         fx(fit.fc[h2]-1.96*fit.se[h2],1),fx(fit.fc[h2]+1.96*fit.se[h2],1)],yc:2});
@@ -772,7 +773,7 @@ function fillCalc(){
     h+=lline('Correlation',['r_{'+k+'}=\\textstyle\\sum_t(y_t-\\bar y)(y_{t-'+k+'}-\\bar y)\\,/\\,\\sum_t(y_t-\\bar y)^2',
       '='+fx(r,2)]);
   }else if(curTab===2){
-    var k2=Math.round(gv('k')),yv2=y.slice(1),pc=pacfList(yv2,14),ac3=acfRow(yv2,14),mA2=moeACF(ac3,n);
+    var k2=Math.round(gv('k')),yv2=y.slice(1),pc=pacfList(yv2,KS),ac3=acfRow(yv2,KS),mA2=moeACF(ac3,n);
     h+=lline('ACF',['r_{'+k2+'}='+fx(ac3[k2],2)]);
     h+=lline('PACF',['\\phi_{'+k2+','+k2+'}='+fx(pc[k2-1],2)]);
     h+=lline('Band',['\\pm1.96\\sqrt{(1+2\\textstyle\\sum_{j<'+k2+'}r_j^2)/'+n+'}=\\pm'+fx(mA2[k2],2)]);
@@ -791,9 +792,9 @@ function fillSdNote(){
   var o=ordOf(),y=series(),fit=fitOf(o,y);
   var h=kxw('sd residual')+' '+kx('='+fx(fit.sdE,2));
   if(o.d>=1){var f0=fitOf({p:o.p,d:o.d-1,q:o.q,P:o.P,D:o.D,Q:o.Q,x:o.x},y);
-    if(fit.sdE>f0.sdE)h+=' <b>'+kxw('· d too high: sd up from')+' '+kx(fx(f0.sdE,2))+'</b>';}
+    if(fit.sdE>f0.sdE)h+='  <b>'+kxw('d too high: sd up from')+' '+kx(fx(f0.sdE,2))+'</b>';}
   if(o.D>=1){var f1=fitOf({p:o.p,d:o.d,q:o.q,P:o.P,D:o.D-1,Q:o.Q,x:o.x},y);
-    if(fit.sdE>f1.sdE)h+=' <b>'+kxw('· D too high: sd up from')+' '+kx(fx(f1.sdE,2))+'</b>';}
+    if(fit.sdE>f1.sdE)h+='  <b>'+kxw('D too high: sd up from')+' '+kx(fx(f1.sdE,2))+'</b>';}
   el.innerHTML=h;}
 
 /* ---------------- controls ---------------- */
@@ -856,9 +857,9 @@ window.addEventListener('resize',function(){sizeCanvas();upd();});
 window.LAB={
   read:function(){
     var y=series(),n=y.length-1,yv=y.slice(1);
-    var ac=acfRow(yv,14).slice(1).map(function(v){return +v.toFixed(6);});
-    var pc=pacfList(yv,14).map(function(v){return +v.toFixed(6);});
-    var mA=moeACF(acfRow(yv,14),n).map(function(v){return +v.toFixed(6);});
+    var ac=acfRow(yv,KS).slice(1).map(function(v){return +v.toFixed(6);});
+    var pc=pacfList(yv,KS).map(function(v){return +v.toFixed(6);});
+    var mA=moeACF(acfRow(yv,KS),n).map(function(v){return +v.toFixed(6);});
     var out={tab:curTab,n:n,ds:dsK,seed:dsK==='custom'?CSEED:PSEED[dsK],
       b:cur().b,A:cur().A,c:cur().c,sg:cur().sg,
       k:Math.round(gv('k')),t0:Math.round(gv('t0')),ord:ordOf(),m:M,
