@@ -100,8 +100,7 @@
         <div class="drow"><span class="dlab" id="lbl-b"></span><input type="range" id="Rb" min="0" max="0.4" step="0.05" value="0.2"><input class="num" type="number" id="Nb" min="0" max="0.4" step="0.05" value="0.2"></div>
         <div class="drow"><span class="dlab" id="lbl-A"></span><input type="range" id="RA" min="0" max="8" step="0.5" value="5"><input class="num" type="number" id="NA" min="0" max="8" step="0.5" value="5"></div>
         <div class="drow"><span class="dlab" id="lbl-c"></span><input type="range" id="Rc" min="0" max="8" step="0.5" value="4"><input class="num" type="number" id="Nc" min="0" max="8" step="0.5" value="4"></div>
-      </div>
-      <div class="seg2" id="xtSeg" style="margin:6px 0 9px"><button data-xt="temp" class="on"></button><button data-xt="event"></button></div></div>
+      </div></div>
       <div id="grp-noise"><div class="dgrid">
         <div class="drow"><span class="dlab" id="lbl-sg"></span><input type="range" id="Rsg" min="0.5" max="4" step="0.5" value="1"><input class="num" type="number" id="Nsg" min="0.5" max="4" step="0.5" value="1"></div>
         <div class="drow"><span class="dlab" id="lbl-n"></span><input type="range" id="Rn" min="28" max="84" step="7" value="56"><input class="num" type="number" id="Nn" min="28" max="84" step="7" value="56"></div>
@@ -179,7 +178,7 @@ function meanOf(a){var s=0,i;for(i=0;i<a.length;i++)s+=a[i];return s/a.length;}
 /* ---------------- state ---------------- */
 var M=7,LEVEL=40,KS=21,DOW=['Mon','Tue','Wed','Thu','Fri','Sat','Sun'];
 var SEAS=[1.5,2.5,2.5,2,1,-4,-5.5];
-var dsK='custom',curTab=0,XIN=0,XTYPE='temp',HSEL=14,WARM=1;
+var dsK='custom',curTab=0,XIN=0,HSEL=14,WARM=1;
 var CSEED=12345;              /* Custom's noise seed; Resample moves THIS one only */
 /* the six presets: fixed seeds, chosen so the printed series' acf1/acf7/pacf1 land on the
    answer table in the 2026-09-25 order at 2 dp */
@@ -189,16 +188,13 @@ var PN=280,PSEED={noise:99880,ar:73643,ma:145206,walk:70114,wk:71157,tw:79504};
    Temperature (default): AR(1) wiggle around an annual sine — the shape of the workflow's
    ambient_temp_c. Event: the 0/1 calendar. Both from FIXED seeds over 98 days, so the
    holdout's x values are known to the forecast; Resample must not move either. */
-var XTSEED=90101,XESEED=55120,XCACHE={};
-function xNow(){var k=XTYPE;
-  if(XCACHE[k])return XCACHE[k];
-  var o=[null],t;
-  if(k==='temp'){var z=znOf(XTSEED,98),w=0;
-    for(t=1;t<=98;t++){w=rnd(0.6*w+z[t-1],2);
-      o.push(rnd(29+7*Math.sin(2*Math.PI*(t-105)/365)+w,1));}}
-  else{var r=mulberry32(XESEED);
-    for(t=1;t<=98;t++)o.push(r()<0.15?1:0);}
-  XCACHE[k]=o;return o;}
+var XTSEED=90101,XCACHE=null;
+function xNow(){
+  if(XCACHE)return XCACHE;
+  var o=[null],t,z=znOf(XTSEED,98),w=0;
+  for(t=1;t<=98;t++){w=rnd(0.6*w+z[t-1],2);
+    o.push(rnd(29+7*Math.sin(2*Math.PI*(t-105)/365)+w,1));}
+  XCACHE=o;return o;}
 function xbarOf(n){var X=xNow(),s=0,t;for(t=1;t<=n;t++)s+=X[t];return s/n;}
 
 /* ---------------- Custom: y_t = 40 + b(t-1) + A s_t + c (x_t - xbar) + sigma e_t ------- */
@@ -374,7 +370,7 @@ function ordOf(){return {p:Math.round(gv('p')),d:Math.round(gv('d')),q:Math.roun
                          x:dsK==='custom'?XIN:0};}
 function fitKey(o){var c=cur();
   return dsK+'/'+(dsK==='custom'?CSEED:PSEED[dsK])+'/'+c.b+'/'+c.A+'/'+c.c+'/'+c.sg+'/'+c.n
-    +'/'+XTYPE+'/'+HSEL+'/'+WARM+'/'+o.p+o.d+o.q+o.P+o.D+o.Q+o.x;}
+    +'/'+HSEL+'/'+WARM+'/'+o.p+o.d+o.q+o.P+o.D+o.Q+o.x;}
 function fitOf(o,y){var key=fitKey(o);
   if(!FITC[key])FITC[key]=fitModel(o,y);
   return FITC[key];}
@@ -410,8 +406,7 @@ var MT={'h1':'\\text{Introduction to Time Series}','resample':'\\text{Resample n
   'hd-lag':'\\text{Lag}','lbl-k':'k','hd-ex':'\\text{Testing day}','lbl-t0':'t',
   'hd-model':'\\text{Model }(p,d,q)(P,D,Q)_7','lbl-H':'H',
   'lbl-p':'p','lbl-d':'d','lbl-q':'q','lbl-P':'P','lbl-D':'D','lbl-Q':'Q'};
-var XT_MT={'temp':'\\text{Temperature}','event':'\\text{Event}',
-           'x0':'\\text{no }x','x1':'\\text{with }x'};
+var XT_MT={'x0':'\\text{no }x','x1':'\\text{with }x'};
 var KXC={};
 function kxw(txt){return txt.split(' ').filter(function(w){return w;})
   .map(function(w){return kx('\\text{'+w+'}');}).join(' ');}
@@ -420,8 +415,6 @@ function kx(t){if(KXC[t]!==undefined)return KXC[t];var r;
   if(t.length<26&&window.katex)KXC[t]=r;return r;}
 function K(t,el){if(!el)return;try{katex.render(t,el,{throwOnError:false});}catch(e){el.textContent=t;}}
 function renderTexts(){if(!window.katex)return;for(var id in MT)K(MT[id],document.getElementById(id));
-  var xt=document.querySelectorAll('#xtSeg button');
-  K(XT_MT.temp,xt[0]);K(XT_MT.event,xt[1]);
   var xb=document.querySelectorAll('#xSeg button');
   K(XT_MT.x0,xb[0]);K(XT_MT.x1,xb[1]);
   document.querySelectorAll('#hSeg button').forEach(function(b){
@@ -552,25 +545,35 @@ function draw1(lb,y){
     top+=hh+gap;});
 }
 
-/* ============ tab 2 · the pairs (y_{t-k}, y_t) and their correlation ============ */
+/* ============ tab 2 · the series on the left, the pairs (y_{t-k}, y_t) square on the
+   right -- each dot pairs two values k days apart on the line beside it ============ */
 function draw2(lb,y){
   var n=y.length-1,k=Math.round(gv('k'));
-  var L=52,Rm=14,box={l:L,r:CW-Rm,t:24,b:CH-40};
+  var L=52,Rm=14,sq=CH-64,sx={l:CW-Rm-sq,r:CW-Rm,t:24,b:CH-40};
+  var ts={l:L,r:sx.l-56,t:24,b:CH-40};
   var yv=y.slice(1),sp=spanOf(yv);
+  var xt=n>100?[1,140,280]:[1,28,56];
+  var Pt=frame(ts,1,n,sp[0],sp[1],xt.filter(function(v){return v<=n;}),
+               [rnd(sp[0]+(sp[1]-sp[0])*0.15,0),rnd(sp[0]+(sp[1]-sp[0])*0.85,0)]);
+  ctx.save();ctx.beginPath();ctx.rect(ts.l,ts.t,ts.r-ts.l,ts.b-ts.t);ctx.clip();
+  lineOf(Pt,yv,1,CS,n>150?1.2:1.6);
+  ctx.restore();
+  lb('y_t',L-8,ts.t+12,{align:'right'});
+  lb('t\\text{, d}',ts.r,ts.b+32,{align:'right'});
   var mid=rnd((sp[0]+sp[1])/2,0);
-  var P=frame(box,sp[0],sp[1],sp[0],sp[1],
-              [rnd(sp[0]+(sp[1]-sp[0])*0.15,0),mid,rnd(sp[0]+(sp[1]-sp[0])*0.85,0)],
+  var P=frame(sx,sp[0],sp[1],sp[0],sp[1],
+              [mid],
               [rnd(sp[0]+(sp[1]-sp[0])*0.15,0),mid,rnd(sp[0]+(sp[1]-sp[0])*0.85,0)]);
-  ctx.save();ctx.beginPath();ctx.rect(box.l,box.t,box.r-box.l,box.b-box.t);ctx.clip();
+  ctx.save();ctx.beginPath();ctx.rect(sx.l,sx.t,sx.r-sx.l,sx.b-sx.t);ctx.clip();
   for(var t=k+1;t<=n;t++){
     ctx.fillStyle=CS;ctx.globalAlpha=0.85;
-    ctx.beginPath();ctx.arc(P.px(y[t-k]),P.py(y[t]),n>150?3:4.5,0,7);ctx.fill();
-    ctx.globalAlpha=1;ctx.strokeStyle='rgba(255,255,255,0.9)';ctx.lineWidth=1.2;ctx.stroke();}
+    ctx.beginPath();ctx.arc(P.px(y[t-k]),P.py(y[t]),n>150?2.6:4,0,7);ctx.fill();
+    ctx.globalAlpha=1;ctx.strokeStyle='rgba(255,255,255,0.9)';ctx.lineWidth=1.1;ctx.stroke();}
   ctx.restore();
   var r=acfOf(yv,k);
-  lb('r_{'+k+'}='+fx(r,2),box.l+8,box.t+14,{color:'#B0503A',bg:'rgba(255,255,255,0.9)'});
-  lb('y_t',L-8,box.t+12,{align:'right'});
-  lb('y_{t-'+k+'}',CW-Rm,box.b+32,{align:'right'});
+  lb('r_{'+k+'}='+fx(r,2),sx.l+6,sx.t+14,{color:'#B0503A',bg:'rgba(255,255,255,0.9)'});
+  lb('y_t',sx.l-6,sx.t+12,{align:'right'});
+  lb('y_{t-'+k+'}',sx.r,sx.b+32,{align:'right'});
 }
 
 /* ============ tab 3 · ACF and PACF of the series, KNIME format ============ */
@@ -656,10 +659,10 @@ var P1={noise:{eq:'y_t=50+\\varepsilon_t,\\ \\varepsilon\\sim N(0,2)',
 function fillLegend(){
   var el=document.getElementById('classleg'),h='<div class="clrow">';
   if(curTab===0){
-    if(dsK==='custom')h+=leg('background:'+CTR,'\\text{Trend}')
-      +leg('background:'+CSE,'\\text{Seasonal}')
-      +leg('background:'+CEX,'c\\,\\tilde x_t')
-      +leg('background:'+CNO,'\\text{Noise}')
+    if(dsK==='custom')h+=leg('background:'+CTR,'\\text{Trend }T_t')
+      +leg('background:'+CSE,'\\text{Seasonal }S_t')
+      +leg('background:'+CEX,'\\text{Cycle }C_t')
+      +leg('background:'+CNO,'\\text{Irregular }I_t')
       +leg('background:'+CS,'\\text{The sum }y_t');
     else{P1[dsK].comps.forEach(function(c){h+=leg('background:'+c.col,c.h);});
       h+=leg('background:'+CS,'\\text{The sum }y_t');}}
@@ -702,7 +705,7 @@ function fillTable(){
   if(curTab===0){
     var t0=Math.round(gv('t0'));
     if(dsK==='custom'){
-      cols=['\\text{Day }(t)','\\text{Trend}','\\text{Seas.}','c\\,\\tilde x_t','\\text{Noise}','y_t'];
+      cols=['\\text{Day }(t)','T_t','S_t','C_t','I_t','y_t'];
       for(var t=1;t<=n;t++){var p=parts(t);
         rows.push({hl:t===t0,cells:[String(t),fx(p.tr,1),fx(p.se,1),fx(p.ex,1),fx(p.no,1),fx(y[t],1)],yc:5});}
     }else{var pr=preOf(),cc=P1[dsK].comps;
@@ -755,10 +758,10 @@ function fillCalc(){
     var t0=Math.round(gv('t0'));
     if(dsK==='custom'){
       var p=parts(t0),dow=DOW[(t0-1)%M];
-      h+=lline('Trend',['40+b\\,(t-1)=40+'+fx(cur().b,2)+'\\cdot'+(t0-1)+'='+fx(p.tr,1)]);
-      h+=lline('Seasonal',['\\text{day }'+t0+'\\text{ is a '+dow+'}\\Rightarrow s='+fx(p.se,1)]);
-      h+=lline('External',['c\\,\\tilde x_{'+t0+'}='+fx(cur().c,1)+'\\cdot'+fx(xNow()[t0]-xbarOf(n),1)+'='+fx(p.ex,1)]);
-      h+=lline('Noise',['\\varepsilon_{'+t0+'}='+fx(p.no,1)]);
+      h+=lline('Trend',['T_{'+t0+'}=40+'+fx(cur().b,2)+'\\cdot'+(t0-1)+'='+fx(p.tr,1)]);
+      h+=lline('Seasonal',['\\text{day }'+t0+'\\text{ is a '+dow+'}\\Rightarrow S_{'+t0+'}='+fx(p.se,1)]);
+      h+=lline('Cycle',['C_{'+t0+'}='+fx(cur().c,1)+'\\cdot'+fx(xNow()[t0]-xbarOf(n),1)+'='+fx(p.ex,1)]);
+      h+=lline('Irregular',['I_{'+t0+'}='+fx(p.no,1)]);
       h+=lline('Sum',['y_{'+t0+'}='+fx(p.tr,1)+(p.se<0?'-':'+')+fx(Math.abs(p.se),1)
         +(p.ex<0?'-':'+')+fx(Math.abs(p.ex),1)
         +(p.no<0?'-':'+')+fx(Math.abs(p.no),1)+'='+fx(y[t0],1)]);
@@ -782,8 +785,7 @@ function fillCalc(){
   }else{
     var o=ordOf(),fit=fitOf(o,y);
     h+=lline('Model',[modelName(o)]);
-    if(o.x)h+=lline('External',['\\widehat\\beta='+fx(fit.beta,2),
-      '\\text{'+(XTYPE==='temp'?'per °C':'per event')+'}']);
+    if(o.x)h+=lline('External',['\\widehat\\beta='+fx(fit.beta,2),'\\text{per °C}']);
   }
   el.innerHTML=h;}
 
@@ -804,15 +806,13 @@ function paintDs(){document.querySelectorAll('#dsSeg button, #dsSeg2 button').fo
   b.className=b.getAttribute('data-ds')===dsK?'on':'';});
   document.querySelectorAll('#xSeg button').forEach(function(b){
     b.className=b.getAttribute('data-x')===String(XIN)?'on':'';});
-  document.querySelectorAll('#xtSeg button').forEach(function(b){
-    b.className=b.getAttribute('data-xt')===XTYPE?'on':'';});
   document.querySelectorAll('#hSeg button').forEach(function(b){
     b.className=b.getAttribute('data-h')===String(HSEL)?'on':'';});
   document.querySelectorAll('#wSeg button').forEach(function(b){
     b.className=b.getAttribute('data-w')===String(WARM)?'on':'';});}
 function fillEq(){
   var el=document.getElementById('eqline');
-  K(dsK==='custom'?'y_t=40+b\\,(t-1)+A\\,s_t+c\\,\\tilde x_t+\\sigma\\,\\varepsilon_t'
+  K(dsK==='custom'?'y_t=T_t+S_t+C_t+I_t'
     :P1[dsK].eq,el);}
 function syncRows(){
   /* the component levers live on the data tabs and on Custom only (the presets are fixed
@@ -842,8 +842,6 @@ document.querySelectorAll('#dsSeg button, #dsSeg2 button').forEach(function(b){
   b.addEventListener('click',function(){dsK=b.getAttribute('data-ds');upd();});});
 document.querySelectorAll('#xSeg button').forEach(function(b){
   b.addEventListener('click',function(){XIN=+b.getAttribute('data-x');upd();});});
-document.querySelectorAll('#xtSeg button').forEach(function(b){
-  b.addEventListener('click',function(){XTYPE=b.getAttribute('data-xt');FITC={};upd();});});
 document.querySelectorAll('#hSeg button').forEach(function(b){
   b.addEventListener('click',function(){HSEL=+b.getAttribute('data-h');upd();});});
 document.querySelectorAll('#wSeg button').forEach(function(b){
@@ -865,7 +863,7 @@ window.LAB={
     var out={tab:curTab,n:n,ds:dsK,seed:dsK==='custom'?CSEED:PSEED[dsK],
       b:cur().b,A:cur().A,c:cur().c,sg:cur().sg,
       k:Math.round(gv('k')),t0:Math.round(gv('t0')),ord:ordOf(),m:M,
-      xtype:XTYPE,H:HSEL,warm:WARM,
+      H:HSEL,warm:WARM,
       y:yv.map(function(v){return +v.toFixed(1);}),acf:ac,pacf:pc,moeA:mA,
       bound:+(1.96/Math.sqrt(n)).toFixed(6)};
     if(curTab===3){var fit=fitOf(ordOf(),y),F=fit.F;
@@ -892,7 +890,6 @@ window.LAB={
   set:function(o){
     if(o.ds&&(o.ds==='custom'||PSEED[o.ds]!==undefined)){dsK=o.ds;FITC={};}
     if(o.seed!=null&&dsK==='custom'&&+o.seed!==CSEED){CSEED=+o.seed;FITC={};}
-    if(o.xtype&&(o.xtype==='temp'||o.xtype==='event')){XTYPE=o.xtype;FITC={};}
     if(o.H!=null){HSEL=+o.H;FITC={};}
     if(o.warm!=null){WARM=+o.warm?1:0;FITC={};}
     if(o.x!=null)XIN=Math.round(+o.x)?1:0;
