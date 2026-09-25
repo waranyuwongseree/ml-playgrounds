@@ -121,9 +121,9 @@
       </div></div>
       <div id="grp-model"><div class="dhd" id="hd-model"></div>
       <div class="dgrid">
-        <div class="drow"><span class="dlab" id="lbl-p"></span><input type="range" id="Rp" min="0" max="2" step="1" value="1"><input class="num" type="number" id="Np" min="0" max="2" step="1" value="1"></div>
-        <div class="drow"><span class="dlab" id="lbl-d"></span><input type="range" id="Rd" min="0" max="1" step="1" value="1"><input class="num" type="number" id="Nd" min="0" max="1" step="1" value="1"></div>
-        <div class="drow"><span class="dlab" id="lbl-q"></span><input type="range" id="Rq" min="0" max="2" step="1" value="1"><input class="num" type="number" id="Nq" min="0" max="2" step="1" value="1"></div>
+        <div class="drow"><span class="dlab" id="lbl-p"></span><input type="range" id="Rp" min="0" max="2" step="1" value="0"><input class="num" type="number" id="Np" min="0" max="2" step="1" value="0"></div>
+        <div class="drow"><span class="dlab" id="lbl-d"></span><input type="range" id="Rd" min="0" max="1" step="1" value="0"><input class="num" type="number" id="Nd" min="0" max="1" step="1" value="0"></div>
+        <div class="drow"><span class="dlab" id="lbl-q"></span><input type="range" id="Rq" min="0" max="2" step="1" value="0"><input class="num" type="number" id="Nq" min="0" max="2" step="1" value="0"></div>
         <div class="drow"><span class="dlab" id="lbl-P"></span><input type="range" id="RP" min="0" max="1" step="1" value="0"><input class="num" type="number" id="NP" min="0" max="1" step="1" value="0"></div>
         <div class="drow"><span class="dlab" id="lbl-D"></span><input type="range" id="RD" min="0" max="1" step="1" value="0"><input class="num" type="number" id="ND" min="0" max="1" step="1" value="0"></div>
         <div class="drow"><span class="dlab" id="lbl-Q"></span><input type="range" id="RQ" min="0" max="1" step="1" value="0"><input class="num" type="number" id="NQ" min="0" max="1" step="1" value="0"></div>
@@ -187,7 +187,8 @@ var WARM=1;   /* the warm-up rows are always trimmed */
 var CSEED=12345;              /* Custom's noise seed; Resample moves THIS one only */
 /* the six presets: fixed seeds, chosen so the printed series' acf1/acf7/pacf1 land on the
    answer table in the 2026-09-25 order at 2 dp */
-var PN=280,PSEED={noise:99880,ar:73643,ma:145206,walk:70114,wk:71157,tw:79504};
+var PN=280,PSEED={noise:99880,ar:73643,ma:145206,walk:70114,wk:83001,tw:86008};
+var W0=[2.4,2.4,2.4,2.4,2.4,-6.0,-6.0];   /* first week of the drifting pattern */
 
 /* ---------------- Custom: y_t = 40 + b(t-1) + A s_t + c (x_t - xbar) + sigma e_t ------- */
 function cur(){return {b:dsK==='custom'?gv('b'):0,A:dsK==='custom'?gv('A'):0,
@@ -202,7 +203,7 @@ function parts(t){var c=cur(),z=znOf(CSEED,84);
 var PRE={};
 function preOf(){var kd=dsK,key=kd+'/'+PSEED[kd];
   if(PRE[key])return PRE[key];
-  var z=znOf(PSEED[kd],kd==='tw'?2*PN:PN);
+  var z=znOf(PSEED[kd],kd==='tw'?3*PN:kd==='wk'?2*PN:PN);
   var y=[null],c1=[null],c2=[null],c3=[null],t,prev=50,ePrev=0,T=0;
   for(t=1;t<=PN;t++){
     if(kd==='noise'){var e=rnd(2.0*z[t-1],2);y.push(rnd(50+e,1));c1.push(e);}
@@ -211,10 +212,11 @@ function preOf(){var kd=dsK,key=kd+'/'+PSEED[kd];
     else if(kd==='ma'){var e3=rnd(2.0*z[t-1],2),a2=rnd(0.85*ePrev,2);
       y.push(rnd(50+e3+a2,1));c1.push(e3);c2.push(a2);ePrev=e3;}
     else if(kd==='walk'){var s=rnd(0.05+0.8*z[t-1],2);y.push(rnd(prev+s,1));c1.push(s);}
-    else if(kd==='wk'){var w=(t-1)%M===5||(t-1)%M===6?-6.0:2.4,e4=rnd(1.0*z[t-1],2);
+    else if(kd==='wk'){
+      var w=t<=7?W0[t-1]:rnd(c1[t-7]+0.6*z[2*t-1],2),e4=rnd(0.8*z[2*(t-1)],2);
       y.push(rnd(50+w+e4,1));c1.push(w);c2.push(e4);}
-    else{var s2=rnd(0.06+0.5*z[2*(t-1)],2);T=rnd(T+s2,2);
-      var w2=rnd(5.0*Math.sin(2*Math.PI*t/7),2),e5=rnd(0.8*z[2*t-1],2);
+    else{T=rnd(T+rnd(0.06+0.45*z[3*(t-1)],2),2);
+      var w2=t<=7?W0[t-1]:rnd(c2[t-7]+0.35*z[3*(t-1)+1],2),e5=rnd(0.5*z[3*(t-1)+2],2);
       y.push(rnd(50+T+w2+e5,1));c1.push(T);c2.push(w2);c3.push(e5);}
     prev=y[t];}
   PRE[key]={y:y,c1:c1,c2:c2,c3:c3};return PRE[key];}
@@ -636,10 +638,10 @@ var P1={noise:{eq:'y_t=50+\\varepsilon_t,\\ \\varepsilon\\sim N(0,2)',
     comps:[{h:'\\varepsilon_t',lb:'Shock',col:CNO},{h:'0.85\\,\\varepsilon_{t-1}',lb:'Old shock',col:CTR}]},
   walk:{eq:'y_t=y_{t-1}+\\eta_t,\\ \\eta\\sim N(0.05,0.8)',
     comps:[{h:'\\eta_t',lb:'Step',col:CNO}]},
-  wk:{eq:'y_t=50+s_t+\\varepsilon_t',
-    comps:[{h:'s_t',lb:'Weekly',col:CSE},{h:'\\varepsilon_t',lb:'Shock',col:CNO}]},
-  tw:{eq:'y_t=50+T_t+5\\sin(2\\pi t/7)+\\varepsilon_t',
-    comps:[{h:'T_t',lb:'Trend',col:CTR},{h:'5\\sin(2\\pi t/7)',lb:'Weekly',col:CSE},
+  wk:{eq:'',
+    comps:[{h:'S_t',lb:'Seasonal',col:CSE},{h:'\\varepsilon_t',lb:'Shock',col:CNO}]},
+  tw:{eq:'',
+    comps:[{h:'T_t',lb:'Trend',col:CTR},{h:'S_t',lb:'Seasonal',col:CSE},
            {h:'\\varepsilon_t',lb:'Shock',col:CNO}]}};
 function fillLegend(){}
 
@@ -673,7 +675,7 @@ function fillTable(){
       for(var t1=1;t1<=n;t1++){
         var cells=[String(t1)];
         cc.forEach(function(c,ci){var arr=ci===0?pr.c1:ci===1?pr.c2:pr.c3;
-          cells.push(fx(arr[t1],dsK==='wk'&&ci===0?1:2));});
+          cells.push(fx(arr[t1],2));});
         cells.push(fx(y[t1],1));
         rows.push({hl:t1===t0,cells:cells,yc:cells.length-1});}}
   }else if(curTab===1){
