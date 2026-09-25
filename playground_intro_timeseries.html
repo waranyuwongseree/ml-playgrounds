@@ -10,7 +10,7 @@
 <style>
   /* intro-timeseries — โครงเดียวกับ Introduction to Regression / RUL: ตารางข้อมูลซ้าย ·
      กราฟ + legend + กล่องคำนวณ · control ขวา */
-  :root{--panel-h:597px}   /* วัดจาก tab ที่ control สูงสุดแล้วตรึงทุก tab เท่ากัน */
+  :root{--panel-h:537px}   /* วัดจาก tab ที่ control สูงสุดแล้วตรึงทุก tab เท่ากัน */
   .layout{align-items:start}
   .pg.distcls .canvasbox{height:260px}
   .pg.distcls .canvasbox.tall{height:345px}   /* tab 4: สี่กราฟเรียงคอลัมน์เดียว */
@@ -68,7 +68,8 @@
   .eqline{font-size:14px;color:#555;margin:-2px 0 9px;text-align:center}
   .eqline .katex{font-size:1em}
   .stage.mod{flex-direction:row;gap:18px;align-items:flex-start}
-  .dleft{display:block;flex:0 0 300px;min-width:0;overflow-y:auto;overflow-x:hidden;border-radius:8px;position:relative}
+  .dleft{display:block;flex:0 0 300px;min-width:0;overflow-y:auto;overflow-x:hidden;border-radius:8px;position:relative;
+    max-height:min(var(--panel-h),calc(100vh - 165px))}
   .main{display:flex;flex-direction:column;gap:6px;flex:1 1 auto;min-width:0}
   .classleg .clrow{display:flex;align-items:center;gap:14px;flex-wrap:wrap;color:#555}
   .pg .panel .dgrid{row-gap:5px}
@@ -102,7 +103,6 @@
       <div id="grp-custom"><div class="dgrid">
         <div class="drow eqr"><span class="dlab" id="lbl-b"></span><input type="range" id="Rb" min="0" max="0.4" step="0.05" value="0.2"><input class="num" type="number" id="Nb" min="0" max="0.4" step="0.05" value="0.2"></div>
         <div class="drow eqr"><span class="dlab" id="lbl-A"></span><input type="range" id="RA" min="0" max="8" step="0.5" value="5"><input class="num" type="number" id="NA" min="0" max="8" step="0.5" value="5"></div>
-        <div class="drow eqr"><span class="dlab" id="lbl-c"></span><input type="range" id="Rc" min="0" max="8" step="0.5" value="4"><input class="num" type="number" id="Nc" min="0" max="8" step="0.5" value="4"></div>
         <div class="drow eqr"><span class="dlab" id="lbl-sg"></span><input type="range" id="Rsg" min="0.5" max="4" step="0.5" value="1"><input class="num" type="number" id="Nsg" min="0.5" max="4" step="0.5" value="1"></div>
       </div></div>
       <div id="grp-noise"><div class="dgrid">
@@ -202,10 +202,10 @@ function xbarOf(n){var X=xNow(),s=0,t;for(t=1;t<=n;t++)s+=X[t];return s/n;}
 
 /* ---------------- Custom: y_t = 40 + b(t-1) + A s_t + c (x_t - xbar) + sigma e_t ------- */
 function cur(){return {b:dsK==='custom'?gv('b'):0,A:dsK==='custom'?gv('A'):0,
-  c:dsK==='custom'?gv('c'):0,sg:gv('sg'),n:dsK==='custom'?Math.round(gv('n')):PN};}
-function parts(t){var c=cur(),X=xNow(),xb=xbarOf(c.n),z=znOf(CSEED,84);
+  sg:gv('sg'),n:dsK==='custom'?Math.round(gv('n')):PN};}
+function parts(t){var c=cur(),z=znOf(CSEED,84);
   return {tr:rnd(LEVEL+c.b*(t-1),2),se:rnd(c.A*SEAS[(t-1)%M]/5.5,2),
-          ex:rnd(c.c*(X[t]-xb),2),no:rnd(c.sg*z[t-1],2)};}
+          no:rnd(c.sg*z[t-1],2)};}
 
 /* ---------------- the six presets (ORDER section 5): n=280, base 50, fixed seeds;
    terms rounded to 2 dp, y to the printed 1 dp, recursions fed the rounded y ---------- */
@@ -231,7 +231,7 @@ function preOf(){var kd=dsK,key=kd+'/'+PSEED[kd];
 function series(){
   if(dsK!=='custom')return preOf().y;
   var n=cur().n,y=[null],t;
-  for(t=1;t<=n;t++){var p=parts(t);y.push(rnd(p.tr+p.se+p.ex+p.no,1));}
+  for(t=1;t<=n;t++){var p=parts(t);y.push(rnd(p.tr+p.se+p.no,1));}
   return y;}
 
 /* ---------------- ACF / PACF (Durbin-Levinson) + the KNIME bands ----------------
@@ -372,7 +372,7 @@ function ordOf(){return {p:Math.round(gv('p')),d:Math.round(gv('d')),q:Math.roun
                          P:Math.round(gv('P')),D:Math.round(gv('D')),Q:Math.round(gv('Q')),
                          x:dsK==='custom'?XIN:0};}
 function fitKey(o){var c=cur();
-  return dsK+'/'+(dsK==='custom'?CSEED:PSEED[dsK])+'/'+c.b+'/'+c.A+'/'+c.c+'/'+c.sg+'/'+c.n
+  return dsK+'/'+(dsK==='custom'?CSEED:PSEED[dsK])+'/'+c.b+'/'+c.A+'/'+c.sg+'/'+c.n
     +'/'+HSEL+'/'+WARM+'/'+o.p+o.d+o.q+o.P+o.D+o.Q+o.x;}
 function fitOf(o,y){var key=fitKey(o);
   if(!FITC[key])FITC[key]=fitModel(o,y);
@@ -388,7 +388,7 @@ var MT={'h1':'\\text{Introduction to Time Series}','resample':'\\text{Resample n
   'ds-ar':'\\text{AR}(1)','ds-ma':'\\text{MA}(1)','ds-walk':'\\text{Walk}',
   'ds-wk':'\\text{Weekly}','ds-tw':'\\text{Trend+Weekly}',
   'lbl-b':'T_t=40+b\\,(t-1)','lbl-A':'S_t=A\\,s_t',
-  'lbl-c':'C_t=c\\,(x_t-\\bar x)','lbl-sg':'I_t=\\sigma\\,\\varepsilon_t','lbl-n':'n',
+  'lbl-sg':'I_t=\\sigma\\,\\varepsilon_t','lbl-n':'n',
   'hd-lag':'\\text{Lag}','lbl-k':'k','hd-ex':'\\text{Testing day}','lbl-t0':'t',
   'hd-model':'\\text{Model }(p,d,q)(P,D,Q)_7','lbl-H':'H',
   'lbl-p':'p','lbl-d':'d','lbl-q':'q','lbl-P':'P','lbl-D':'D','lbl-Q':'Q'};
@@ -502,10 +502,10 @@ function draw1(lb,y){
   var n=y.length-1,t0=Math.round(gv('t0')),rows;
   if(dsK==='custom'){
     rows=[
-      {col:CTR,arr:[]},{col:CSE,arr:[]},{col:CEX,arr:[]},{col:CNO,arr:[]},
+      {col:CTR,arr:[]},{col:CSE,arr:[]},{col:CNO,arr:[]},
       {col:CS,arr:y.slice(1)}];
     for(var t=1;t<=n;t++){var p=parts(t);
-      rows[0].arr.push(p.tr);rows[1].arr.push(p.se);rows[2].arr.push(p.ex);rows[3].arr.push(p.no);}
+      rows[0].arr.push(p.tr);rows[1].arr.push(p.se);rows[2].arr.push(p.no);}
   }else{var pr=preOf();
     rows=(dsK==='noise'?[{col:CNO,arr:pr.c1.slice(1)}]
         :dsK==='ar'?[{col:CTR,arr:pr.c1.slice(1)},{col:CNO,arr:pr.c2.slice(1)}]
@@ -514,9 +514,9 @@ function draw1(lb,y){
         :dsK==='wk'?[{col:CSE,arr:pr.c1.slice(1)},{col:CNO,arr:pr.c2.slice(1)}]
         :[{col:CTR,arr:pr.c1.slice(1)},{col:CSE,arr:pr.c2.slice(1)},{col:CNO,arr:pr.c3.slice(1)}])
       .concat([{col:CS,arr:y.slice(1)}]);}
-  var k=rows.length,L=52,Rm=14,gap=10;
-  var h3=Math.round((CH-46-(k-1)*gap)/(k+0.6)),hy=CH-38-(k-1)*(h3+gap)-8;
-  var LET=dsK==='custom'?['T_t','S_t','C_t','I_t','y_t']:null;
+  var k=rows.length,L=52,Rm=14,gap=10,BOT=dsK==='custom'?26:0;
+  var h3=Math.round((CH-46-BOT-(k-1)*gap)/(k+0.6)),hy=CH-38-BOT-(k-1)*(h3+gap)-8;
+  var LET=dsK==='custom'?['T_t','S_t','I_t','y_t']:null;
   var top=8,xt=[1,14,28,42,56,70,84,140,210,280].filter(function(v){return v<=n;});
   if(n>84)xt=[1,70,140,210,280].filter(function(v){return v<=n;});
   rows.forEach(function(r,i){
@@ -531,6 +531,13 @@ function draw1(lb,y){
     ctx.beginPath();ctx.moveTo(P.px(t0),box.t);ctx.lineTo(P.px(t0),box.b);ctx.stroke();ctx.setLineDash([]);
     if(LET)lb(LET[i],L-8,(box.t+box.b)/2,{align:'right',vt:'middle',color:r.col});
     top+=hh+gap;});
+  /* the calculation down to y_t, each term in its strip's colour */
+  if(dsK==='custom'){var p0=parts(t0);
+    lb('y_{'+t0+'}=\\textcolor{'+CTR+'}{'+fx(p0.tr,1)+'}'
+      +(p0.se<0?'-':'+')+'\\textcolor{'+CSE+'}{'+fx(Math.abs(p0.se),1)+'}'
+      +(p0.no<0?'-':'+')+'\\textcolor{'+CNO+'}{'+fx(Math.abs(p0.no),1)+'}'
+      +'=\\textcolor{'+CS+'}{'+fx(y[t0],1)+'}',
+      (L+CW-Rm)/2,CH-8,{align:'center'});}
 }
 
 /* ============ tab 2 · the series on the left, the pairs (y_{t-k}, y_t) square on the
@@ -538,18 +545,18 @@ function draw1(lb,y){
 function draw2(lb,y){
   var n=y.length-1,k=Math.round(gv('k'));
   var L=52,Rm=14;
-  var ts={l:L,r:CW-Rm,t:8,b:Math.round(CH*0.26)};
+  var tsB=Math.round(CH*0.2),side=CH-38-(tsB+44),mid=(L+CW-Rm)/2;
+  var ts={l:Math.round(mid-side/2),r:Math.round(mid+side/2),t:8,b:tsB};
   var yv=y.slice(1),sp=spanOf(yv);
-  var xt=n>100?[1,70,140,210,280]:[1,14,28,42,56];
+  var xt=[1,14,28,42,56];
   var Pt=frame(ts,1,n,sp[0],sp[1],xt.filter(function(v){return v<=n;}),
                [rnd(sp[0]+(sp[1]-sp[0])*0.2,0),rnd(sp[0]+(sp[1]-sp[0])*0.62,0)]);
   ctx.save();ctx.beginPath();ctx.rect(ts.l,ts.t,ts.r-ts.l,ts.b-ts.t);ctx.clip();
-  lineOf(Pt,yv,1,CS,n>150?1.2:1.6);
+  lineOf(Pt,yv,1,CS,1.6);
   ctx.restore();
-  lb('y_t',L-8,ts.t+12,{align:'right'});
-  lb('t\\text{, d}',CW-Rm,ts.b+30,{align:'right'});
-  var side=CH-38-(ts.b+44),mid=(L+CW-Rm)/2;
-  var sx={l:Math.round(mid-side/2),r:Math.round(mid+side/2),t:ts.b+44,b:CH-38};
+  lb('y_t',ts.l-8,ts.t+12,{align:'right'});
+  lb('t\\text{, d}',ts.r,ts.b+30,{align:'right'});
+  var sx={l:ts.l,r:ts.r,t:ts.b+44,b:CH-38};
   var md=rnd((sp[0]+sp[1])/2,0);
   var P=frame(sx,sp[0],sp[1],sp[0],sp[1],
               [md],
@@ -557,7 +564,7 @@ function draw2(lb,y){
   ctx.save();ctx.beginPath();ctx.rect(sx.l,sx.t,sx.r-sx.l,sx.b-sx.t);ctx.clip();
   for(var t=k+1;t<=n;t++){
     ctx.fillStyle=CS;ctx.globalAlpha=0.85;
-    ctx.beginPath();ctx.arc(P.px(y[t-k]),P.py(y[t]),n>150?2.6:4,0,7);ctx.fill();
+    ctx.beginPath();ctx.arc(P.px(y[t-k]),P.py(y[t]),4,0,7);ctx.fill();
     ctx.globalAlpha=1;ctx.strokeStyle='rgba(255,255,255,0.9)';ctx.lineWidth=1.1;ctx.stroke();}
   ctx.restore();
   var r=acfOf(yv,k);
@@ -661,7 +668,6 @@ function fillLegend(){
   if(curTab===0){
     if(dsK==='custom')h+=leg('background:'+CTR,'\\text{Trend }T_t')
       +leg('background:'+CSE,'\\text{Seasonal }S_t')
-      +leg('background:'+CEX,'\\text{Cycle }C_t')
       +leg('background:'+CNO,'\\text{Irregular }I_t')
       +leg('background:'+CS,'\\text{The sum }y_t');
     else{P1[dsK].comps.forEach(function(c){h+=leg('background:'+c.col,c.h);});
@@ -700,9 +706,9 @@ function fillTable(){
   if(curTab===0){
     var t0=Math.round(gv('t0'));
     if(dsK==='custom'){
-      cols=['\\text{Day }(t)','T_t','S_t','C_t','I_t','y_t'];
+      cols=['\\text{Day }(t)','T_t','S_t','I_t','y_t'];
       for(var t=1;t<=n;t++){var p=parts(t);
-        rows.push({hl:t===t0,cells:[String(t),fx(p.tr,1),fx(p.se,1),fx(p.ex,1),fx(p.no,1),fx(y[t],1)],yc:5});}
+        rows.push({hl:t===t0,cells:[String(t),fx(p.tr,1),fx(p.se,1),fx(p.no,1),fx(y[t],1)],yc:4});}
     }else{var pr=preOf(),cc=P1[dsK].comps;
       cols=['\\text{Day }(t)'].concat(cc.map(function(c){return c.h;})).concat(['y_t']);
       for(var t1=1;t1<=n;t1++){
@@ -734,9 +740,6 @@ function fillTable(){
       return '<td'+(j===r.yc?' class="ycol"':'')+'>'+kx(v)+'</td>';}).join('')+'</tr>';});
   tb.innerHTML=h;
   var dl=document.getElementById('dleft'),hlr=tb.querySelector('tr.hl');
-  var mn=document.getElementById('main');
-  if(innerWidth>820)dl.style.maxHeight=Math.max(260,Math.round(mn.getBoundingClientRect().height))+'px';
-  else dl.style.maxHeight='300px';
   if(hlr)dl.scrollTop=Math.max(0,hlr.offsetTop-dl.clientHeight/2);}
 
 /* ---------------- calc box ---------------- */
@@ -754,10 +757,8 @@ function fillCalc(){
       var p=parts(t0),dow=DOW[(t0-1)%M];
       h+=lline('Trend',['T_{'+t0+'}=40+'+fx(cur().b,2)+'\\cdot'+(t0-1)+'='+fx(p.tr,1)]);
       h+=lline('Seasonal',['\\text{day }'+t0+'\\text{ is a '+dow+'}\\Rightarrow S_{'+t0+'}='+fx(p.se,1)]);
-      h+=lline('Cycle',['C_{'+t0+'}='+fx(cur().c,1)+'\\cdot'+fx(xNow()[t0]-xbarOf(n),1)+'='+fx(p.ex,1)]);
       h+=lline('Irregular',['I_{'+t0+'}='+fx(p.no,1)]);
       h+=lline('Sum',['y_{'+t0+'}='+fx(p.tr,1)+(p.se<0?'-':'+')+fx(Math.abs(p.se),1)
-        +(p.ex<0?'-':'+')+fx(Math.abs(p.ex),1)
         +(p.no<0?'-':'+')+fx(Math.abs(p.no),1)+'='+fx(y[t0],1)]);
     }else{
       var pr=preOf(),cc=P1[dsK].comps,vals=[];
@@ -807,15 +808,16 @@ function paintDs(){document.querySelectorAll('#dsSeg button, #dsSeg2 button').fo
     b.className=b.getAttribute('data-w')===String(WARM)?'on':'';});}
 function fillEq(){
   var el=document.getElementById('eqline');
-  K(dsK==='custom'?'y_t=T_t+S_t+C_t+I_t'
+  K(dsK==='custom'?'y_t=T_t+S_t+I_t'
     :P1[dsK].eq,el);}
 function syncRows(){
   /* the component levers live on the data tabs and on Custom only (the presets are fixed
      draws with fixed seeds); the model tab is for the orders */
   var dataTab=curTab<3,cust=dsK==='custom';
-  document.getElementById('hd-data').style.display=curTab===0?'none':'';
-  document.getElementById('dsSeg').style.display=curTab===0?'none':'';
-  document.getElementById('dsSeg2').style.display=curTab===0?'none':'';
+  document.getElementById('hd-data').style.display=curTab<=1?'none':'';
+  document.getElementById('dsSeg').style.display=curTab<=1?'none':'';
+  document.getElementById('dsSeg2').style.display=curTab<=1?'none':'';
+  document.getElementById('ds-custom').style.display=curTab===2?'none':'';
   document.getElementById('classleg').style.display=curTab===0?'none':'';
   document.getElementById('mcalc').style.display=curTab===0?'none':'';
   document.getElementById('grp-custom').style.display=(cust&&dataTab)?'':'none';
@@ -834,7 +836,8 @@ function upd(){syncRows();paintDs();fillEq();
   sizeCanvas();draw();fillLegend();fillScore();fillTable();fillCalc();fillSdNote();
   if(Math.round(cv.clientWidth)!==CW||Math.round(cv.clientHeight)!==CH){sizeCanvas();draw();}}
 function applyTab(i){curTab=i;
-  if(i===0)dsK='custom';           /* tab 1 IS the Custom builder (the order) */
+  if(i<=1)dsK='custom';            /* tabs 1-2 ARE the Custom builder (the order) */
+  if(i===2&&dsK==='custom')dsK='ar';   /* tab 3 chooses among the signature models */
   document.querySelectorAll('.tabbtn').forEach(function(b,j){b.className='tabbtn'+(j===i?' on':'');});
   renderTexts();upd();}
 var tb2=document.getElementById('tabs');
@@ -848,7 +851,7 @@ document.querySelectorAll('#hSeg button').forEach(function(b){
   b.addEventListener('click',function(){HSEL=+b.getAttribute('data-h');upd();});});
 document.querySelectorAll('#wSeg button').forEach(function(b){
   b.addEventListener('click',function(){WARM=+b.getAttribute('data-w');upd();});});
-['b','A','c','sg','n','k','t0','p','d','q','P','D','Q'].forEach(function(b){
+['b','A','sg','n','k','t0','p','d','q','P','D','Q'].forEach(function(b){
   var Re=document.getElementById('R'+b),Ne=document.getElementById('N'+b);
   Re.addEventListener('input',function(){Ne.value=Re.value;FITC={};upd();});
   Ne.addEventListener('input',function(){Re.value=Ne.value;FITC={};upd();});});
@@ -863,7 +866,7 @@ window.LAB={
     var pc=pacfList(yv,KS).map(function(v){return +v.toFixed(6);});
     var mA=moeACF(acfRow(yv,KS),n).map(function(v){return +v.toFixed(6);});
     var out={tab:curTab,n:n,ds:dsK,seed:dsK==='custom'?CSEED:PSEED[dsK],
-      b:cur().b,A:cur().A,c:cur().c,sg:cur().sg,
+      b:cur().b,A:cur().A,sg:cur().sg,
       k:Math.round(gv('k')),t0:Math.round(gv('t0')),ord:ordOf(),m:M,
       H:HSEL,warm:WARM,
       y:yv.map(function(v){return +v.toFixed(1);}),acf:ac,pacf:pc,moeA:mA,
@@ -895,7 +898,7 @@ window.LAB={
     if(o.H!=null){HSEL=+o.H;FITC={};}
     if(o.warm!=null){WARM=+o.warm?1:0;FITC={};}
     if(o.x!=null)XIN=Math.round(+o.x)?1:0;
-    ['b','A','c','sg','n','k','t0','p','d','q','P','D','Q'].forEach(function(b2){
+    ['b','A','sg','n','k','t0','p','d','q','P','D','Q'].forEach(function(b2){
       if(o[b2]!=null){sv(b2,+o[b2]);FITC={};}});
     if(o.tab!=null)applyTab(Math.max(0,Math.min(3,+o.tab)));
     else upd();}};
