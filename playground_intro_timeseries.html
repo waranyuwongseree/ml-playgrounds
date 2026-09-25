@@ -10,9 +10,11 @@
 <style>
   /* intro-timeseries — โครงเดียวกับ Introduction to Regression / RUL: ตารางข้อมูลซ้าย ·
      กราฟ + legend + กล่องคำนวณ · control ขวา */
-  :root{--panel-h:421px}   /* วัดจาก tab ที่ control สูงสุดแล้วตรึงทุก tab เท่ากัน */
+  :root{--panel-h:575px}   /* วัดจาก tab ที่ control สูงสุดแล้วตรึงทุก tab เท่ากัน */
   .layout{align-items:start}
   .pg.distcls .canvasbox{height:260px}
+  .pg.distcls .canvasbox.tall{height:345px}   /* tab 4: สี่กราฟเรียงคอลัมน์เดียว */
+  @media(max-height:640px){.pg.distcls .canvasbox.tall{height:235px}}
   .distcls .stage{gap:6px}
   .canvasbox{position:relative}
   .cvlab{position:absolute;left:0;top:0;width:100%;height:100%;pointer-events:none;overflow:hidden;font-size:14px;line-height:1}
@@ -25,20 +27,41 @@
   .excalc .ln>.bd{display:inline}
   .excalc .ln>.bd>span{display:inline-block;margin-right:.35em;vertical-align:middle;white-space:nowrap}
   .excalc .ln+.ln{border-top:1px solid var(--line);padding-top:2px;margin-top:2px}
+  .scb{background:#fff;border:1px solid var(--line);border-radius:12px;padding:4px 6px;font-size:13px}
+  .scb table{width:100%;border-collapse:collapse}
+  .scb th{font-weight:400;color:#555;text-align:right;padding:1px 4px;border-bottom:1px solid var(--line)}
+  .scb th:first-child{text-align:left}
+  .scb td{text-align:right;padding:1px 4px;color:var(--ink)}
+  .scb td:first-child{text-align:left;color:#555}
+  .scb .vd{padding:2px 2px 0;color:#9A6B00;font-size:13px;border-top:1px solid var(--line);margin-top:2px}
   .dtab{width:100%;border-collapse:collapse;font-size:15px}
   .dtab th{background:var(--navy);color:#fff;font-weight:400;padding:5px 5px;text-align:center;position:sticky;top:0;z-index:3}
   .dtab td{padding:1px 6px;text-align:center;color:var(--ink);line-height:1.35;background:#fff}
   .dtab tr.hl td{background:#E6ECF8}          /* แถวของ testing day / lag ที่เลือก */
-  .dtab tr.te td{background:#F3F4F6}          /* แถวพยากรณ์ (อนาคต ยังไม่มี y) */
+  .dtab tr.te td{background:#F3F4F6}          /* แถวช่วงที่กันไว้ทดสอบ */
   .dtab td.ycol{background:#fff3df;color:#7a4a06;font-weight:600}
   .dtab .katex{font-size:1em}
   .dtcap{font-size:13px;color:var(--muted);margin:0 0 4px}
-  .pg .tabbtn{padding:6px 10px}   /* ห้าแท็บต้องอยู่แถวเดียวกับ title (ฟอนต์คง 15px ตาม §2.1) */
+  .pg .tabbtn{padding:6px 10px}   /* สี่แท็บอยู่แถวเดียวกับ title (ฟอนต์คง 15px ตาม §2.1) */
   .seg2{display:flex;width:100%;border:1px solid #e6e6e0;border-radius:8px;overflow:hidden;margin-bottom:9px}
   .seg2 button{flex:1;font-size:15px;border:0;padding:7px 4px;cursor:pointer;background:#fff;color:#555;line-height:1.2}
   .seg2 button+button{border-left:1px solid #e6e6e0}
   .seg2 button.on{background:var(--navy);color:#fff}
   .seg2 .katex{font-size:1em}
+  .sdnote{font-size:13px;color:#555;margin:2px 0 6px;line-height:1.35}
+  .seg2.sm{margin:0 0 6px}
+  .seg2.sm button{padding:5px 3px}   /* UD 2.2: >=24px tall, body-size text */
+  .hrow{display:flex;align-items:center;gap:8px;margin:0 0 6px}
+  .hrow .dlab{min-width:0}
+  @media(max-height:640px){
+    :root{--row-h:27px}
+    .pg .panel .dgrid{row-gap:2px}
+    .seg2 button{padding:4px 3px}
+    .seg2{margin-bottom:5px}
+    .eqline{margin:-2px 0 5px}
+    .sdnote{margin:1px 0 4px}
+  }
+  .sdnote b{color:#9A6B00;font-weight:600}
   .eqline{font-size:14px;color:#555;margin:-2px 0 9px;text-align:center}
   .eqline .katex{font-size:1em}
   .stage.mod{flex-direction:row;gap:18px;align-items:flex-start}
@@ -50,7 +73,7 @@
 </style>
 </head>
 <body class="pg distcls">
-<h2 class="sr-only" style="position:absolute;width:1px;height:1px;overflow:hidden">Introduction to time series in four steps. First build a series yourself from its components — a level, a trend, a weekly seasonal pattern, a known external variable x and noise — and read the sum in the table. Then pick a lag and see the correlation between today and that many days ago as a scatter of pairs. Then read the same correlations for every lag at once as the ACF, and with the shorter lags removed as the PACF. Finally choose the model orders p, d, q, the seasonal P, D, Q at period seven and whether the known external variable x enters, fit the model, and read the fit and its check side by side: the forecast on the left, and on the right the residuals, their correlogram and the cross-correlation with x -- what is left says which order (or x) is still missing. A dataset control offers three classic processes, an AR(1), an MA(1) and a random walk, besides the series built from the levers.</h2>
+<h2 class="sr-only" style="position:absolute;width:1px;height:1px;overflow:hidden">Introduction to time series in four steps. First build a series yourself from its components — a level, a trend, a weekly seasonal pattern, a known external variable x and noise — or pick one of six fixed example series, and read the sum in the table. Then pick a lag and see the correlation between today and that many days ago as a scatter of pairs. Then read the same correlations for every lag at once as the ACF, and with the shorter lags removed as the PACF, each with its Bartlett significance band. Finally choose the model orders p, d, q, the seasonal P, D, Q at period seven and whether the known x enters, fit on the days before the holdout, and read the fit and its check in one column: the forecast against the held-out truth with a seasonal-naive baseline and a scoreboard, then the residuals, their correlogram and its verdict.</h2>
 <div class="wrap">
   <div class="hdr"><h1 id="h1">Introduction to Time Series</h1><div class="tabs" id="tabs"></div></div>
   <div class="layout" id="mainPanel">
@@ -60,23 +83,25 @@
       <div class="main" id="main">
         <div class="canvasbox"><canvas id="cv"></canvas></div>
         <div class="classleg" id="classleg"></div>
+        <div class="scb" id="scb" style="display:none"></div>
         <div class="excalc" id="mcalc"></div>
       </div>
     </div>
     <div class="panel">
       <div class="dhd" id="hd-data"></div>
-      <div class="seg2" id="dsSeg">
-        <button data-ds="custom" id="ds-custom" class="on"></button><button data-ds="ar" id="ds-ar"></button><button data-ds="ma" id="ds-ma"></button><button data-ds="rw" id="ds-rw"></button>
+      <div class="seg2" id="dsSeg" style="margin-bottom:5px">
+        <button data-ds="custom" id="ds-custom" class="on"></button><button data-ds="noise" id="ds-noise"></button><button data-ds="ar" id="ds-ar"></button><button data-ds="ma" id="ds-ma"></button>
+      </div>
+      <div class="seg2" id="dsSeg2">
+        <button data-ds="walk" id="ds-walk"></button><button data-ds="wk" id="ds-wk"></button><button data-ds="tw" id="ds-tw"></button>
       </div>
       <div class="eqline" id="eqline"></div>
       <div id="grp-custom"><div class="dgrid">
         <div class="drow"><span class="dlab" id="lbl-b"></span><input type="range" id="Rb" min="0" max="0.4" step="0.05" value="0.2"><input class="num" type="number" id="Nb" min="0" max="0.4" step="0.05" value="0.2"></div>
         <div class="drow"><span class="dlab" id="lbl-A"></span><input type="range" id="RA" min="0" max="8" step="0.5" value="5"><input class="num" type="number" id="NA" min="0" max="8" step="0.5" value="5"></div>
         <div class="drow"><span class="dlab" id="lbl-c"></span><input type="range" id="Rc" min="0" max="8" step="0.5" value="4"><input class="num" type="number" id="Nc" min="0" max="8" step="0.5" value="4"></div>
-      </div></div>
-      <div id="grp-proc"><div class="dgrid">
-        <div class="drow"><span class="dlab" id="lbl-co"></span><input type="range" id="Rco" min="-0.9" max="0.9" step="0.1" value="0.7"><input class="num" type="number" id="Nco" min="-0.9" max="0.9" step="0.1" value="0.7"></div>
-      </div></div>
+      </div>
+      <div class="seg2" id="xtSeg" style="margin:6px 0 9px"><button data-xt="temp" class="on"></button><button data-xt="event"></button></div></div>
       <div id="grp-noise"><div class="dgrid">
         <div class="drow"><span class="dlab" id="lbl-sg"></span><input type="range" id="Rsg" min="0.5" max="4" step="0.5" value="1"><input class="num" type="number" id="Nsg" min="0.5" max="4" step="0.5" value="1"></div>
         <div class="drow"><span class="dlab" id="lbl-n"></span><input type="range" id="Rn" min="28" max="84" step="7" value="56"><input class="num" type="number" id="Nn" min="28" max="84" step="7" value="56"></div>
@@ -98,7 +123,11 @@
         <div class="drow"><span class="dlab" id="lbl-D"></span><input type="range" id="RD" min="0" max="1" step="1" value="0"><input class="num" type="number" id="ND" min="0" max="1" step="1" value="0"></div>
         <div class="drow"><span class="dlab" id="lbl-Q"></span><input type="range" id="RQ" min="0" max="1" step="1" value="0"><input class="num" type="number" id="NQ" min="0" max="1" step="1" value="0"></div>
       </div>
-      <div class="seg2" id="xSeg" style="margin:6px 0 0"><button data-x="0" id="x-off" class="on"></button><button data-x="1" id="x-on"></button></div></div>
+      <div class="sdnote" id="sdNote"></div>
+      <div class="seg2 sm" id="xSeg"><button data-x="0" class="on"></button><button data-x="1"></button></div>
+      <div class="hrow"><span class="dlab" id="lbl-H"></span>
+        <div class="seg2 sm" id="hSeg" style="flex:1;margin:0"><button data-h="7">7</button><button data-h="14" class="on">14</button><button data-h="21">21</button><button data-h="28">28</button></div></div>
+      <div class="seg2 sm" id="wSeg" style="margin-bottom:2px"><button data-w="1" class="on">ตัดแถวอุ่นเครื่อง</button><button data-w="0">เก็บทุกแถว</button></div></div>
       <div class="tgls" id="grp-resample"><button class="primary" id="resample" style="width:100%"></button></div>
     </div>
   </div>
@@ -108,108 +137,108 @@
 "use strict";
 /* ============================================================================================
    INTRODUCTION TO TIME SERIES  ·  on the intro-playground shell
-   (the archetype: playground_intro_regression / _rul — data table left, one figure, a calc
-    box that substitutes the real numbers, controls right)
+   (data table left, one figure, a calc box that substitutes the real numbers, controls right)
 
-   RIT 2026-09-23: "เริ่มจากลองสร้าง time series ด้วยองค์ประกอบต่างๆ · ดู correlation ที่ lag
-   ต่างๆ · ลากมาดู ACF และ PACF · จบด้วย ARIMA และ SARIMA". Four tabs, one idea each:
+   RIT 2026-09-23: four tabs — build the series · correlation at a lag · ACF and PACF ·
+   the model. 2026-09-25 (ORDER_playground_intro_timeseries_2026-09-25.md, checked against
+   the real Day7_S2_TS_Seasonal workflow): the page teaches what the learner meets in KNIME —
 
-     1 Build the series   y_t = level + trend + weekly seasonal + noise, each component its
-                          own strip, the sum in the table, the calc box adds them up at the
-                          chosen day
-     2 Correlation at a lag   the pairs (y_{t-k}, y_t) as a scatter; slide k and watch r_k --
-                          at k = 7 the season lines the pairs up
-     3 ACF and PACF       the same r_k for every lag at once, and the partial version with
-                          the shorter lags removed; the chosen lag is highlighted in both
-     4 ARIMA to SARIMAX   choose the orders (p,d,q)(P,D,Q)_7 and whether the known external
-                          variable x enters (two-step: OLS beta on x differenced the same way,
-                          then CSS on what is left); the forecast with its 95% band on the
-                          left, and the check beside it -- e_t, its correlogram, and on
-                          Custom the CCF with x (RIT: the residuals belong ON the model tab,
-                          the loop is 'move an order, watch the residuals')
+     · six fixed example datasets besides Custom (Noise · AR(1) · MA(1) · Walk · Weekly ·
+       Trend+Weekly), n=280, base 50, fixed seeds; each one is the clean answer to one
+       model order
+     · correlograms in the KNIME Autocorrelation Plot (Labs) format: stems from lag 0,
+       Bartlett band for the ACF (wider with each lag), flat band for the PACF, shaded,
+       outliers recoloured, y pinned to [-1, 1]
+     · tab 4 in ONE column: series + Forecasts over a held-out tail (slider-less H segment,
+       7..28) with the truth overlapping and a seasonal-naive baseline · Residuals ·
+       residual ACF with a two-line verdict (count of escapes + what to adjust) · residual
+       PACF · a scoreboard in Numeric Scorer vocabulary (MAPE · R² · RMSE · signed
+       difference) for the model and the naive
+     · the known x is continuous Temperature by default (AR(1) around an annual sine, the
+       workflow's ambient_temp_c shape); the 0/1 Event calendar stays as the second choice
+     · sd of the residuals beside the order levers with an over-differencing warning, and
+       a warm-up trim switch (drop the first s+1 residual rows, on by default)
 
-   RIT 2026-09-25: the arc runs to SARIMAX, and the data must let each choice be an
-   experiment. Custom gains a known external variable x_t -- 0/1 event days from a FIXED
-   seed, effect c per event, a lever -- so a lag-7 spike in the residual ACF asks for the
-   seasonal orders, a lag-0 spike in the CCF asks for x, and the fitted beta recovers c.
-
-   RIT 2026-09-24: the levers must be visible IN an equation (the eqline under the dataset
-   control), the model control is the orders themselves, and there are datasets to choose,
-   not only parameters. Follow-up the same day: by datasets he means the classic processes
-   of the SARIMA playground's Pattern control -- so the presets are AR(1), MA(1) and the
-   random walk, and tab 1 shows each one's own recursion.
-
-   Everything downstream is computed from the SAME rounded series the table prints, and
-   ts_intro_ref.py re-derives series, ACF, PACF, both fits and both forecasts independently
-   (same arithmetic, same deterministic optimiser) for gate_intro_timeseries.js to compare.
+   Everything is computed from the SAME rounded series the table prints; ts_intro_ref.py
+   re-derives it all independently for gate_intro_timeseries.js to compare figure by figure.
    ========================================================================================== */
 function mulberry32(a){return function(){a|=0;a=a+0x6D2B79F5|0;var t=Math.imul(a^a>>>15,1|a);
   t=t+Math.imul(t^t>>>7,61|t)^t;return((t^t>>>14)>>>0)/4294967296;};}
-var MAXN=84,ZN=[];
-function znOf(s){var rng=mulberry32(s),o=[],i;
-  for(i=0;i<MAXN;i++){var u=rng()||1e-9,v=rng();o.push(Math.sqrt(-2*Math.log(u))*Math.cos(2*Math.PI*v));}
-  return o;}
-/* the four series are built from the same noise, sigma z_t over n days, so the noise --
-   its size, its length and its Resample -- is shared. Each dataset carries its own seed, so
-   switching datasets does not reuse one draw for two processes. */
-var SEEDS={custom:12345,ar:20101,ma:30010,rw:40301},ZNC={};
-function znNow(){var k=dsK+'/'+SEEDS[dsK];
-  if(!ZNC[k])ZNC[k]=znOf(SEEDS[dsK]);
-  return ZNC[k];}
-/* what IS per process: the coefficient of AR and MA */
-var DS={ar:{phi:0.7},ma:{th:0.8},rw:{}};
-/* the known external variable: 0/1 event days from a FIXED seed (a calendar, not noise --
-   Resample must not move it), over MAXN+14 days so the forecast can use the known future */
-var XSEED=55120,XARR=(function(){var r=mulberry32(XSEED),o=[null],i;
-  for(i=1;i<=MAXN+14;i++)o.push(r()<0.15?1:0);return o;})();
-var dsK='custom',XIN=0;   /* does the known x enter the model: one binary choice */
-/* the coefficient each process is built from: a lever, opening on the value the reference
-   pins, and kept per dataset so switching back finds what you left */
-function coefOf(){return dsK==='ar'?DS.ar.phi:dsK==='ma'?DS.ma.th:0;}
-/* a negative coefficient turns the plus into a minus, it does not print both */
-function sgn(){var c=coefOf();return (c<0?'-':'+')+fx(Math.abs(c),1);}
-function setCoef(v){
-  v=Math.max(-0.9,Math.min(0.9,Math.round(v*10)/10));
-  if(dsK==='ar')DS.ar.phi=v;else if(dsK==='ma')DS.ma.th=v;else return;
-  FITC={};
-  document.getElementById('Rco').value=v;document.getElementById('Nco').value=v;}
-function cur(){return {b:dsK==='custom'?gv('b'):0,A:dsK==='custom'?gv('A'):0,
-  c:dsK==='custom'?gv('c'):0,
-  sg:gv('sg'),n:Math.round(gv('n')),zn:znNow()};}
-/* the process series, built from the PRINTED numbers: each term rounded to 2 dp, the sum to
-   the 1 dp the table prints, and the recursion feeds on the rounded y -- so the table IS the
-   arithmetic. c1/c2 are the two per-day terms the table and the strips show. */
-var SERC={};
-function proc(){var c=cur(),zn=c.zn,co=coefOf();
-  var key=dsK+'/'+SEEDS[dsK]+'/'+c.sg+'/'+c.n+'/'+co;
-  if(SERC[key])return SERC[key];
-  var y=[null],c1=[null],c2=[null],t,prev=40,ePrev=0;
-  for(t=1;t<=c.n;t++){var e=rnd(c.sg*zn[t-1],2),a;
-    if(dsK==='ar'){a=rnd(co*(prev-40),2);y.push(rnd(40+a+e,1));c1.push(a);c2.push(e);}
-    else if(dsK==='ma'){a=rnd(co*ePrev,2);y.push(rnd(40+e+a,1));c1.push(e);c2.push(a);}
-    else{y.push(rnd(prev+e,1));c1.push(prev);c2.push(e);}
-    prev=y[t];ePrev=e;}
-  SERC[key]={y:y,c1:c1,c2:c2};return SERC[key];}
-
-/* ---------------- the series: water pumped per day (thousand m^3) ----------------
-   y_t = 40 + b(t-1) + A*S[(t-1)%7]/5.5 + sigma*z_t, rounded to the 1 decimal the table
-   prints -- every later number (r, ACF, the fits) is computed from the printed values */
-var SEAS=[1.5,2.5,2.5,2,1,-4,-5.5],M=7,LEVEL=40;
-var DOW=['Mon','Tue','Wed','Thu','Fri','Sat','Sun'];
+var ZNC={};
+function znOf(s,m){var k=s+'/'+m;
+  if(ZNC[k])return ZNC[k];
+  var rng=mulberry32(s),o=[],i;
+  for(i=0;i<m;i++){var u=rng()||1e-9,v=rng();o.push(Math.sqrt(-2*Math.log(u))*Math.cos(2*Math.PI*v));}
+  ZNC[k]=o;return o;}
 function rnd(v,d){var p=Math.pow(10,d);return Math.round(v*p)/p;}
 function gv(b){return parseFloat(document.getElementById('R'+b).value);}
 function sv(b,v){document.getElementById('R'+b).value=v;document.getElementById('N'+b).value=v;}
-function parts(t){var c=cur();
+function fx(v,d){return (Math.abs(v)<Math.pow(10,-d)/2?0:v).toFixed(d);}
+function meanOf(a){var s=0,i;for(i=0;i<a.length;i++)s+=a[i];return s/a.length;}
+
+/* ---------------- state ---------------- */
+var M=7,LEVEL=40,DOW=['Mon','Tue','Wed','Thu','Fri','Sat','Sun'];
+var SEAS=[1.5,2.5,2.5,2,1,-4,-5.5];
+var dsK='custom',curTab=0,XIN=0,XTYPE='temp',HSEL=14,WARM=1;
+var CSEED=12345;              /* Custom's noise seed; Resample moves THIS one only */
+/* the six presets: fixed seeds, chosen so the printed series' acf1/acf7/pacf1 land on the
+   answer table in the 2026-09-25 order at 2 dp */
+var PN=280,PSEED={noise:99880,ar:73643,ma:145206,walk:70114,wk:71157,tw:79504};
+
+/* ---------------- the known external variable x (Custom only) ----------------
+   Temperature (default): AR(1) wiggle around an annual sine — the shape of the workflow's
+   ambient_temp_c. Event: the 0/1 calendar. Both from FIXED seeds over 98 days, so the
+   holdout's x values are known to the forecast; Resample must not move either. */
+var XTSEED=90101,XESEED=55120,XCACHE={};
+function xNow(){var k=XTYPE;
+  if(XCACHE[k])return XCACHE[k];
+  var o=[null],t;
+  if(k==='temp'){var z=znOf(XTSEED,98),w=0;
+    for(t=1;t<=98;t++){w=rnd(0.6*w+z[t-1],2);
+      o.push(rnd(29+7*Math.sin(2*Math.PI*(t-105)/365)+w,1));}}
+  else{var r=mulberry32(XESEED);
+    for(t=1;t<=98;t++)o.push(r()<0.15?1:0);}
+  XCACHE[k]=o;return o;}
+function xbarOf(n){var X=xNow(),s=0,t;for(t=1;t<=n;t++)s+=X[t];return s/n;}
+
+/* ---------------- Custom: y_t = 40 + b(t-1) + A s_t + c (x_t - xbar) + sigma e_t ------- */
+function cur(){return {b:dsK==='custom'?gv('b'):0,A:dsK==='custom'?gv('A'):0,
+  c:dsK==='custom'?gv('c'):0,sg:gv('sg'),n:dsK==='custom'?Math.round(gv('n')):PN};}
+function parts(t){var c=cur(),X=xNow(),xb=xbarOf(c.n),z=znOf(CSEED,84);
   return {tr:rnd(LEVEL+c.b*(t-1),2),se:rnd(c.A*SEAS[(t-1)%M]/5.5,2),
-          ex:rnd(c.c*XARR[t],2),no:rnd(c.sg*c.zn[t-1],2)};}
+          ex:rnd(c.c*(X[t]-xb),2),no:rnd(c.sg*z[t-1],2)};}
+
+/* ---------------- the six presets (ORDER section 5): n=280, base 50, fixed seeds;
+   terms rounded to 2 dp, y to the printed 1 dp, recursions fed the rounded y ---------- */
+var PRE={};
+function preOf(){var kd=dsK,key=kd+'/'+PSEED[kd];
+  if(PRE[key])return PRE[key];
+  var z=znOf(PSEED[kd],kd==='tw'?2*PN:PN);
+  var y=[null],c1=[null],c2=[null],c3=[null],t,prev=50,ePrev=0,T=0;
+  for(t=1;t<=PN;t++){
+    if(kd==='noise'){var e=rnd(2.0*z[t-1],2);y.push(rnd(50+e,1));c1.push(e);}
+    else if(kd==='ar'){var a=rnd(0.80*(prev-50),2),e2=rnd(1.2*z[t-1],2);
+      y.push(rnd(50+a+e2,1));c1.push(a);c2.push(e2);}
+    else if(kd==='ma'){var e3=rnd(2.0*z[t-1],2),a2=rnd(0.85*ePrev,2);
+      y.push(rnd(50+e3+a2,1));c1.push(e3);c2.push(a2);ePrev=e3;}
+    else if(kd==='walk'){var s=rnd(0.05+0.8*z[t-1],2);y.push(rnd(prev+s,1));c1.push(s);}
+    else if(kd==='wk'){var w=(t-1)%M===5||(t-1)%M===6?-6.0:2.4,e4=rnd(1.0*z[t-1],2);
+      y.push(rnd(50+w+e4,1));c1.push(w);c2.push(e4);}
+    else{var s2=rnd(0.06+0.5*z[2*(t-1)],2);T=rnd(T+s2,2);
+      var w2=rnd(5.0*Math.sin(2*Math.PI*t/7),2),e5=rnd(0.8*z[2*t-1],2);
+      y.push(rnd(50+T+w2+e5,1));c1.push(T);c2.push(w2);c3.push(e5);}
+    prev=y[t];}
+  PRE[key]={y:y,c1:c1,c2:c2,c3:c3};return PRE[key];}
 function series(){
-  if(dsK!=='custom')return proc().y;
+  if(dsK!=='custom')return preOf().y;
   var n=cur().n,y=[null],t;
   for(t=1;t<=n;t++){var p=parts(t);y.push(rnd(p.tr+p.se+p.ex+p.no,1));}
   return y;}
 
-/* ---------------- ACF / PACF (Durbin-Levinson), on y[1..n] ---------------- */
-function meanOf(a){var s=0,i;for(i=0;i<a.length;i++)s+=a[i];return s/a.length;}
+/* ---------------- ACF / PACF (Durbin-Levinson) + the KNIME bands ----------------
+   ACF band by Bartlett, wider with each lag: moe(k) = 1.96 sqrt((1+2 sum_{j<k} r_j^2)/n),
+   moe(0)=0. PACF band flat 1.96/sqrt(n). Checked against the real Autocorrelation Plot
+   (Labs) port of Day7_S2 (n=412): 0.0966 at lag 1 · 0.0969 at lag 3 · 0.1039 at lag 30. */
 function acfOf(a,k){var m=meanOf(a),num=0,den=0,t;
   for(t=0;t<a.length;t++)den+=(a[t]-m)*(a[t]-m);
   for(t=k;t<a.length;t++)num+=(a[t]-m)*(a[t-k]-m);
@@ -225,10 +254,15 @@ function pacfList(a,Kn){var r=[1],k,j;
     for(j=1;j<k;j++)nph.push(ph[j-1]-pk*ph[k-1-j]);
     nph.push(pk);ph=nph;out.push(pk);}
   return out;}
+function acfRow(a,K){var o=[1],k;for(k=1;k<=K;k++)o.push(acfOf(a,k));return o;}
+function moeACF(r,nn){var out=[0],s=0,k;
+  for(k=1;k<r.length;k++){out.push(1.96*Math.sqrt((1+2*s)/nn));s+=r[k]*r[k];}
+  return out;}
+function moePACF(K,nn){var out=[0],k,v=1.96/Math.sqrt(nn);
+  for(k=1;k<=K;k++)out.push(v);return out;}
 
-/* ---------------- SARIMA by conditional sum of squares (the SARIMA playground's own
-   machinery, ported function for function -- deterministic, so the reference can run the
-   same optimiser and land on the same coefficients) ---------------- */
+/* ---------------- SARIMA by conditional sum of squares (deterministic, so the reference
+   can run the same optimiser and land on the same coefficients) ---------------- */
 function polyMul(a,b){var o=new Array(a.length+b.length-1).fill(0),i,j;
   for(i=0;i<a.length;i++)for(j=0;j<b.length;j++)o[i+j]+=a[i]*b[j];
   return o;}
@@ -258,7 +292,7 @@ function fitSARIMA(z,p,q,P,Q,m){
   [0.25,0.05].forEach(function(step){
     for(var sweep=0;sweep<(step>0.1?2:1);sweep++)
       for(var i=0;i<k;i++){
-        var cur=par[i],bv=cur;
+        var cur2=par[i],bv=cur2;
         for(var g=-0.95;g<=0.951;g+=step){
           par[i]=Math.round(g*10000)/10000;var c2=cost(par);
           if(c2<best){best=c2;bv=par[i];}}
@@ -283,20 +317,28 @@ function psiWeights(A,B,ops,h){
     for(i=1;i<P2.length&&i<=j;i++)v+=(-P2[i])*psi[j-i];
     psi.push(v);}
   return psi;}
-var H=14;
-function ccfOf(x2,e2,k){var mx=meanOf(x2),me=meanOf(e2),num=0,dx=0,de=0,t;
-  for(t=0;t<x2.length;t++){dx+=(x2[t]-mx)*(x2[t]-mx);de+=(e2[t]-me)*(e2[t]-me);}
-  for(t=k;t<e2.length;t++)num+=(x2[t-k]-mx)*(e2[t]-me);
-  return (dx>0&&de>0)?num/Math.sqrt(dx*de):0;}
+
+/* ---------------- the fit: train on 1..n-H, forecast the held-out tail, score it -------- */
+var KR=21;                                   /* residual correlogram lags */
+function heffOf(n){return Math.max(7,Math.min(HSEL,n-14));}
+function scOf(yt,yp){var H2=yt.length,i,sae=0,sse=0,ssg=0,sap=0,my=meanOf(yt),sst=0;
+  for(i=0;i<H2;i++){var d=yt[i]-yp[i];sae+=Math.abs(d);sse+=d*d;ssg+=d;
+    sap+=Math.abs(d)/Math.abs(yt[i]);sst+=(yt[i]-my)*(yt[i]-my);}
+  return {mape:100*sap/H2,r2:sst?1-sse/sst:0,rmse:Math.sqrt(sse/H2),
+          signed:ssg/H2,mae:sae/H2};}
+function sdOf(a){if(!a.length)return 0;var m=meanOf(a),s=0,i;
+  for(i=0;i<a.length;i++)s+=(a[i]-m)*(a[i]-m);
+  return Math.sqrt(s/a.length);}
 function fitModel(o,y){
-  var yv=y.slice(1),n=yv.length,ops=[];if(o.d)ops.push(1);if(o.D)ops.push(M);
-  var stages=diffChain(yv,ops),z=stages[stages.length-1],mu=0;
-  /* x is known: differenced the same way as y, split into the training part aligned with z
-     and the H future values the forecast may use */
+  var yv=y.slice(1),n=yv.length,He=heffOf(n);
+  var tr=yv.slice(0,n-He),ops=[];if(o.d)ops.push(1);if(o.D)ops.push(M);
+  var stages=diffChain(tr,ops),z=stages[stages.length-1],mu=0;
+  /* x is known over ALL n days: differenced the same way, split at the train boundary */
   var hasX=dsK==='custom',beta=0,xm=0,xdT=null,xdF=null;
-  if(hasX){var xv=XARR.slice(1,n+H+1),xs=diffChain(xv,ops),xa=xs[xs.length-1];
-    xdT=xa.slice(0,z.length);xdF=xa.slice(z.length);}
-  /* no differencing leaves the model with no built-in level: fit deviations from the mean */
+  if(hasX){var X=xNow(),xb=xbarOf(n),xa0=[],t2;
+    for(t2=1;t2<=n;t2++)xa0.push(X[t2]-xb);
+    var xs=diffChain(xa0,ops),xa=xs[xs.length-1];
+    xdT=xa.slice(0,z.length);xdF=xa.slice(z.length,z.length+He);}
   if(!ops.length){mu=meanOf(z);z=z.map(function(v){return v-mu;});}
   if(o.x&&hasX){
     if(!ops.length)xm=meanOf(xdT);
@@ -305,40 +347,87 @@ function fitModel(o,y){
     beta=de2>1e-9?nu/de2:0;
     z=z.map(function(v,i3){return v-beta*(xdT[i3]-xm);});}
   var F=fitSARIMA(z,o.p,o.q,o.P,o.Q,M);
-  /* forecast on the differenced scale (future shocks 0), add the known x part, integrate */
   var zf=z.slice(),ef=F.e.slice(),wf=[],h,i,j;
-  for(h=0;h<H;h++){var t=zf.length,v=0;
+  for(h=0;h<He;h++){var t=zf.length,v=0;
     for(i=1;i<F.A.length;i++)v+=-F.A[i]*((t-i>=0)?zf[t-i]:0);
     for(j=1;j<F.B.length;j++)v+=F.B[j]*((t-j>=0)?ef[t-j]:0);
     zf.push(v);ef.push(0);wf.push(v);}
-  if(o.x&&hasX)for(h=0;h<H;h++)wf[h]+=beta*(xdF[h]-xm);
+  if(o.x&&hasX)for(h=0;h<He;h++)wf[h]+=beta*(xdF[h]-xm);
   var fc=undiffChain(stages,ops,wf).map(function(v){return v+mu;});
-  var psi=psiWeights(F.A,F.B,ops,H),se=[],acc=0;
-  for(h=0;h<H;h++){acc+=psi[h]*psi[h];se.push(F.sig*Math.sqrt(acc));}
-  /* what is left: the residuals past the startup, their ACF, and on Custom the CCF with x */
-  var E=F.e.slice(F.st),racf=[],k2;
-  for(k2=1;k2<=14;k2++)racf.push(acfOf(E,k2));
-  var ccf=null;
-  if(hasX){var X2=xdT.slice(F.st);ccf=[];for(k2=0;k2<=14;k2++)ccf.push(ccfOf(X2,E,k2));}
-  return {F:F,ops:ops,fc:fc,se:se,beta:beta,E:E,racf:racf,ccf:ccf,
-          bandE:1.96/Math.sqrt(E.length)};}
+  var psi=psiWeights(F.A,F.B,ops,He),se=[],acc=0;
+  for(h=0;h<He;h++){acc+=psi[h]*psi[h];se.push(F.sig*Math.sqrt(acc));}
+  /* the held-out truth, and the seasonal naive y_{t-7} */
+  var truth=yv.slice(n-He),nv=[];
+  for(i=0;i<He;i++)nv.push(yv[n-He+i-7]);
+  /* residual diagnostics; the warm-up switch drops the first s+1 rows (KNIME lesson:
+     the first rows are not residuals, they are the raw startup) */
+  var E=WARM?F.e.slice(Math.max(F.st,M+1)):F.e.slice(0);
+  var racf=acfRow(E,KR),rpacf=[1].concat(pacfList(E,KR));
+  var moeAe=moeACF(racf,E.length),moePe=moePACF(KR,E.length);
+  var out=[];for(i=1;i<=KR;i++)if(Math.abs(racf[i])>moeAe[i])out.push(i);
+  return {F:F,ops:ops,He:He,fc:fc,se:se,beta:beta,truth:truth,naive:nv,
+          sc:scOf(truth,fc),scN:scOf(truth,nv),
+          E:E,racf:racf,rpacf:rpacf,moeA:moeAe,moeP:moePe,out:out,sdE:sdOf(E)};}
+var FITC={};
+function ordOf(){return {p:Math.round(gv('p')),d:Math.round(gv('d')),q:Math.round(gv('q')),
+                         P:Math.round(gv('P')),D:Math.round(gv('D')),Q:Math.round(gv('Q')),
+                         x:dsK==='custom'?XIN:0};}
+function fitKey(o){var c=cur();
+  return dsK+'/'+(dsK==='custom'?CSEED:PSEED[dsK])+'/'+c.b+'/'+c.A+'/'+c.c+'/'+c.sg+'/'+c.n
+    +'/'+XTYPE+'/'+HSEL+'/'+WARM+'/'+o.p+o.d+o.q+o.P+o.D+o.Q+o.x;}
+function fitOf(o,y){var key=fitKey(o);
+  if(!FITC[key])FITC[key]=fitModel(o,y);
+  return FITC[key];}
+function modelName(o){var s='('+o.p+','+o.d+','+o.q+')',X=o.x?'X':'';
+  return (o.P||o.D||o.Q)?'\\text{SARIMA'+X+'}'+s+'('+o.P+','+o.D+','+o.Q+')_7'
+                        :'\\text{ARIMA'+X+'}'+s;}
+
+/* ---------------- the two verdicts (ORDER sections 3-4), written from the numbers ------- */
+function acfVerdict(fit){
+  var ls=fit.out.slice(0,8).join(', ')+(fit.out.length>8?' …':'');
+  var l1='หลุดแถบ '+fit.out.length+' จาก '+KR+' lag'
+    +(fit.out.length?' — lag '+ls:'');
+  var l2;
+  if(fit.racf[1]<-0.35)l2='diff เกินจำเป็น ลด d ลง ไม่ใช่เติม q';
+  else if(fit.out.indexOf(7)>=0||fit.out.indexOf(14)>=0||fit.out.indexOf(21)>=0)
+    l2='ส่วน seasonal ยังไม่ถูก ลองปรับ P D Q';
+  else if(fit.out.some(function(k){return k<=3;}))l2='พจน์ p หรือ q ยังไม่พอ เพิ่มทีละหนึ่ง';
+  else if(fit.out.length)l2='หลงเหลือที่ lag สูงซึ่งมีคู่ข้อมูลน้อย ถือเป็นสัญญาณรบกวน';
+  else l2='residual สะอาด โครงสร้างเวลาถูกจับหมดแล้ว ที่เหลือคือขนาดของความคลาดเคลื่อน';
+  return {l1:l1,l2:l2};}
+function scoreVerdict(fit){
+  if(fit.sc.mape>fit.scN.mape)return 'โมเดลยังแพ้การทายว่าเหมือนสัปดาห์ที่แล้ว';
+  if(Math.abs(fit.sc.signed)>0.5*fit.sc.mae)
+    return 'พยากรณ์เอียงไปทางเดียวเกือบทุกวัน ไม่ใช่ความคลาดเคลื่อนสุ่ม';
+  return '';}
 
 /* ---------------- KaTeX ---------------- */
 var MT={'h1':'\\text{Introduction to Time Series}','resample':'\\text{Resample noise}',
-  'hd-data':'\\text{Dataset}','ds-custom':'\\text{Custom}','ds-ar':'\\text{AR}(1)',
-  'ds-ma':'\\text{MA}(1)','ds-rw':'\\text{Walk}',
+  'hd-data':'\\text{Dataset}','ds-custom':'\\text{Custom}','ds-noise':'\\text{Noise}',
+  'ds-ar':'\\text{AR}(1)','ds-ma':'\\text{MA}(1)','ds-walk':'\\text{Walk}',
+  'ds-wk':'\\text{Weekly}','ds-tw':'\\text{Trend+Weekly}',
   'lbl-b':'b','lbl-A':'A','lbl-c':'c','lbl-sg':'\\sigma','lbl-n':'n',
   'hd-lag':'\\text{Lag}','lbl-k':'k','hd-ex':'\\text{Testing day}','lbl-t0':'t',
-  'hd-model':'\\text{Model }(p,d,q)(P,D,Q)_7',
-  'lbl-p':'p','lbl-d':'d','lbl-q':'q','lbl-P':'P','lbl-D':'D','lbl-Q':'Q',
-  'x-off':'\\text{no }x','x-on':'\\text{with }x'};
+  'hd-model':'\\text{Model }(p,d,q)(P,D,Q)_7','lbl-H':'H',
+  'lbl-p':'p','lbl-d':'d','lbl-q':'q','lbl-P':'P','lbl-D':'D','lbl-Q':'Q'};
+var XT_MT={'temp':'\\text{Temperature}','event':'\\text{Event}',
+           'x0':'\\text{no }x','x1':'\\text{with }x'};
 var KXC={};
+function kxw(txt){return txt.split(' ').filter(function(w){return w;})
+  .map(function(w){return kx('\\text{'+w+'}');}).join(' ');}
 function kx(t){if(KXC[t]!==undefined)return KXC[t];var r;
   try{r=window.katex?katex.renderToString(t,{throwOnError:false}):t;}catch(e){r=t;}
   if(t.length<26&&window.katex)KXC[t]=r;return r;}
 function K(t,el){if(!el)return;try{katex.render(t,el,{throwOnError:false});}catch(e){el.textContent=t;}}
-function renderTexts(){if(!window.katex)return;for(var id in MT)K(MT[id],document.getElementById(id));}
-function fx(v,d){return (Math.abs(v)<Math.pow(10,-d)/2?0:v).toFixed(d);}
+function renderTexts(){if(!window.katex)return;for(var id in MT)K(MT[id],document.getElementById(id));
+  var xt=document.querySelectorAll('#xtSeg button');
+  K(XT_MT.temp,xt[0]);K(XT_MT.event,xt[1]);
+  var xb=document.querySelectorAll('#xSeg button');
+  K(XT_MT.x0,xb[0]);K(XT_MT.x1,xb[1]);
+  document.querySelectorAll('#hSeg button').forEach(function(b){
+    K(b.getAttribute('data-h'),b);});
+  var wb=document.querySelectorAll('#wSeg button');
+  K('\\text{ตัดแถวอุ่นเครื่อง}',wb[0]);K('\\text{เก็บทุกแถว}',wb[1]);}
 
 /* ---------------- canvas + KaTeX overlay ---------------- */
 var cv=document.getElementById('cv'),ctx=cv.getContext('2d'),SC=2,CW=640,CH=260;
@@ -348,13 +437,20 @@ function labs(c){var p=c.parentElement,Ly=p.querySelector('.cvlab');
   if(!Ly){Ly=document.createElement('div');Ly.className='cvlab';p.appendChild(Ly);}
   Ly.innerHTML='';
   var ox=c.clientLeft||0,oy=c.clientTop||0;
-  return function(tex,x,y,o){o=o||{};var s=document.createElement('span');K(tex,s);
+  return function(tex,x,y,o){o=o||{};var s=document.createElement('span');
+    if(o.wrapKx){var seg=String(tex).split('\u0001');
+      s.innerHTML=seg.map(function(pt,i){return i?'<span style="color:#9A6B00">'+kxw(pt)+'</span>':kxw(pt);})
+        .join('<br>');
+      s.style.whiteSpace='normal';
+      s.style.width=o.wrapKx+'px';s.style.lineHeight='1.2';s.style.fontSize='14px';}
+    else K(tex,s);
     if(o.color)s.style.color=o.color;
     if(o.bg){s.style.background=o.bg;s.style.borderRadius='4px';s.style.padding='1px 3px';}
     var pr=document.createElement('span');pr.style.cssText='display:inline-block;width:0;height:0;vertical-align:baseline';s.appendChild(pr);
     s.style.left=(x+ox)+'px';s.style.top='0px';
     s.style.transform='translateX('+(o.align==='right'?'-100%':o.align==='center'?'-50%':'0')+')';
     Ly.appendChild(s);
+    if(o.wrapKx){s.style.top=(oy+y)+'px';return;}
     var sr=s.getBoundingClientRect(),base=pr.getBoundingClientRect().top-sr.top;
     s.style.top=(oy+(o.vt==='middle'?y-sr.height/2:y-base))+'px';};}
 var CS='#E07A5F',CTR='#5B8FB9',CSE='#6BA38C',CNO='#B07AAE',CEX='#C08A2D',NAVY='#1e3a8a',
@@ -384,55 +480,72 @@ function frame(box,x0,x1,y0,y1,ticksX,ticksY){
   ctx.strokeRect(box.l,box.t,box.r-box.l,box.b-box.t);
   return {px:px,py:py};}
 
-/* ---------------- state ---------------- */
+/* ---------------- correlogram panel, KNIME Autocorrelation Plot (Labs) format ----------
+   stems from lag 0 (always 1.0), shaded significance area from the per-lag margins,
+   escapes recoloured, y pinned to [-1, 1] */
+function corrPanel(lb,box,vals,moe,title,opts){
+  opts=opts||{};var K2=vals.length-1,k;
+  function PX(kk){return box.l+(kk+0.5)/(K2+1)*(box.r-box.l);}
+  function PY(v){return box.b-(v+1)/2*(box.b-box.t);}
+  ctx.strokeStyle='rgba(128,128,128,0.45)';ctx.lineWidth=1;
+  ctx.strokeRect(box.l,box.t,box.r-box.l,box.b-box.t);
+  /* shaded band */
+  ctx.fillStyle=BAND;ctx.beginPath();
+  for(k=0;k<=K2;k++){var X=PX(k),Yt=PY(Math.min(1,moe[k]));
+    k===0?ctx.moveTo(X,Yt):ctx.lineTo(X,Yt);}
+  for(k=K2;k>=0;k--)ctx.lineTo(PX(k),PY(Math.max(-1,-moe[k])));
+  ctx.closePath();ctx.fill();
+  ctx.strokeStyle='#9aa3b2';ctx.lineWidth=1;
+  ctx.beginPath();ctx.moveTo(box.l,PY(0));ctx.lineTo(box.r,PY(0));ctx.stroke();
+  ctx.fillStyle='rgba(90,90,90,0.9)';ctx.font='14px KaTeX_Main,serif';
+  ctx.textAlign='right';ctx.textBaseline='middle';
+  var yls=(box.b-box.t)>=48?[-1,0,1]:[0];
+  yls.forEach(function(v){ctx.fillText(String(v),box.l-4,PY(v));});
+  /* stems */
+  for(k=0;k<=K2;k++){var v2=vals[k],esc=k>0&&Math.abs(v2)>moe[k];
+    ctx.fillStyle=k===0?INK:(esc?CS:CTR);
+    ctx.fillRect(PX(k)-1.1,Math.min(PY(0),PY(v2)),2.2,Math.abs(PY(v2)-PY(0)));}
+  /* chosen-lag guide (tabs 2-3) */
+  if(opts.guideK!=null){ctx.strokeStyle=GREY;ctx.setLineDash([4,4]);ctx.lineWidth=1.1;
+    ctx.beginPath();ctx.moveTo(PX(opts.guideK),box.t);ctx.lineTo(PX(opts.guideK),box.b);
+    ctx.stroke();ctx.setLineDash([]);}
+  if(!opts.noTicks){ctx.fillStyle='rgba(90,90,90,0.9)';ctx.textAlign='center';ctx.textBaseline='alphabetic';
+    (opts.ticks||[0,7,14]).forEach(function(l2){if(l2<=K2)ctx.fillText(String(l2),PX(l2),box.b+14);});}
+  lb(title,box.r-4,box.t+12,{align:'right'});
+}
+
+/* ---------------- tabs ---------------- */
 var TABS=[{n:'Build the series'},{n:'Correlation at a lag'},{n:'ACF and PACF'},
           {n:'ARIMA to SARIMAX'}];
-var curTab=0;
-function ordOf(){return {p:Math.round(gv('p')),d:Math.round(gv('d')),q:Math.round(gv('q')),
-                         P:Math.round(gv('P')),D:Math.round(gv('D')),Q:Math.round(gv('Q')),
-                         x:dsK==='custom'?XIN:0};}
-function modelName(o){var s='('+o.p+','+o.d+','+o.q+')',X=o.x?'X':'';
-  return (o.P||o.D||o.Q)?'\\text{SARIMA'+X+'}'+s+'('+o.P+','+o.D+','+o.Q+')_7'
-                        :'\\text{ARIMA'+X+'}'+s;}
-var FITC={};                 /* fits keyed by dataset+levers+orders, so sliding stays instant */
-function fitOf(o,y){var c=cur();
-  var key=dsK+'/'+SEEDS[dsK]+'/'+coefOf()+'/'+c.b+'/'+c.A+'/'+c.c+'/'+c.sg+'/'+c.n+'/'
-          +o.p+o.d+o.q+o.P+o.D+o.Q+o.x;
-  if(!FITC[key])FITC[key]=fitModel(o,y);
-  return FITC[key];}
 
 /* ============ tab 1 · build the series: the components, then the sum ============ */
 function draw1(lb,y){
   var n=y.length-1,t0=Math.round(gv('t0')),rows;
   if(dsK==='custom'){
     rows=[
-      {name:'\\text{trend}',col:CTR,arr:[]},
-      {name:'\\text{seasonal}',col:CSE,arr:[]},
-      {name:'\\text{external}',col:CEX,arr:[]},
-      {name:'\\text{noise}',col:CNO,arr:[]},
-      {name:'y',col:CS,arr:y.slice(1)}];
+      {col:CTR,arr:[]},{col:CSE,arr:[]},{col:CEX,arr:[]},{col:CNO,arr:[]},
+      {col:CS,arr:y.slice(1)}];
     for(var t=1;t<=n;t++){var p=parts(t);
       rows[0].arr.push(p.tr);rows[1].arr.push(p.se);rows[2].arr.push(p.ex);rows[3].arr.push(p.no);}
-  }else{var pr=proc();
-    rows=dsK==='ar'?[{name:'\\text{memory}',col:CTR,arr:pr.c1.slice(1)},
-                     {name:'\\varepsilon_t',col:CNO,arr:pr.c2.slice(1)},
-                     {name:'y',col:CS,arr:y.slice(1)}]
-        :dsK==='ma'?[{name:'\\varepsilon_t',col:CNO,arr:pr.c1.slice(1)},
-                     {name:'\\varepsilon_{t-1}',col:CTR,arr:pr.c2.slice(1)},
-                     {name:'y',col:CS,arr:y.slice(1)}]
-                   :[{name:'\\varepsilon_t',col:CNO,arr:pr.c2.slice(1)},
-                     {name:'y',col:CS,arr:y.slice(1)}];}
-  var k=rows.length,L=76,Rm=14,gap=k>4?8:12,h3=k>4?32:44,hy=CH-38-(k-1)*(h3+gap)-8;   /* 76: 'seasonal' fits left */
-  var top=8;
+  }else{var pr=preOf();
+    rows=(dsK==='noise'?[{col:CNO,arr:pr.c1.slice(1)}]
+        :dsK==='ar'?[{col:CTR,arr:pr.c1.slice(1)},{col:CNO,arr:pr.c2.slice(1)}]
+        :dsK==='ma'?[{col:CNO,arr:pr.c1.slice(1)},{col:CTR,arr:pr.c2.slice(1)}]
+        :dsK==='walk'?[{col:CNO,arr:pr.c1.slice(1)}]
+        :dsK==='wk'?[{col:CSE,arr:pr.c1.slice(1)},{col:CNO,arr:pr.c2.slice(1)}]
+        :[{col:CTR,arr:pr.c1.slice(1)},{col:CSE,arr:pr.c2.slice(1)},{col:CNO,arr:pr.c3.slice(1)}])
+      .concat([{col:CS,arr:y.slice(1)}]);}
+  var k=rows.length,L=76,Rm=14,gap=k>4?8:12,h3=k>4?32:44,hy=CH-38-(k-1)*(h3+gap)-8;
+  var top=8,xt=[1,14,28,42,56,70,84,140,210,280].filter(function(v){return v<=n;});
+  if(n>84)xt=[1,70,140,210,280].filter(function(v){return v<=n;});
   rows.forEach(function(r,i){
     var last=(i===k-1),hh=last?hy:h3,box={l:L,r:CW-Rm,t:top,b:top+hh};
     var sp=spanOf(r.arr);
-    var P=frame(box,1,n,sp[0],sp[1],last?[1,14,28,42,56,70,84].filter(function(v){return v<=n;}):[],
+    var P=frame(box,1,n,sp[0],sp[1],last?xt:[],
                 last?[rnd(sp[0]+(sp[1]-sp[0])*0.15,0),rnd(sp[0]+(sp[1]-sp[0])*0.85,0)]:[]);
     ctx.save();ctx.beginPath();ctx.rect(box.l,box.t,box.r-box.l,box.b-box.t);ctx.clip();
     lineOf(P,r.arr,1,r.col,last?2:1.5);
     ctx.restore();
-    /* testing day through every strip */
     ctx.strokeStyle=GREY;ctx.setLineDash([4,4]);ctx.lineWidth=1.2;
     ctx.beginPath();ctx.moveTo(P.px(t0),box.t);ctx.lineTo(P.px(t0),box.b);ctx.stroke();ctx.setLineDash([]);
     if(last)lb('t\\text{, d}',CW-Rm,box.b+30,{align:'right'});
@@ -451,7 +564,7 @@ function draw2(lb,y){
   ctx.save();ctx.beginPath();ctx.rect(box.l,box.t,box.r-box.l,box.b-box.t);ctx.clip();
   for(var t=k+1;t<=n;t++){
     ctx.fillStyle=CS;ctx.globalAlpha=0.85;
-    ctx.beginPath();ctx.arc(P.px(y[t-k]),P.py(y[t]),4.5,0,7);ctx.fill();
+    ctx.beginPath();ctx.arc(P.px(y[t-k]),P.py(y[t]),n>150?3:4.5,0,7);ctx.fill();
     ctx.globalAlpha=1;ctx.strokeStyle='rgba(255,255,255,0.9)';ctx.lineWidth=1.2;ctx.stroke();}
   ctx.restore();
   var r=acfOf(yv,k);
@@ -460,84 +573,64 @@ function draw2(lb,y){
   lb('y_{t-'+k+'}',CW-Rm,box.b+32,{align:'right'});
 }
 
-/* ============ tab 3 · ACF and PACF, the chosen lag highlighted ============ */
-function bars(lb,box,vals,hiK,bound,title,k0,tks){
-  var KM=vals.length;k0=(k0===undefined)?1:k0;tks=tks||[1,7,14];
-  function PX(k){return box.l+(k-k0+0.6)/(KM+0.2)*(box.r-box.l);}
-  function PY(v){return box.b-(v+1.05)/2.1*(box.b-box.t);}
-  ctx.strokeStyle='rgba(128,128,128,0.45)';ctx.lineWidth=1;
-  ctx.strokeRect(box.l,box.t,box.r-box.l,box.b-box.t);
-  ctx.strokeStyle='#9aa3b2';ctx.lineWidth=1.2;
-  ctx.beginPath();ctx.moveTo(box.l,PY(0));ctx.lineTo(box.r,PY(0));ctx.stroke();
-  /* the noise band: bars inside it are indistinguishable from 0 */
-  ctx.strokeStyle=GREY;ctx.setLineDash([4,4]);ctx.lineWidth=1.1;
-  [bound,-bound].forEach(function(v){ctx.beginPath();ctx.moveTo(box.l,PY(v));ctx.lineTo(box.r,PY(v));ctx.stroke();});
-  ctx.setLineDash([]);
-  ctx.fillStyle='rgba(90,90,90,0.9)';ctx.font='14px KaTeX_Main,serif';
-  ctx.textAlign='right';ctx.textBaseline='middle';
-  [-1,0,1].forEach(function(v){ctx.fillText(String(v),box.l-4,PY(v));});
-  var bw=Math.max(4,(box.r-box.l)/(KM+0.6)*0.5);
-  vals.forEach(function(v,i){var X=PX(k0+i);
-    ctx.fillStyle=(k0+i===hiK)?CS:CTR;
-    ctx.fillRect(X-bw/2,Math.min(PY(0),PY(v)),bw,Math.abs(PY(v)-PY(0)));});
-  ctx.fillStyle='rgba(90,90,90,0.9)';ctx.textAlign='center';ctx.textBaseline='alphabetic';
-  tks.forEach(function(l2){if(l2>=k0&&l2<=k0+KM-1)ctx.fillText(String(l2),PX(l2),box.b+15);});
-  lb(title,box.r-4,box.t+12,{align:'right'});
-}
+/* ============ tab 3 · ACF and PACF of the series, KNIME format ============ */
 function draw3(lb,y){
-  var n=y.length-1,k=Math.round(gv('k')),yv=y.slice(1),KM=14;
-  var ac=[],i;for(i=1;i<=KM;i++)ac.push(acfOf(yv,i));
-  var pc=pacfList(yv,KM);
-  var bound=1.96/Math.sqrt(n);
-  var L=52,Rm=14,hh=(CH-46-26)/2;   /* label under the bottom panel must end above CH */
-  bars(lb,{l:L,r:CW-Rm,t:8,b:8+hh},ac,k,bound,'\\text{ACF}');
-  bars(lb,{l:L,r:CW-Rm,t:8+hh+22,b:8+hh+22+hh},pc,k,bound,'\\text{PACF}');
+  var n=y.length-1,k=Math.round(gv('k')),yv=y.slice(1),K2=14;
+  var ac=acfRow(yv,K2),pc=[1].concat(pacfList(yv,K2));
+  var mA=moeACF(ac,n),mP=moePACF(K2,n);
+  var L=52,Rm=14,hh=(CH-46-26)/2;
+  corrPanel(lb,{l:L,r:CW-Rm,t:8,b:8+hh},ac,mA,'\\text{ACF}',{guideK:k,ticks:[0,7,14]});
+  corrPanel(lb,{l:L,r:CW-Rm,t:8+hh+22,b:8+hh+22+hh},pc,mP,'\\text{PACF}',{guideK:k,ticks:[0,7,14]});
   lb('\\text{lag }k',CW-Rm,8+hh+22+hh+30,{align:'right'});
 }
 
-/* ============ tab 4 · ARIMA and SARIMA fitted to the series just built ============ */
+/* ============ tab 4 · one column: forecast vs the held-out truth, then the check ======== */
 function draw4(lb,y){
-  var n=y.length-1,fit=fitOf(ordOf(),y),hasX=dsK==='custom';
-  /* the model on the left, its check on the right (RIT: one tab, one loop) */
-  var L=52,Rm=14,RC=Math.round(CW*0.60),box={l:L,r:RC-46,t:10,b:CH-38};
+  var n=y.length-1,fit=fitOf(ordOf(),y),He=fit.He;
+  var L=52,Rm=14,U=CH/345;
+  function Y(v){return Math.round(v*U);}
+  /* 1 · the series, Forecasts over the holdout, the truth overlapping, the naive */
+  var box={l:L,r:CW-Rm,t:8,b:Y(90)};
   var lo=Infinity,hi=-Infinity,i;
   y.slice(1).forEach(function(v){if(v<lo)lo=v;if(v>hi)hi=v;});
   fit.fc.forEach(function(v,i2){
     if(v-1.96*fit.se[i2]<lo)lo=v-1.96*fit.se[i2];
     if(v+1.96*fit.se[i2]>hi)hi=v+1.96*fit.se[i2];});
   var pad=(hi-lo)*0.08;lo-=pad;hi+=pad;
-  var P=frame(box,1,n+H,lo,hi,[1,14,28,42,56,70,84,98].filter(function(v){return v<=n+H;}),
+  var xt=n>100?[1,70,140,210,280]:[1,14,28,42,56,70,84];
+  var P=frame(box,1,n,lo,hi,xt.filter(function(v){return v<=n;}),
               [rnd(lo+(hi-lo)*0.15,0),rnd(lo+(hi-lo)*0.85,0)]);
   ctx.save();ctx.beginPath();ctx.rect(box.l,box.t,box.r-box.l,box.b-box.t);ctx.clip();
-  /* the 95% band, then the forecast, then the history on top */
   ctx.fillStyle=BAND;ctx.beginPath();
-  for(i=0;i<H;i++){var X=P.px(n+1+i);
+  for(i=0;i<He;i++){var X=P.px(n-He+1+i);
     i===0?ctx.moveTo(X,P.py(fit.fc[i]-1.96*fit.se[i])):ctx.lineTo(X,P.py(fit.fc[i]-1.96*fit.se[i]));}
-  for(i=H-1;i>=0;i--)ctx.lineTo(P.px(n+1+i),P.py(fit.fc[i]+1.96*fit.se[i]));
+  for(i=He-1;i>=0;i--)ctx.lineTo(P.px(n-He+1+i),P.py(fit.fc[i]+1.96*fit.se[i]));
   ctx.closePath();ctx.fill();
   ctx.strokeStyle=GREY;ctx.setLineDash([4,4]);ctx.lineWidth=1.2;
-  ctx.beginPath();ctx.moveTo(P.px(n),box.t);ctx.lineTo(P.px(n),box.b);ctx.stroke();ctx.setLineDash([]);
-  lineOf(P,y.slice(1),1,CS,1.8);
-  lineOf(P,fit.fc,n+1,NAVY,2.4);
+  ctx.beginPath();ctx.moveTo(P.px(n-He+0.5),box.t);ctx.lineTo(P.px(n-He+0.5),box.b);ctx.stroke();ctx.setLineDash([]);
+  lineOf(P,y.slice(1),1,CS,1.6);
+  lineOf(P,fit.naive,n-He+1,'rgba(120,126,140,0.85)',1.4);
+  lineOf(P,fit.fc,n-He+1,NAVY,2.2);
   ctx.restore();
   lb('y_t',L-8,(box.t+box.b)/2,{align:'right',vt:'middle'});
-  lb('t\\text{, d}',box.r,box.b+30,{align:'right'});
-  /* the diagnostics column */
-  var sb=hasX?{l:RC,r:CW-Rm,t:8,b:56}:{l:RC,r:CW-Rm,t:8,b:70};
+  lb('t\\text{, d}',CW-Rm,box.b+28,{align:'right'});
+  /* 2 · Residuals over the training days */
+  var rs={l:L,r:CW-Rm,t:Y(120),b:Y(154)};
   var sp=spanOf(fit.E);
-  var P2=frame(sb,1,fit.E.length,sp[0],sp[1],[],[0]);
-  ctx.save();ctx.beginPath();ctx.rect(sb.l,sb.t,sb.r-sb.l,sb.b-sb.t);ctx.clip();
-  lineOf(P2,fit.E,1,CNO,1.4);
+  var P2=frame(rs,1,fit.E.length,sp[0],sp[1],[],[0]);
+  ctx.save();ctx.beginPath();ctx.rect(rs.l,rs.t,rs.r-rs.l,rs.b-rs.t);ctx.clip();
+  lineOf(P2,fit.E,1,CNO,1.3);
   ctx.restore();
-  lb('e_t',sb.r-4,sb.t+12,{align:'right'});
-  if(hasX){
-    bars(lb,{l:RC,r:CW-Rm,t:72,b:138},fit.racf,-1,fit.bandE,'r_k(e)');
-    bars(lb,{l:RC,r:CW-Rm,t:154,b:220},fit.ccf,-1,fit.bandE,'r_k(x,e)',0,[0,7,14]);
-    lb('\\text{lag }k',CW-Rm,220+30,{align:'right'});
-  }else{
-    bars(lb,{l:RC,r:CW-Rm,t:88,b:CH-46},fit.racf,-1,fit.bandE,'r_k(e)');
-    lb('\\text{lag }k',CW-Rm,CH-46+30,{align:'right'});
-  }
+  lb('\\text{Residuals}',rs.r-4,rs.t+12,{align:'right'});
+  /* 3 · residual ACF with its two-line verdict · 4 · residual PACF; the x axes align
+     (same box, same lags) so only the bottom panel carries the tick labels */
+  var ac={l:L,r:CW-Rm,t:Y(158),b:Y(206)};
+  corrPanel(lb,ac,fit.racf,fit.moeA,'\\text{ACF}',{noTicks:true});
+  var vd=acfVerdict(fit);
+  lb(vd.l1+'\u0001'+vd.l2,L+2,Y(212),{wrapKx:CW-L-18});
+  var pc={l:L,r:CW-Rm,t:Y(272),b:Y(320)};
+  corrPanel(lb,pc,fit.rpacf,fit.moeP,'\\text{PACF}',{ticks:[0,7,14]});
+  lb('\\text{lag }k',CW-Rm,Y(318)+18,{align:'right'});
 }
 
 function draw(){try{ctx.setTransform(SC,0,0,SC,0,0);ctx.clearRect(0,0,CW,CH);
@@ -548,72 +641,90 @@ function draw(){try{ctx.setTransform(SC,0,0,SC,0,0);ctx.clearRect(0,0,CW,CH);
 
 /* ---------------- legend ---------------- */
 function leg(style,tex){return '<span class="cli"><i class="ln" style="'+style+'"></i><span>'+kx(tex)+'</span></span>';}
+var P1={noise:{eq:'y_t=50+\\varepsilon_t,\\ \\varepsilon\\sim N(0,2)',
+    comps:[{h:'\\varepsilon_t',lb:'Shock',col:CNO}]},
+  ar:{eq:'y_t=50+0.8\\,(y_{t-1}-50)+\\varepsilon_t',
+    comps:[{h:'0.8\\,(y_{t-1}{-}50)',lb:'Memory',col:CTR},{h:'\\varepsilon_t',lb:'Shock',col:CNO}]},
+  ma:{eq:'y_t=50+\\varepsilon_t+0.85\\,\\varepsilon_{t-1}',
+    comps:[{h:'\\varepsilon_t',lb:'Shock',col:CNO},{h:'0.85\\,\\varepsilon_{t-1}',lb:'Old shock',col:CTR}]},
+  walk:{eq:'y_t=y_{t-1}+\\eta_t,\\ \\eta\\sim N(0.05,0.8)',
+    comps:[{h:'\\eta_t',lb:'Step',col:CNO}]},
+  wk:{eq:'y_t=50+s_t+\\varepsilon_t',
+    comps:[{h:'s_t',lb:'Weekly',col:CSE},{h:'\\varepsilon_t',lb:'Shock',col:CNO}]},
+  tw:{eq:'y_t=50+T_t+5\\sin(2\\pi t/7)+\\varepsilon_t',
+    comps:[{h:'T_t',lb:'Trend',col:CTR},{h:'5\\sin(2\\pi t/7)',lb:'Weekly',col:CSE},
+           {h:'\\varepsilon_t',lb:'Shock',col:CNO}]}};
 function fillLegend(){
   var el=document.getElementById('classleg'),h='<div class="clrow">';
   if(curTab===0){
     if(dsK==='custom')h+=leg('background:'+CTR,'\\text{Trend}')
       +leg('background:'+CSE,'\\text{Seasonal}')
-      +leg('background:'+CEX,'c\\,x_t')
+      +leg('background:'+CEX,'c\\,\\tilde x_t')
       +leg('background:'+CNO,'\\text{Noise}')
       +leg('background:'+CS,'\\text{The sum }y_t');
-    else if(dsK==='ar')h+=leg('background:'+CTR,'\\text{Memory, }'+fx(coefOf(),1)+'(y_{t-1}-40)')
-      +leg('background:'+CNO,'\\text{Shock }\\varepsilon_t')
-      +leg('background:'+CS,'\\text{The sum }y_t');
-    else if(dsK==='ma')h+=leg('background:'+CNO,'\\text{Shock }\\varepsilon_t')
-      +leg('background:'+CTR,'\\text{Old shock, }'+fx(coefOf(),1)+'\\,\\varepsilon_{t-1}')
-      +leg('background:'+CS,'\\text{The sum }y_t');
-    else h+=leg('background:'+CNO,'\\text{Shock }\\varepsilon_t')
-      +leg('background:'+CS,'y_t=y_{t-1}+\\varepsilon_t');}
+    else{P1[dsK].comps.forEach(function(c){h+=leg('background:'+c.col,c.h);});
+      h+=leg('background:'+CS,'y_t');}}
   else if(curTab===1)h+=leg('background:'+CS,'\\text{Pair }(y_{t-k},\\ y_t)');
-  else if(curTab===2)h+=leg('background:'+CTR,'\\text{All lags}')
-    +leg('background:'+CS,'\\text{Chosen lag }k')
-    +leg('background:'+GREY,'\\pm1.96/\\sqrt{n}');
+  else if(curTab===2)h+=leg('background:'+CTR,'\\text{Inside the band}')
+    +leg('background:'+CS,'\\text{Outside}')
+    +leg('background:#c9d9ea','\\text{Bartlett band}');
   else h+=leg('background:'+CS,'\\text{The series}')
-    +leg('background:'+NAVY,'\\text{Forecast, 14 days}')
+    +leg('background:'+NAVY,'\\text{Forecasts}')
     +leg('background:#c9d9ea','95\\%\\text{ band}')
-    +leg('background:'+CNO,'\\text{Residual }e_t');
+    +leg('background:rgba(120,126,140,0.85)','\\text{Seasonal naive}')
+    +leg('background:'+CNO,'\\text{Residuals}');
   el.innerHTML=h+'</div>';}
+
+/* ---------------- scoreboard (tab 4), Numeric Scorer vocabulary ---------------- */
+function fillScore(){
+  var el=document.getElementById('scb');
+  if(curTab!==3){el.style.display='none';return;}
+  var fit=fitOf(ordOf(),series());
+  function row(nm,s){return '<tr><td>'+kx('\\text{'+nm+'}')+'</td><td>'+kx(fx(s.mape,2)+'\\,\\%')
+    +'</td><td>'+kx(fx(s.r2,3))+'</td><td>'+kx(fx(s.rmse,2))
+    +'</td><td>'+kx((s.signed<0?'-':'+')+fx(Math.abs(s.signed),2))+'</td></tr>';}
+  var h='<table><tr><th></th><th>'+kx('\\text{MAPE}')+'</th><th>'+kx('R^2')
+    +'</th><th>'+kx('\\text{RMSE}')+'</th><th>'+kx('\\text{signed difference}')+'</th></tr>'
+    +row('Model',fit.sc)+row('Seasonal naive',fit.scN)+'</table>';
+  var v=scoreVerdict(fit);
+  if(v)h+='<div class="vd">'+kxw(v)+'</div>';
+  el.innerHTML=h;el.style.display='';}
 
 /* ---------------- data table ---------------- */
 function fillTable(){
   var y=series(),n=y.length-1;
   var hd=document.getElementById('mthead'),tb=document.getElementById('mtbody');
   var Wt=function(x){return '\\textcolor{#fff}{'+x+'}';};
-  var cols,rows=[],cap;
+  var cols,rows=[];
   if(curTab===0){
     var t0=Math.round(gv('t0'));
     if(dsK==='custom'){
-      cols=['\\text{Day }(t)','\\text{Trend}','\\text{Seas.}','c\\,x_t','\\text{Noise}','y_t'];
-      cap='';
+      cols=['\\text{Day }(t)','\\text{Trend}','\\text{Seas.}','c\\,\\tilde x_t','\\text{Noise}','y_t'];
       for(var t=1;t<=n;t++){var p=parts(t);
         rows.push({hl:t===t0,cells:[String(t),fx(p.tr,1),fx(p.se,1),fx(p.ex,1),fx(p.no,1),fx(y[t],1)],yc:5});}
-    }else{var pr=proc();
-      cols=dsK==='ar'?['\\text{Day }(t)',fx(coefOf(),1)+'\\,(y_{t-1}{-}40)','\\varepsilon_t','y_t']
-          :dsK==='ma'?['\\text{Day }(t)','\\varepsilon_t',fx(coefOf(),1)+'\\,\\varepsilon_{t-1}','y_t']
-                     :['\\text{Day }(t)','y_{t-1}','\\varepsilon_t','y_t'];
-      cap=dsK==='ar'?'\\text{'+n+' days of an AR(1) process}'
-         :dsK==='ma'?'\\text{'+n+' days of an MA(1) process}'
-                    :'\\text{'+n+' days of a random walk}';
-      for(var t=1;t<=n;t++)
-        rows.push({hl:t===t0,cells:[String(t),fx(pr.c1[t],dsK==='rw'?1:2),fx(pr.c2[t],2),fx(y[t],1)],yc:3});}
+    }else{var pr=preOf(),cc=P1[dsK].comps;
+      cols=['\\text{Day }(t)'].concat(cc.map(function(c){return c.h;})).concat(['y_t']);
+      for(var t1=1;t1<=n;t1++){
+        var cells=[String(t1)];
+        cc.forEach(function(c,ci){var arr=ci===0?pr.c1:ci===1?pr.c2:pr.c3;
+          cells.push(fx(arr[t1],dsK==='wk'&&ci===0?1:2));});
+        cells.push(fx(y[t1],1));
+        rows.push({hl:t1===t0,cells:cells,yc:cells.length-1});}}
   }else if(curTab===1){
     var k=Math.round(gv('k'));
     cols=['\\text{Day }(t)','y_{t-'+k+'}','y_t'];
-    cap='\\text{'+(n-k)+'\\text{ pairs, }t='+(k+1)+'\\text{..}'+n+'}';
     for(var t2=k+1;t2<=n;t2++)rows.push({hl:false,cells:[String(t2),fx(y[t2-k],1),fx(y[t2],1)],yc:-1});
   }else if(curTab===2){
-    var k3=Math.round(gv('k')),yv=y.slice(1),pc=pacfList(yv,14);
-    cols=['\\text{Lag }(k)','\\text{ACF }r_k','\\text{PACF }\\phi_{kk}'];
-    cap='\\text{the same series, one row per lag}';
+    var k3=Math.round(gv('k')),yv=y.slice(1),pc=pacfList(yv,14),ac2=acfRow(yv,14),mA=moeACF(ac2,n);
+    cols=['\\text{Lag }(k)','\\text{ACF }r_k','\\text{PACF }\\phi_{kk}','\\text{moe}_k'];
     for(var k4=1;k4<=14;k4++)
-      rows.push({hl:k4===k3,cells:[String(k4),fx(acfOf(yv,k4),2),fx(pc[k4-1],2)],yc:-1});
+      rows.push({hl:k4===k3,cells:[String(k4),fx(ac2[k4],2),fx(pc[k4-1],2),fx(mA[k4],2)],yc:-1});
   }else{
-    var fit=fitOf(ordOf(),y);
-    cols=['\\text{Day}','\\widehat{y}','\\text{low}','\\text{high}'];
-    cap='';
-    for(var h2=0;h2<H;h2++)
-      rows.push({hl:false,te:true,cells:[String(n+1+h2),fx(fit.fc[h2],1),
-        fx(fit.fc[h2]-1.96*fit.se[h2],1),fx(fit.fc[h2]+1.96*fit.se[h2],1)],yc:-1});
+    var fit=fitOf(ordOf(),y),He=fit.He;
+    cols=['\\text{Day}','y_t','\\widehat{y}','\\text{low}','\\text{high}'];
+    for(var h2=0;h2<He;h2++)
+      rows.push({hl:false,te:true,cells:[String(n-He+1+h2),fx(fit.truth[h2],1),fx(fit.fc[h2],1),
+        fx(fit.fc[h2]-1.96*fit.se[h2],1),fx(fit.fc[h2]+1.96*fit.se[h2],1)],yc:2});
   }
   hd.innerHTML=cols.map(function(c){return '<th>'+kx(Wt(c))+'</th>';}).join('');
   document.getElementById('dtcap').innerHTML='';
@@ -629,9 +740,11 @@ function fillTable(){
   if(hlr)dl.scrollTop=Math.max(0,hlr.offsetTop-dl.clientHeight/2);}
 
 /* ---------------- calc box ---------------- */
-function lline(t,parts2){
+function lline(t,parts2,plain){
   return '<span class="ln"><span class="lb">'+(t?kx('\\textbf{'+t+'}'):'')+'</span><span class="bd">'
-    +parts2.map(function(p){return '<span>'+kx(p)+'</span>';}).join('')+'</span></span>';}
+    +parts2.map(function(p){return '<span>'+kx(p)+'</span>';}).join('')
+    +(plain?'<span style="font-family:Lato,sans-serif;font-size:13px;color:#555">'+plain+'</span>':'')
+    +'</span></span>';}
 function fillCalc(){
   /* the arithmetic, and nothing that explains it in words */
   var el=document.getElementById('mcalc'),y=series(),n=y.length-1,h='';
@@ -641,79 +754,80 @@ function fillCalc(){
       var p=parts(t0),dow=DOW[(t0-1)%M];
       h+=lline('Trend',['40+b\\,(t-1)=40+'+fx(cur().b,2)+'\\cdot'+(t0-1)+'='+fx(p.tr,1)]);
       h+=lline('Seasonal',['\\text{day }'+t0+'\\text{ is a '+dow+'}\\Rightarrow s='+fx(p.se,1)]);
-      h+=lline('External',['c\\,x_{'+t0+'}='+fx(cur().c,1)+'\\cdot'+XARR[t0]+'='+fx(p.ex,1)]);
+      h+=lline('External',['c\\,\\tilde x_{'+t0+'}='+fx(cur().c,1)+'\\cdot'+fx(xNow()[t0]-xbarOf(n),1)+'='+fx(p.ex,1)]);
       h+=lline('Noise',['\\varepsilon_{'+t0+'}='+fx(p.no,1)]);
       h+=lline('Sum',['y_{'+t0+'}='+fx(p.tr,1)+(p.se<0?'-':'+')+fx(Math.abs(p.se),1)
         +(p.ex<0?'-':'+')+fx(Math.abs(p.ex),1)
         +(p.no<0?'-':'+')+fx(Math.abs(p.no),1)+'='+fx(y[t0],1)]);
     }else{
-      var pr=proc(),a=pr.c1[t0],e=pr.c2[t0];
-      if(dsK==='ar'){
-        h+=lline('Memory',[fx(coefOf(),1)+'\\,(y_{'+(t0-1)+'}{-}40)='+fx(a,2)]);
-        h+=lline('Shock',['\\varepsilon_{'+t0+'}='+fx(e,2)]);
-        h+=lline('Sum',['y_{'+t0+'}=40'+(a<0?'-':'+')+fx(Math.abs(a),2)
-          +(e<0?'-':'+')+fx(Math.abs(e),2)+'='+fx(y[t0],1)]);
-      }else if(dsK==='ma'){
-        h+=lline('Shock',['\\varepsilon_{'+t0+'}='+fx(a,2)]);
-        h+=lline('Old shock',[fx(coefOf(),1)+'\\,\\varepsilon_{'+(t0-1)+'}='+fx(e,2)]);
-        h+=lline('Sum',['y_{'+t0+'}=40'+(a<0?'-':'+')+fx(Math.abs(a),2)
-          +(e<0?'-':'+')+fx(Math.abs(e),2)+'='+fx(y[t0],1)]);
-      }else{
-        h+=lline('Yesterday',['y_{'+(t0-1)+'}='+fx(a,1)]);
-        h+=lline('Shock',['\\varepsilon_{'+t0+'}='+fx(e,2)]);
-        h+=lline('Sum',['y_{'+t0+'}='+fx(a,1)+(e<0?'-':'+')+fx(Math.abs(e),2)+'='+fx(y[t0],1)]);
-      }}
+      var pr=preOf(),cc=P1[dsK].comps,vals=[];
+      cc.forEach(function(c,ci){var arr=ci===0?pr.c1:ci===1?pr.c2:pr.c3;vals.push(arr[t0]);
+        h+=lline(c.lb,[c.h.replace(/t-1/g,String(t0-1)).replace(/_t\b/g,'_{'+t0+'}')+'='+fx(arr[t0],2)]);});
+      var base=dsK==='walk'?y[t0-1]!=null?y[t0-1]:50:50;
+      var sum=dsK==='walk'?'y_{'+t0+'}='+fx(base,1):'y_{'+t0+'}=50';
+      vals.forEach(function(v){sum+=(v<0?'-':'+')+fx(Math.abs(v),2);});
+      h+=lline('Sum',[sum+'='+fx(y[t0],1)]);}
   }else if(curTab===1){
     var k=Math.round(gv('k')),yv=y.slice(1),r=acfOf(yv,k);
     h+=lline('Correlation',['r_{'+k+'}=\\textstyle\\sum_t(y_t-\\bar y)(y_{t-'+k+'}-\\bar y)\\,/\\,\\sum_t(y_t-\\bar y)^2',
       '='+fx(r,2)]);
   }else if(curTab===2){
-    var k2=Math.round(gv('k')),yv2=y.slice(1),pc=pacfList(yv2,14),bound=1.96/Math.sqrt(n);
-    h+=lline('ACF',['r_{'+k2+'}='+fx(acfOf(yv2,k2),2)]);
+    var k2=Math.round(gv('k')),yv2=y.slice(1),pc=pacfList(yv2,14),ac3=acfRow(yv2,14),mA2=moeACF(ac3,n);
+    h+=lline('ACF',['r_{'+k2+'}='+fx(ac3[k2],2)]);
     h+=lline('PACF',['\\phi_{'+k2+','+k2+'}='+fx(pc[k2-1],2)]);
-    h+=lline('Band',['\\pm1.96/\\sqrt{'+n+'}=\\pm'+fx(bound,2)]);
+    h+=lline('Band',['\\pm1.96\\sqrt{(1+2\\textstyle\\sum_{j<'+k2+'}r_j^2)/'+n+'}=\\pm'+fx(mA2[k2],2)]);
   }else{
-    var o=ordOf(),fit=fitOf(o,y),F=fit.F;
+    var o=ordOf(),fit=fitOf(o,y);
     h+=lline('Model',[modelName(o)]);
-    if(o.x)h+=lline('External',['\\widehat\\beta='+fx(fit.beta,2)]);
-    h+=lline('Error',['\\sigma='+fx(F.sig,2)]);
-    h+=lline('Forecast',['\\widehat y_{'+(n+1)+'}='+fx(fit.fc[0],1),
-      '\\widehat y_{'+(n+H)+'}='+fx(fit.fc[H-1],1)+'\\pm'+fx(1.96*fit.se[H-1],1)]);
-    h+=lline('Band',['\\pm1.96/\\sqrt{'+fit.E.length+'}=\\pm'+fx(fit.bandE,2)]);
+    if(o.x)h+=lline('External',['\\widehat\\beta='+fx(fit.beta,2),
+      '\\text{'+(XTYPE==='temp'?'ต่อองศา':'ต่อเหตุการณ์')+'}']);
   }
   el.innerHTML=h;}
 
+/* ---------------- sd of the residuals beside the order levers (ORDER section 7) -------- */
+function fillSdNote(){
+  var el=document.getElementById('sdNote');
+  if(curTab!==3){el.innerHTML='';return;}
+  var o=ordOf(),y=series(),fit=fitOf(o,y);
+  var h=kxw('sd residual')+' '+kx('='+fx(fit.sdE,2));
+  if(o.d>=1){var f0=fitOf({p:o.p,d:o.d-1,q:o.q,P:o.P,D:o.D,Q:o.Q,x:o.x},y);
+    if(fit.sdE>f0.sdE)h+=' <b>'+kxw('· d เกิน: sd ขึ้นจาก')+' '+kx(fx(f0.sdE,2))+'</b>';}
+  if(o.D>=1){var f1=fitOf({p:o.p,d:o.d,q:o.q,P:o.P,D:o.D-1,Q:o.Q,x:o.x},y);
+    if(fit.sdE>f1.sdE)h+=' <b>'+kxw('· D เกิน: sd ขึ้นจาก')+' '+kx(fx(f1.sdE,2))+'</b>';}
+  el.innerHTML=h;}
+
 /* ---------------- controls ---------------- */
-function paintDs(){document.querySelectorAll('#dsSeg button').forEach(function(b){
+function paintDs(){document.querySelectorAll('#dsSeg button, #dsSeg2 button').forEach(function(b){
   b.className=b.getAttribute('data-ds')===dsK?'on':'';});
   document.querySelectorAll('#xSeg button').forEach(function(b){
-    b.className=b.getAttribute('data-x')===String(XIN)?'on':'';});}
+    b.className=b.getAttribute('data-x')===String(XIN)?'on':'';});
+  document.querySelectorAll('#xtSeg button').forEach(function(b){
+    b.className=b.getAttribute('data-xt')===XTYPE?'on':'';});
+  document.querySelectorAll('#hSeg button').forEach(function(b){
+    b.className=b.getAttribute('data-h')===String(HSEL)?'on':'';});
+  document.querySelectorAll('#wSeg button').forEach(function(b){
+    b.className=b.getAttribute('data-w')===String(WARM)?'on':'';});}
 function fillEq(){
-  /* the levers, shown IN the equation they steer; a process shows its own recursion */
   var el=document.getElementById('eqline');
-  K(dsK==='custom'?'y_t=40+b\\,(t-1)+A\\,s_t+c\\,x_t+\\sigma\\,\\varepsilon_t'
-    :dsK==='ar'?'y_t=40'+sgn()+'\\,(y_{t-1}-40)+\\varepsilon_t'
-    :dsK==='ma'?'y_t=40+\\varepsilon_t'+sgn()+'\\,\\varepsilon_{t-1}'
-    :'y_t=y_{t-1}+\\varepsilon_t,\\ y_0=40',el);}
+  K(dsK==='custom'?'y_t=40+b\\,(t-1)+A\\,s_t+c\\,\\tilde x_t+\\sigma\\,\\varepsilon_t'
+    :P1[dsK].eq,el);}
 function syncRows(){
-  /* the component levers live on the data tabs 1-3; the model tab is for the orders */
-  var dataTab=curTab<3;
-  document.getElementById('grp-custom').style.display=(dsK==='custom'&&dataTab)?'':'none';
-  var proc2=(dsK==='ar'||dsK==='ma')&&dataTab;
-  document.getElementById('grp-proc').style.display=proc2?'':'none';
-  if(proc2){K(dsK==='ar'?'\\phi':'\\theta',document.getElementById('lbl-co'));
-    document.getElementById('Rco').value=coefOf();
-    document.getElementById('Nco').value=coefOf();}
-  document.getElementById('grp-noise').style.display=dataTab?'':'none';
-  document.getElementById('grp-resample').style.display=dataTab?'':'none';
+  /* the component levers live on the data tabs and on Custom only (the presets are fixed
+     draws with fixed seeds); the model tab is for the orders */
+  var dataTab=curTab<3,cust=dsK==='custom';
+  document.getElementById('grp-custom').style.display=(cust&&dataTab)?'':'none';
+  document.getElementById('grp-noise').style.display=(cust&&dataTab)?'':'none';
+  document.getElementById('grp-resample').style.display=(cust&&dataTab)?'':'none';
   document.getElementById('grp-lag').style.display=(curTab===1||curTab===2)?'':'none';
   document.getElementById('grp-ex').style.display=curTab===0?'':'none';
   document.getElementById('grp-model').style.display=curTab===3?'':'none';
-  document.getElementById('xSeg').style.display=dsK==='custom'?'':'none';
+  document.getElementById('xSeg').style.display=cust?'':'none';
   var n=cur().n;
   ['Rt0','Nt0'].forEach(function(id){var e=document.getElementById(id);e.max=n;});
   if(gv('t0')>n)sv('t0',n);}
-function upd(){syncRows();paintDs();fillEq();sizeCanvas();draw();fillLegend();fillTable();fillCalc();
+function upd(){syncRows();paintDs();fillEq();
+  document.querySelector('.canvasbox').classList.toggle('tall',curTab===3);
+  sizeCanvas();draw();fillLegend();fillScore();fillTable();fillCalc();fillSdNote();
   if(Math.round(cv.clientWidth)!==CW||Math.round(cv.clientHeight)!==CH){sizeCanvas();draw();}}
 function applyTab(i){curTab=i;
   document.querySelectorAll('.tabbtn').forEach(function(b,j){b.className='tabbtn'+(j===i?' on':'');});
@@ -721,53 +835,66 @@ function applyTab(i){curTab=i;
 var tb2=document.getElementById('tabs');
 TABS.forEach(function(t,i){var el=document.createElement('button');el.className='tabbtn';
   K('\\text{'+t.n+'}',el);el.addEventListener('click',function(){applyTab(i);});tb2.appendChild(el);});
-document.querySelectorAll('#dsSeg button').forEach(function(b){
+document.querySelectorAll('#dsSeg button, #dsSeg2 button').forEach(function(b){
   b.addEventListener('click',function(){dsK=b.getAttribute('data-ds');upd();});});
 document.querySelectorAll('#xSeg button').forEach(function(b){
   b.addEventListener('click',function(){XIN=+b.getAttribute('data-x');upd();});});
+document.querySelectorAll('#xtSeg button').forEach(function(b){
+  b.addEventListener('click',function(){XTYPE=b.getAttribute('data-xt');FITC={};upd();});});
+document.querySelectorAll('#hSeg button').forEach(function(b){
+  b.addEventListener('click',function(){HSEL=+b.getAttribute('data-h');upd();});});
+document.querySelectorAll('#wSeg button').forEach(function(b){
+  b.addEventListener('click',function(){WARM=+b.getAttribute('data-w');upd();});});
 ['b','A','c','sg','n','k','t0','p','d','q','P','D','Q'].forEach(function(b){
   var Re=document.getElementById('R'+b),Ne=document.getElementById('N'+b);
-  Re.addEventListener('input',function(){Ne.value=Re.value;SERC={};FITC={};upd();});
-  Ne.addEventListener('input',function(){Re.value=Ne.value;SERC={};FITC={};upd();});});
-['Rco','Nco'].forEach(function(id){document.getElementById(id)
-  .addEventListener('input',function(){setCoef(+this.value||0);upd();});});
+  Re.addEventListener('input',function(){Ne.value=Re.value;FITC={};upd();});
+  Ne.addEventListener('input',function(){Re.value=Ne.value;FITC={};upd();});});
 document.getElementById('resample').addEventListener('click',function(){
-  SEEDS[dsK]=(SEEDS[dsK]*1664525+1013904223)>>>0;SERC={};FITC={};upd();});
+  CSEED=(CSEED*1664525+1013904223)>>>0;FITC={};upd();});
 window.addEventListener('resize',function(){sizeCanvas();upd();});
 
 window.LAB={
   read:function(){
     var y=series(),n=y.length-1,yv=y.slice(1);
-    var ac=[],i;for(i=1;i<=14;i++)ac.push(+acfOf(yv,i).toFixed(6));
+    var ac=acfRow(yv,14).slice(1).map(function(v){return +v.toFixed(6);});
     var pc=pacfList(yv,14).map(function(v){return +v.toFixed(6);});
-    var out={tab:curTab,seed:SEEDS[dsK],n:n,ds:dsK,b:cur().b,A:cur().A,c:cur().c,sg:cur().sg,
-      k:Math.round(gv('k')),t0:Math.round(gv('t0')),ord:ordOf(),m:M,level:LEVEL,
-      coef:coefOf(),
-      y:yv.map(function(v){return +v.toFixed(1);}),acf:ac,pacf:pc,
+    var mA=moeACF(acfRow(yv,14),n).map(function(v){return +v.toFixed(6);});
+    var out={tab:curTab,n:n,ds:dsK,seed:dsK==='custom'?CSEED:PSEED[dsK],
+      b:cur().b,A:cur().A,c:cur().c,sg:cur().sg,
+      k:Math.round(gv('k')),t0:Math.round(gv('t0')),ord:ordOf(),m:M,
+      xtype:XTYPE,H:HSEL,warm:WARM,
+      y:yv.map(function(v){return +v.toFixed(1);}),acf:ac,pacf:pc,moeA:mA,
       bound:+(1.96/Math.sqrt(n)).toFixed(6)};
     if(curTab===3){var fit=fitOf(ordOf(),y),F=fit.F;
       out.fit={phis:F.phis.map(function(v){return +v.toFixed(4);}),
                ths:F.ths.map(function(v){return +v.toFixed(4);}),
                Phis:F.Phis.map(function(v){return +v.toFixed(4);}),
                Ths:F.Ths.map(function(v){return +v.toFixed(4);}),
-               sig:+F.sig.toFixed(6),
-               beta:+fit.beta.toFixed(6),
-               bandE:+fit.bandE.toFixed(6),
-               racf:fit.racf.map(function(v){return +v.toFixed(6);}),
-               ccf:fit.ccf?fit.ccf.map(function(v){return +v.toFixed(6);}):null,
+               beta:+fit.beta.toFixed(6),He:fit.He,nE:fit.E.length,
+               sdE:+fit.sdE.toFixed(6),
                fc:fit.fc.map(function(v){return +v.toFixed(6);}),
-               se:fit.se.map(function(v){return +v.toFixed(6);})};}
+               se:fit.se.map(function(v){return +v.toFixed(6);}),
+               truth:fit.truth.map(function(v){return +v.toFixed(1);}),
+               naive:fit.naive.map(function(v){return +v.toFixed(1);}),
+               sc:{mape:+fit.sc.mape.toFixed(6),r2:+fit.sc.r2.toFixed(6),
+                   rmse:+fit.sc.rmse.toFixed(6),signed:+fit.sc.signed.toFixed(6),
+                   mae:+fit.sc.mae.toFixed(6)},
+               scN:{mape:+fit.scN.mape.toFixed(6),r2:+fit.scN.r2.toFixed(6),
+                    rmse:+fit.scN.rmse.toFixed(6),signed:+fit.scN.signed.toFixed(6)},
+               racf:fit.racf.map(function(v){return +v.toFixed(6);}),
+               rpacf:fit.rpacf.map(function(v){return +v.toFixed(6);}),
+               moeA:fit.moeA.map(function(v){return +v.toFixed(6);}),
+               out:fit.out.slice()};}
     return out;},
   set:function(o){
-    if(o.seed!=null&&+o.seed!==SEEDS[dsK]){SEEDS[dsK]=+o.seed;SERC={};FITC={};}
-    if(o.ds&&(o.ds==='custom'||DS[o.ds]))dsK=o.ds;
+    if(o.ds&&(o.ds==='custom'||PSEED[o.ds]!==undefined)){dsK=o.ds;FITC={};}
+    if(o.seed!=null&&dsK==='custom'&&+o.seed!==CSEED){CSEED=+o.seed;FITC={};}
+    if(o.xtype&&(o.xtype==='temp'||o.xtype==='event')){XTYPE=o.xtype;FITC={};}
+    if(o.H!=null){HSEL=+o.H;FITC={};}
+    if(o.warm!=null){WARM=+o.warm?1:0;FITC={};}
+    if(o.x!=null)XIN=Math.round(+o.x)?1:0;
     ['b','A','c','sg','n','k','t0','p','d','q','P','D','Q'].forEach(function(b2){
-    if(o.x!=null){XIN=Math.round(+o.x)?1:0;}
-      if(o[b2]!=null){sv(b2,+o[b2]);SERC={};FITC={};}});
-    if(o.model==='arima'||o.model==='sarima'){
-      ['p','d','q'].forEach(function(b2){sv(b2,1);});
-      ['P','D','Q'].forEach(function(b2){sv(b2,o.model==='sarima'?1:0);});}
-    if(o.coef!=null)setCoef(+o.coef);
+      if(o[b2]!=null){sv(b2,+o[b2]);FITC={};}});
     if(o.tab!=null)applyTab(Math.max(0,Math.min(3,+o.tab)));
     else upd();}};
 
