@@ -384,7 +384,7 @@ function modelName(o){var s='('+o.p+','+o.d+','+o.q+')',X=o.x?'X':'';
 
 /* ---------------- the two verdicts (ORDER sections 3-4), written from the numbers ------- */
 function acfVerdict(fit){
-  var ls=fit.out.slice(0,8).join(', ')+(fit.out.length>8?' …':'');
+  var ls=fit.out.slice(0,6).join(', ')+(fit.out.length>6?' …':'');
   var l1='outside the band: '+fit.out.length+' of '+KR+' lags'
     +(fit.out.length?' — lag '+ls:'');
   var l2;
@@ -615,22 +615,21 @@ function draw4(lb,y){
   lb('y_t',L-8,box.t+12,{align:'right'});
   lb('t\\text{, d}',CW-Rm,box.b+28,{align:'right'});
   /* 2 · Residuals over the training days */
-  var rs={l:L,r:CW-Rm,t:Y(120),b:Y(154)};
+  var rs={l:L,r:CW-Rm,t:Y(124),b:Y(162)};
   var sp=spanOf(fit.E);
   var P2=frame(rs,1,fit.E.length,sp[0],sp[1],[],[0]);
   ctx.save();ctx.beginPath();ctx.rect(rs.l,rs.t,rs.r-rs.l,rs.b-rs.t);ctx.clip();
   lineOf(P2,fit.E,1,CNO,1.3);
   ctx.restore();
   lb('\\text{Residuals}',rs.r-4,rs.t+12,{align:'right'});
-  /* 3 · residual ACF with its two-line verdict · 4 · residual PACF; the x axes align
-     (same box, same lags) so only the bottom panel carries the tick labels */
-  var ac={l:L,r:CW-Rm,t:Y(158),b:Y(206)};
+  /* 3 · residual ACF · 4 · residual PACF; the x axes align (same box, same lags) so only
+     the bottom panel carries the tick labels. The verdict lives in the scoreboard box --
+     the figure carries curves, axes and panel names only. */
+  var ac={l:L,r:CW-Rm,t:Y(178),b:Y(238)};
   corrPanel(lb,ac,fit.racf,fit.moeA,'\\text{ACF}',{noTicks:true});
-  var vd=acfVerdict(fit);
-  lb(vd.l1+'\u0001'+vd.l2,L+2,Y(212),{wrapKx:CW-L-18});
-  var pc={l:L,r:CW-Rm,t:Y(272),b:Y(320)};
+  var pc={l:L,r:CW-Rm,t:Y(254),b:Y(314)};
   corrPanel(lb,pc,fit.rpacf,fit.moeP,'\\text{PACF}',{ticks:[0,7,14]});
-  lb('\\text{lag }k',CW-Rm,Y(318)+18,{align:'right'});
+  lb('\\text{lag }k',CW-Rm,Y(312)+20,{align:'right'});
 }
 
 function draw(){try{ctx.setTransform(SC,0,0,SC,0,0);ctx.clearRect(0,0,CW,CH);
@@ -687,6 +686,9 @@ function fillScore(){
   var h='<table><tr><th></th><th>'+kx('\\text{MAPE}')+'</th><th>'+kx('R^2')
     +'</th><th>'+kx('\\text{RMSE}')+'</th><th>'+kx('\\text{signed difference}')+'</th></tr>'
     +row('Model',fit.sc)+row('Seasonal naive',fit.scN)+'</table>';
+  var vd=acfVerdict(fit);
+  h+='<div class="vd" style="color:#555">'+kxw(vd.l1)+'</div>';
+  h+='<div class="vd">'+kxw(vd.l2)+'</div>';
   var v=scoreVerdict(fit);
   if(v)h+='<div class="vd">'+kxw(v)+'</div>';
   el.innerHTML=h;el.style.display='';}
