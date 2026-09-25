@@ -10,14 +10,14 @@
 <style>
   /* intro-timeseries — โครงเดียวกับ Introduction to Regression / RUL: ตารางข้อมูลซ้าย ·
      กราฟ + legend + กล่องคำนวณ · control ขวา */
-  :root{--panel-h:429px}   /* วัดจาก tab ที่ control สูงสุดแล้วตรึงทุก tab เท่ากัน */
+  :root{--panel-h:464px}   /* วัดจาก tab ที่ control สูงสุดแล้วตรึงทุก tab เท่ากัน */
   .layout{align-items:start}
   .pg.distcls .canvasbox{height:260px}
-  .pg.distcls .canvasbox.tall{height:345px}   /* tab 4: สี่กราฟเรียงคอลัมน์เดียว */
+  .pg.distcls .canvasbox.tall{height:calc(clamp(300px,44vh,400px)*1.256)}   /* tab 4: สี่แผงสูงเท่าแผงของ tab 3 */
   .pg.distcls .canvasbox.xt{height:clamp(300px,44vh,400px)}  /* tab 2-3: รูปใหญ่ ในสูตร UD */
-  .pg.distcls .canvasbox.fillh{height:clamp(320px,calc(100vh - 175px),640px)}  /* tab 1: เต็มจอไม่ล้น */
-  .pg.distcls .canvasbox.fillh.t2{height:clamp(320px,calc(100vh - 235px),580px)}  /* tab 2 มีกล่องคำนวณใต้รูป */
-  @media(max-height:640px){.pg.distcls .canvasbox.tall{height:235px}}
+  .pg.distcls .canvasbox.fillh:not(.tall){height:clamp(320px,calc(100vh - 175px),640px)}  /* tab 1: เต็มจอไม่ล้น */
+  /* tab 2: ความสูงตั้งจาก JS = ความกว้าง + 144 (scatter จัตุรัสเต็มกว้าง) */
+
   .distcls .stage{gap:6px}
   .canvasbox{position:relative}
   .cvlab{position:absolute;left:0;top:0;width:100%;height:100%;pointer-events:none;overflow:hidden;font-size:14px;line-height:1}
@@ -105,6 +105,7 @@
       <div id="grp-custom"><div class="dgrid">
         <div class="drow eqr"><span class="dlab" id="lbl-b"></span><input type="range" id="Rb" min="0" max="0.4" step="0.05" value="0.2"><input class="num" type="number" id="Nb" min="0" max="0.4" step="0.05" value="0.2"></div>
         <div class="drow eqr"><span class="dlab" id="lbl-A"></span><input type="range" id="RA" min="0" max="8" step="0.5" value="5"><input class="num" type="number" id="NA" min="0" max="8" step="0.5" value="5"></div>
+        <div class="drow eqr"><span class="dlab" id="lbl-m"></span><input type="range" id="Rm" min="2" max="14" step="1" value="7"><input class="num" type="number" id="Nm" min="2" max="14" step="1" value="7"></div>
         <div class="drow eqr"><span class="dlab" id="lbl-sg"></span><input type="range" id="Rsg" min="0.5" max="4" step="0.5" value="1"><input class="num" type="number" id="Nsg" min="0.5" max="4" step="0.5" value="1"></div>
       </div></div>
       <div id="grp-noise"><div class="dgrid">
@@ -190,9 +191,10 @@ var PN=280,PSEED={noise:99880,ar:73643,ma:145206,walk:70114,wk:71157,tw:79504};
 
 /* ---------------- Custom: y_t = 40 + b(t-1) + A s_t + c (x_t - xbar) + sigma e_t ------- */
 function cur(){return {b:dsK==='custom'?gv('b'):0,A:dsK==='custom'?gv('A'):0,
+  m:dsK==='custom'?Math.round(gv('m')):M,
   sg:gv('sg'),n:dsK==='custom'?Math.round(gv('n')):PN};}
 function parts(t){var c=cur(),z=znOf(CSEED,84);
-  return {tr:rnd(LEVEL+c.b*(t-1),2),se:rnd(c.A*SEAS[(t-1)%M]/5.5,2),
+  return {tr:rnd(LEVEL+c.b*(t-1),2),se:rnd(c.A*Math.sin(2*Math.PI*t/c.m),2),
           no:rnd(c.sg*z[t-1],2)};}
 
 /* ---------------- the six presets (ORDER section 5): n=280, base 50, fixed seeds;
@@ -361,7 +363,7 @@ var MT={'h1':'\\text{Introduction to Time Series}','resample':'\\text{Resample n
   'hd-data':'\\text{Dataset}','ds-custom':'\\text{Custom}','ds-noise':'\\text{Ex 1}',
   'ds-ar':'\\text{Ex 2}','ds-ma':'\\text{Ex 3}','ds-walk':'\\text{Ex 4}',
   'ds-wk':'\\text{Ex 5}','ds-tw':'\\text{Ex 6}',
-  'lbl-n':'n',
+  'lbl-n':'n','lbl-m':'m',
   'hd-lag':'\\text{Lag}','lbl-k':'k','hd-ex':'\\text{Testing day}','lbl-t0':'t',
   'hd-model':'\\text{Model }(p,d,q)(P,D,Q)_7','lbl-H':'H',
   'lbl-p':'p','lbl-d':'d','lbl-q':'q','lbl-P':'P','lbl-D':'D','lbl-Q':'Q'};
@@ -474,9 +476,9 @@ function draw1(lb,y){
     /* frozen y ranges (the levers' envelope: b<=0.4 n<=84 · A<=8 · sigma<=4), so moving
        a control moves the LINE, not the scale */
     rows=[
-      {col:CTR,arr:[],rg:[38,74]},{col:CSE,arr:[],rg:[-8.5,4]},
+      {col:CTR,arr:[],rg:[38,74]},{col:CSE,arr:[],rg:[-8.5,8.5]},
       {col:CNO,arr:[],rg:[-12.5,12.5]},
-      {col:CS,arr:y.slice(1),rg:[24,86]}];
+      {col:CS,arr:y.slice(1),rg:[22,90]}];
     for(var t=1;t<=n;t++){var p=parts(t);
       rows[0].arr.push(p.tr);rows[1].arr.push(p.se);rows[2].arr.push(p.no);}
   }else{var pr=preOf();
@@ -519,8 +521,7 @@ function draw1(lb,y){
    right -- each dot pairs two values k days apart on the line beside it ============ */
 function draw2(lb,y){
   var n=y.length-1,k=Math.round(gv('k'));
-  var L=52,Rm=14;
-  var tsB=Math.min(130,Math.round(CH*0.2));
+  var L=52,Rm=14,tsB=120;
   var ts={l:L,r:CW-Rm,t:8,b:tsB};
   var yv=y.slice(1),sp=spanOf(yv);
   var xt=[1,14,28,42,56];
@@ -574,10 +575,10 @@ function draw3(lb,y){
 /* ============ tab 4 · one column: forecast vs the held-out truth, then the check ======== */
 function draw4(lb,y){
   var n=y.length-1,fit=fitOf(ordOf(),y),He=fit.He;
-  var L=52,Rm=14,U=CH/345;
+  var L=52,Rm=14,U=CH/540;   /* four panels of 110, the same height as tab 3's */
   function Y(v){return Math.round(v*U);}
   /* 1 · the series, Forecasts over the holdout, the truth overlapping, the naive */
-  var box={l:L,r:CW-Rm,t:8,b:Y(72)};
+  var box={l:L,r:CW-Rm,t:8,b:Y(118)};
   var lo=Infinity,hi=-Infinity,i;
   y.slice(1).forEach(function(v){if(v<lo)lo=v;if(v>hi)hi=v;});
   fit.fc.forEach(function(v,i2){
@@ -600,9 +601,9 @@ function draw4(lb,y){
   lineOf(P,fit.fc,n-He+1,NAVY,2.2);
   ctx.restore();
   lb('y_t',L-8,box.t+12,{align:'right'});
-  lb('t\\text{, d}',CW-Rm,box.b+28,{align:'right'});
+  lb('t\\text{, d}',CW-Rm,box.b+24,{align:'right'});
   /* 2 · Residuals over the training days */
-  var rs={l:L,r:CW-Rm,t:Y(102),b:Y(166)};
+  var rs={l:L,r:CW-Rm,t:Y(146),b:Y(256)};
   var sp=spanOf(fit.E);
   var P2=frame(rs,1,fit.E.length,sp[0],sp[1],[],[0]);
   ctx.save();ctx.beginPath();ctx.rect(rs.l,rs.t,rs.r-rs.l,rs.b-rs.t);ctx.clip();
@@ -612,11 +613,11 @@ function draw4(lb,y){
   /* 3 · residual ACF · 4 · residual PACF; the x axes align (same box, same lags) so only
      the bottom panel carries the tick labels. The verdict lives in the scoreboard box --
      the figure carries curves, axes and panel names only. */
-  var ac={l:L,r:CW-Rm,t:Y(180),b:Y(244)};
+  var ac={l:L,r:CW-Rm,t:Y(278),b:Y(388)};
   corrPanel(lb,ac,fit.racf,fit.moeA,'\\text{ACF}',{noTicks:true});
-  var pc={l:L,r:CW-Rm,t:Y(258),b:Y(322)};
+  var pc={l:L,r:CW-Rm,t:Y(408),b:Y(518)};
   corrPanel(lb,pc,fit.rpacf,fit.moeP,'\\text{PACF}',{ticks:[1,7,14]});
-  lb('\\text{lag }k',CW-Rm,Y(320)+18,{align:'right'});
+  lb('\\text{lag }k',CW-Rm,Y(516)+16,{align:'right'});
 }
 
 function draw(){try{ctx.setTransform(SC,0,0,SC,0,0);ctx.clearRect(0,0,CW,CH);
@@ -712,9 +713,9 @@ function fillCalc(){
   if(curTab===0){
     var t0=Math.round(gv('t0'));
     if(dsK==='custom'){
-      var p=parts(t0),dow=DOW[(t0-1)%M];
+      var p=parts(t0);
       h+=lline('Trend',['T_{'+t0+'}=40+'+fx(cur().b,2)+'\\cdot'+(t0-1)+'='+fx(p.tr,1)]);
-      h+=lline('Seasonal',['\\text{day }'+t0+'\\text{ is a '+dow+'}\\Rightarrow S_{'+t0+'}='+fx(p.se,1)]);
+      h+=lline('Seasonal',['S_{'+t0+'}='+fx(cur().A,1)+'\\sin(2\\pi\\cdot'+t0+'/'+Math.round(cur().m)+')='+fx(p.se,1)]);
       h+=lline('Irregular',['I_{'+t0+'}='+fx(p.no,1)]);
       h+=lline('Sum',['y_{'+t0+'}='+fx(p.tr,1)+(p.se<0?'-':'+')+fx(Math.abs(p.se),1)
         +(p.no<0?'-':'+')+fx(Math.abs(p.no),1)+'='+fx(y[t0],1)]);
@@ -758,8 +759,10 @@ function fillEq(){
   if(dsK==='custom'){
     K('T_t=40+\\textcolor{#1e3a8a}{'+fx(gv('b'),2)+'}\\,(t-1)',
       document.getElementById('lbl-b'));
-    K('S_t=\\textcolor{#1e3a8a}{'+fx(gv('A'),1)+'}\\,s_t',
+    K('S_t=\\textcolor{#1e3a8a}{'+fx(gv('A'),1)+'}\\,\\sin(2\\pi t/\\textcolor{#1e3a8a}{'+Math.round(gv('m'))+'})',
       document.getElementById('lbl-A'));
+    K('m=\\textcolor{#1e3a8a}{'+Math.round(gv('m'))+'}',
+      document.getElementById('lbl-m'));
     K('I_t=\\textcolor{#1e3a8a}{'+fx(gv('sg'),1)+'}\\,\\varepsilon_t',
       document.getElementById('lbl-sg'));}}
 function syncRows(){
@@ -784,7 +787,9 @@ function syncRows(){
 function upd(){syncRows();paintDs();fillEq();
   var cb=document.querySelector('.canvasbox');
   cb.classList.toggle('tall',curTab===3);cb.classList.toggle('xt',curTab===2);
-  cb.classList.toggle('fillh',curTab<=1);cb.classList.toggle('t2',curTab===1);
+  cb.classList.toggle('fillh',curTab<=1||curTab===3);
+  if(curTab===1)cb.style.height=Math.max(360,Math.min(cb.clientWidth+144,innerHeight-230))+'px';
+  else cb.style.height='';
   sizeCanvas();draw();fillLegend();fillScore();fillTable();fillCalc();fillSdNote();
   if(Math.round(cv.clientWidth)!==CW||Math.round(cv.clientHeight)!==CH){sizeCanvas();draw();}}
 function applyTab(i){curTab=i;
@@ -799,7 +804,7 @@ document.querySelectorAll('#dsSeg button, #dsSeg2 button').forEach(function(b){
   b.addEventListener('click',function(){dsK=b.getAttribute('data-ds');upd();});});
 document.querySelectorAll('#hSeg button').forEach(function(b){
   b.addEventListener('click',function(){HSEL=+b.getAttribute('data-h');upd();});});
-['b','A','sg','n','k','t0','p','d','q','P','D','Q'].forEach(function(b){
+['b','A','m','sg','n','k','t0','p','d','q','P','D','Q'].forEach(function(b){
   var Re=document.getElementById('R'+b),Ne=document.getElementById('N'+b);
   Re.addEventListener('input',function(){Ne.value=Re.value;FITC={};upd();});
   Ne.addEventListener('input',function(){Re.value=Ne.value;FITC={};upd();});});
@@ -814,7 +819,7 @@ window.LAB={
     var pc=pacfList(yv,KS).map(function(v){return +v.toFixed(6);});
     var mA=moeACF(acfRow(yv,KS),n).map(function(v){return +v.toFixed(6);});
     var out={tab:curTab,n:n,ds:dsK,seed:dsK==='custom'?CSEED:PSEED[dsK],
-      b:cur().b,A:cur().A,sg:cur().sg,
+      b:cur().b,A:cur().A,sm:cur().m,sg:cur().sg,
       k:Math.round(gv('k')),t0:Math.round(gv('t0')),ord:ordOf(),m:M,
       H:HSEL,warm:WARM,
       y:yv.map(function(v){return +v.toFixed(1);}),acf:ac,pacf:pc,moeA:mA,
@@ -844,7 +849,7 @@ window.LAB={
     if(o.ds&&(o.ds==='custom'||PSEED[o.ds]!==undefined)){dsK=o.ds;FITC={};}
     if(o.seed!=null&&dsK==='custom'&&+o.seed!==CSEED){CSEED=+o.seed;FITC={};}
     if(o.H!=null){HSEL=+o.H;FITC={};}
-    ['b','A','sg','n','k','t0','p','d','q','P','D','Q'].forEach(function(b2){
+    ['b','A','m','sg','n','k','t0','p','d','q','P','D','Q'].forEach(function(b2){
       if(o[b2]!=null){sv(b2,+o[b2]);FITC={};}});
     if(o.tab!=null)applyTab(Math.max(0,Math.min(3,+o.tab)));
     else upd();}};
