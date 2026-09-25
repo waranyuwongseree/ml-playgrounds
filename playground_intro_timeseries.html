@@ -10,7 +10,7 @@
 <style>
   /* intro-timeseries — โครงเดียวกับ Introduction to Regression / RUL: ตารางข้อมูลซ้าย ·
      กราฟ + legend + กล่องคำนวณ · control ขวา */
-  :root{--panel-h:536px}   /* วัดจาก tab ที่ control สูงสุดแล้วตรึงทุก tab เท่ากัน */
+  :root{--panel-h:429px}   /* วัดจาก tab ที่ control สูงสุดแล้วตรึงทุก tab เท่ากัน */
   .layout{align-items:start}
   .pg.distcls .canvasbox{height:260px}
   .pg.distcls .canvasbox.tall{height:345px}   /* tab 4: สี่กราฟเรียงคอลัมน์เดียว */
@@ -127,10 +127,9 @@
         <div class="drow"><span class="dlab" id="lbl-D"></span><input type="range" id="RD" min="0" max="1" step="1" value="0"><input class="num" type="number" id="ND" min="0" max="1" step="1" value="0"></div>
         <div class="drow"><span class="dlab" id="lbl-Q"></span><input type="range" id="RQ" min="0" max="1" step="1" value="0"><input class="num" type="number" id="NQ" min="0" max="1" step="1" value="0"></div>
       </div>
-      <div class="sdnote" id="sdNote"></div>
       <div class="hrow"><span class="dlab" id="lbl-H"></span>
         <div class="seg2 sm" id="hSeg" style="flex:1;margin:0"><button data-h="7">7</button><button data-h="14" class="on">14</button><button data-h="21">21</button><button data-h="28">28</button></div></div>
-      <div class="seg2 sm" id="wSeg" style="margin-bottom:2px"><button data-w="1" class="on"></button><button data-w="0"></button></div></div>
+      </div>
       <div class="tgls" id="grp-resample"><button class="primary" id="resample" style="width:100%"></button></div>
     </div>
   </div>
@@ -182,7 +181,8 @@ function meanOf(a){var s=0,i;for(i=0;i<a.length;i++)s+=a[i];return s/a.length;}
 /* ---------------- state ---------------- */
 var M=7,LEVEL=40,KS=21,DOW=['Mon','Tue','Wed','Thu','Fri','Sat','Sun'];
 var SEAS=[1.5,2.5,2.5,2,1,-4,-5.5];
-var dsK='custom',curTab=0,HSEL=14,WARM=1;
+var dsK='custom',curTab=0,HSEL=14;
+var WARM=1;   /* the warm-up rows are always trimmed */
 var CSEED=12345;              /* Custom's noise seed; Resample moves THIS one only */
 /* the six presets: fixed seeds, chosen so the printed series' acf1/acf7/pacf1 land on the
    answer table in the 2026-09-25 order at 2 dp */
@@ -375,8 +375,7 @@ function K(t,el){if(!el)return;try{katex.render(t,el,{throwOnError:false});}catc
 function renderTexts(){if(!window.katex)return;for(var id in MT)K(MT[id],document.getElementById(id));
   document.querySelectorAll('#hSeg button').forEach(function(b){
     K(b.getAttribute('data-h'),b);});
-  var wb=document.querySelectorAll('#wSeg button');
-  K('\\text{Trim warm-up}',wb[0]);K('\\text{Keep all rows}',wb[1]);}
+}
 
 /* ---------------- canvas + KaTeX overlay ---------------- */
 var cv=document.getElementById('cv'),ctx=cv.getContext('2d'),SC=2,CW=640,CH=260;
@@ -558,7 +557,7 @@ function draw3(lb,y){
   var mA=moeACF(ac,n),mP=moePACF(K2,n);
   var L=52,Rm=14,U=CH/430;
   function Y(v){return Math.round(v*U);}
-  var ts={l:L,r:CW-Rm,t:8,b:Y(102)};
+  var ts={l:L,r:CW-Rm,t:8,b:Y(118)};
   var sp=spanOf(yv),xt=n>100?[1,70,140,210,280]:[1,14,28,42,56];
   var Pt=frame(ts,1,n,sp[0],sp[1],xt.filter(function(v){return v<=n;}),
                [rnd(sp[0]+(sp[1]-sp[0])*0.2,0),rnd(sp[0]+(sp[1]-sp[0])*0.62,0)]);
@@ -566,10 +565,10 @@ function draw3(lb,y){
   lineOf(Pt,yv,1,CS,n>150?1.2:1.6);
   ctx.restore();
   lb('y_t',L-8,ts.t+12,{align:'right'});
-  lb('t\\text{, d}',CW-Rm,ts.b+28,{align:'right'});
-  corrPanel(lb,{l:L,r:CW-Rm,t:Y(136),b:Y(262)},ac,mA,'\\text{ACF}',{guideK:k,noTicks:true});
-  corrPanel(lb,{l:L,r:CW-Rm,t:Y(286),b:Y(404)},pc,mP,'\\text{PACF}',{guideK:k,ticks:[1,7,14]});
-  lb('\\text{lag }k',CW-Rm,Y(402)+20,{align:'right'});
+  lb('t\\text{, d}',CW-Rm,ts.b+26,{align:'right'});
+  corrPanel(lb,{l:L,r:CW-Rm,t:Y(152),b:Y(262)},ac,mA,'\\text{ACF}',{guideK:k,noTicks:true});
+  corrPanel(lb,{l:L,r:CW-Rm,t:Y(288),b:Y(398)},pc,mP,'\\text{PACF}',{guideK:k,ticks:[1,7,14]});
+  lb('\\text{lag }k',CW-Rm,Y(396)+18,{align:'right'});
 }
 
 /* ============ tab 4 · one column: forecast vs the held-out truth, then the check ======== */
@@ -578,7 +577,7 @@ function draw4(lb,y){
   var L=52,Rm=14,U=CH/345;
   function Y(v){return Math.round(v*U);}
   /* 1 · the series, Forecasts over the holdout, the truth overlapping, the naive */
-  var box={l:L,r:CW-Rm,t:8,b:Y(90)};
+  var box={l:L,r:CW-Rm,t:8,b:Y(72)};
   var lo=Infinity,hi=-Infinity,i;
   y.slice(1).forEach(function(v){if(v<lo)lo=v;if(v>hi)hi=v;});
   fit.fc.forEach(function(v,i2){
@@ -603,7 +602,7 @@ function draw4(lb,y){
   lb('y_t',L-8,box.t+12,{align:'right'});
   lb('t\\text{, d}',CW-Rm,box.b+28,{align:'right'});
   /* 2 · Residuals over the training days */
-  var rs={l:L,r:CW-Rm,t:Y(124),b:Y(162)};
+  var rs={l:L,r:CW-Rm,t:Y(102),b:Y(166)};
   var sp=spanOf(fit.E);
   var P2=frame(rs,1,fit.E.length,sp[0],sp[1],[],[0]);
   ctx.save();ctx.beginPath();ctx.rect(rs.l,rs.t,rs.r-rs.l,rs.b-rs.t);ctx.clip();
@@ -613,11 +612,11 @@ function draw4(lb,y){
   /* 3 · residual ACF · 4 · residual PACF; the x axes align (same box, same lags) so only
      the bottom panel carries the tick labels. The verdict lives in the scoreboard box --
      the figure carries curves, axes and panel names only. */
-  var ac={l:L,r:CW-Rm,t:Y(178),b:Y(238)};
+  var ac={l:L,r:CW-Rm,t:Y(180),b:Y(244)};
   corrPanel(lb,ac,fit.racf,fit.moeA,'\\text{ACF}',{noTicks:true});
-  var pc={l:L,r:CW-Rm,t:Y(254),b:Y(314)};
+  var pc={l:L,r:CW-Rm,t:Y(258),b:Y(322)};
   corrPanel(lb,pc,fit.rpacf,fit.moeP,'\\text{PACF}',{ticks:[1,7,14]});
-  lb('\\text{lag }k',CW-Rm,Y(312)+20,{align:'right'});
+  lb('\\text{lag }k',CW-Rm,Y(320)+18,{align:'right'});
 }
 
 function draw(){try{ctx.setTransform(SC,0,0,SC,0,0);ctx.clearRect(0,0,CW,CH);
@@ -744,24 +743,14 @@ function fillCalc(){
   el.innerHTML=h;}
 
 /* ---------------- sd of the residuals beside the order levers (ORDER section 7) -------- */
-function fillSdNote(){
-  var el=document.getElementById('sdNote');
-  if(curTab!==3){el.innerHTML='';return;}
-  var o=ordOf(),y=series(),fit=fitOf(o,y);
-  var h=kxw('sd residual')+' '+kx('='+fx(fit.sdE,2));
-  if(o.d>=1){var f0=fitOf({p:o.p,d:o.d-1,q:o.q,P:o.P,D:o.D,Q:o.Q,x:o.x},y);
-    if(fit.sdE>f0.sdE)h+='  <b>'+kxw('d too high: sd up from')+' '+kx(fx(f0.sdE,2))+'</b>';}
-  if(o.D>=1){var f1=fitOf({p:o.p,d:o.d,q:o.q,P:o.P,D:o.D-1,Q:o.Q,x:o.x},y);
-    if(fit.sdE>f1.sdE)h+='  <b>'+kxw('D too high: sd up from')+' '+kx(fx(f1.sdE,2))+'</b>';}
-  el.innerHTML=h;}
+function fillSdNote(){}
 
 /* ---------------- controls ---------------- */
 function paintDs(){document.querySelectorAll('#dsSeg button, #dsSeg2 button').forEach(function(b){
   b.className=b.getAttribute('data-ds')===dsK?'on':'';});
   document.querySelectorAll('#hSeg button').forEach(function(b){
     b.className=b.getAttribute('data-h')===String(HSEL)?'on':'';});
-  document.querySelectorAll('#wSeg button').forEach(function(b){
-    b.className=b.getAttribute('data-w')===String(WARM)?'on':'';});}
+}
 function fillEq(){
   var el=document.getElementById('eqline');
   el.innerHTML='';
@@ -780,7 +769,7 @@ function syncRows(){
   document.getElementById('hd-data').style.display=curTab<=1?'none':'';
   document.getElementById('dsSeg').style.display=curTab<=1?'none':'';
   document.getElementById('dsSeg2').style.display=curTab<=1?'none':'';
-  document.getElementById('ds-custom').style.display=curTab===2?'none':'';
+  document.getElementById('ds-custom').style.display=curTab>=2?'none':'';
   document.getElementById('classleg').style.display='none';
   document.getElementById('mcalc').style.display=curTab===0?'none':'';
   document.getElementById('grp-custom').style.display=(cust&&dataTab)?'':'none';
@@ -800,7 +789,7 @@ function upd(){syncRows();paintDs();fillEq();
   if(Math.round(cv.clientWidth)!==CW||Math.round(cv.clientHeight)!==CH){sizeCanvas();draw();}}
 function applyTab(i){curTab=i;
   if(i<=1)dsK='custom';            /* tabs 1-2 ARE the Custom builder (the order) */
-  if(i===2&&dsK==='custom')dsK='ar';   /* tab 3 chooses among the signature models */
+  if(i>=2&&dsK==='custom')dsK='ar';    /* tabs 3-4 choose among the examples only */
   document.querySelectorAll('.tabbtn').forEach(function(b,j){b.className='tabbtn'+(j===i?' on':'');});
   renderTexts();upd();}
 var tb2=document.getElementById('tabs');
@@ -810,8 +799,6 @@ document.querySelectorAll('#dsSeg button, #dsSeg2 button').forEach(function(b){
   b.addEventListener('click',function(){dsK=b.getAttribute('data-ds');upd();});});
 document.querySelectorAll('#hSeg button').forEach(function(b){
   b.addEventListener('click',function(){HSEL=+b.getAttribute('data-h');upd();});});
-document.querySelectorAll('#wSeg button').forEach(function(b){
-  b.addEventListener('click',function(){WARM=+b.getAttribute('data-w');upd();});});
 ['b','A','sg','n','k','t0','p','d','q','P','D','Q'].forEach(function(b){
   var Re=document.getElementById('R'+b),Ne=document.getElementById('N'+b);
   Re.addEventListener('input',function(){Ne.value=Re.value;FITC={};upd();});
@@ -857,7 +844,6 @@ window.LAB={
     if(o.ds&&(o.ds==='custom'||PSEED[o.ds]!==undefined)){dsK=o.ds;FITC={};}
     if(o.seed!=null&&dsK==='custom'&&+o.seed!==CSEED){CSEED=+o.seed;FITC={};}
     if(o.H!=null){HSEL=+o.H;FITC={};}
-    if(o.warm!=null){WARM=+o.warm?1:0;FITC={};}
     ['b','A','sg','n','k','t0','p','d','q','P','D','Q'].forEach(function(b2){
       if(o[b2]!=null){sv(b2,+o[b2]);FITC={};}});
     if(o.tab!=null)applyTab(Math.max(0,Math.min(3,+o.tab)));
