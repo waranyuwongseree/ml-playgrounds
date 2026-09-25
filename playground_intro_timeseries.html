@@ -14,7 +14,9 @@
   .layout{align-items:start}
   .pg.distcls .canvasbox{height:260px}
   .pg.distcls .canvasbox.tall{height:345px}   /* tab 4: สี่กราฟเรียงคอลัมน์เดียว */
-  .pg.distcls .canvasbox.xt{height:clamp(300px,44vh,400px)}  /* tab 1-3: รูปใหญ่ ในสูตร UD */
+  .pg.distcls .canvasbox.xt{height:clamp(300px,44vh,400px)}  /* tab 2-3: รูปใหญ่ ในสูตร UD */
+  .pg.distcls .canvasbox.fillh{height:clamp(320px,calc(100vh - 175px),640px)}  /* tab 1: เต็มจอไม่ล้น */
+  .pg.distcls .canvasbox.fillh.t2{height:clamp(320px,calc(100vh - 235px),580px)}  /* tab 2 มีกล่องคำนวณใต้รูป */
   @media(max-height:640px){.pg.distcls .canvasbox.tall{height:235px}}
   .distcls .stage{gap:6px}
   .canvasbox{position:relative}
@@ -470,9 +472,12 @@ var TABS=[{n:'Build the series'},{n:'Correlation at a lag'},{n:'ACF and PACF'},
 function draw1(lb,y){
   var n=y.length-1,t0=Math.round(gv('t0')),rows;
   if(dsK==='custom'){
+    /* frozen y ranges (the levers' envelope: b<=0.4 n<=84 · A<=8 · sigma<=4), so moving
+       a control moves the LINE, not the scale */
     rows=[
-      {col:CTR,arr:[]},{col:CSE,arr:[]},{col:CNO,arr:[]},
-      {col:CS,arr:y.slice(1)}];
+      {col:CTR,arr:[],rg:[38,74]},{col:CSE,arr:[],rg:[-8.5,4]},
+      {col:CNO,arr:[],rg:[-12.5,12.5]},
+      {col:CS,arr:y.slice(1),rg:[24,86]}];
     for(var t=1;t<=n;t++){var p=parts(t);
       rows[0].arr.push(p.tr);rows[1].arr.push(p.se);rows[2].arr.push(p.no);}
   }else{var pr=preOf();
@@ -490,9 +495,9 @@ function draw1(lb,y){
   if(n>84)xt=[1,70,140,210,280].filter(function(v){return v<=n;});
   rows.forEach(function(r,i){
     var last=(i===k-1),hh=last?hy:h3,box={l:L,r:CW-Rm,t:top,b:top+hh};
-    var sp=spanOf(r.arr);
+    var sp=r.rg||spanOf(r.arr);
     var P=frame(box,1,n,sp[0],sp[1],last?xt:[],
-                last?[rnd(sp[0]+(sp[1]-sp[0])*0.15,0),rnd(sp[0]+(sp[1]-sp[0])*0.85,0)]:[]);
+                [rnd(sp[0]+(sp[1]-sp[0])*0.2,0),rnd(sp[0]+(sp[1]-sp[0])*0.72,0)]);
     ctx.save();ctx.beginPath();ctx.rect(box.l,box.t,box.r-box.l,box.b-box.t);ctx.clip();
     lineOf(P,r.arr,1,r.col,last?2:1.5);
     ctx.restore();
@@ -516,7 +521,7 @@ function draw1(lb,y){
 function draw2(lb,y){
   var n=y.length-1,k=Math.round(gv('k'));
   var L=52,Rm=14;
-  var tsB=Math.round(CH*0.22);
+  var tsB=Math.min(130,Math.round(CH*0.2));
   var ts={l:L,r:CW-Rm,t:8,b:tsB};
   var yv=y.slice(1),sp=spanOf(yv);
   var xt=[1,14,28,42,56];
@@ -527,7 +532,9 @@ function draw2(lb,y){
   ctx.restore();
   lb('y_t',ts.l-8,ts.t+12,{align:'right'});
   lb('t\\text{, d}',ts.r,ts.b+30,{align:'right'});
-  var sx={l:L,r:CW-Rm,t:ts.b+44,b:CH-38};
+  /* the pair plot is a SQUARE (one scale on both axes), as large as fits, centred */
+  var side=Math.min(CW-L-Rm,CH-38-(ts.b+44)),mid=(L+CW-Rm)/2;
+  var sx={l:Math.round(mid-side/2),r:Math.round(mid+side/2),t:ts.b+44,b:ts.b+44+side};
   var md=rnd((sp[0]+sp[1])/2,0);
   var P=frame(sx,sp[0],sp[1],sp[0],sp[1],
               [md],
@@ -757,7 +764,7 @@ function paintDs(){document.querySelectorAll('#dsSeg button, #dsSeg2 button').fo
     b.className=b.getAttribute('data-w')===String(WARM)?'on':'';});}
 function fillEq(){
   var el=document.getElementById('eqline');
-  if(dsK==='custom')K('y_t=T_t+S_t+I_t',el);else el.innerHTML='';
+  el.innerHTML='';
   /* the term equations carry the CURRENT lever value in place, coloured */
   if(dsK==='custom'){
     K('T_t=40+\\textcolor{#1e3a8a}{'+fx(gv('b'),2)+'}\\,(t-1)',
@@ -787,7 +794,8 @@ function syncRows(){
   if(gv('t0')>n)sv('t0',n);}
 function upd(){syncRows();paintDs();fillEq();
   var cb=document.querySelector('.canvasbox');
-  cb.classList.toggle('tall',curTab===3);cb.classList.toggle('xt',curTab<=2);
+  cb.classList.toggle('tall',curTab===3);cb.classList.toggle('xt',curTab===2);
+  cb.classList.toggle('fillh',curTab<=1);cb.classList.toggle('t2',curTab===1);
   sizeCanvas();draw();fillLegend();fillScore();fillTable();fillCalc();fillSdNote();
   if(Math.round(cv.clientWidth)!==CW||Math.round(cv.clientHeight)!==CH){sizeCanvas();draw();}}
 function applyTab(i){curTab=i;
