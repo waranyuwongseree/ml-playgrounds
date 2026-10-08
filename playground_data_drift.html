@@ -1,0 +1,336 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Data Drift</title>
+<link rel="stylesheet" href="pg_style.css?v=24">
+<link rel="stylesheet" href="vendor/katex/katex.min.css">
+<script src="vendor/katex/katex.min.js"></script>
+<style>
+  /* data-drift — โครง intro shell เดียวกับ Introduction to Time Series: ตารางนับซ้าย ·
+     รูปเดียว · กล่องคำนวณ · rail ขวา. สามแท็บ = สามชั้นของการเฝ้าโมเดล (ตาม workflow
+     Day10 S1v10): PSI บน input → alarm rate พร้อมแถบคุม 3 ซิกมา → recall เมื่อ label มาถึง */
+  :root{--panel-h:430px}
+  .layout{align-items:start}
+  .pg.distcls .canvasbox{height:clamp(300px,44vh,400px)}
+  .distcls .stage{gap:6px}
+  .canvasbox{position:relative}
+  .cvlab{position:absolute;left:0;top:0;width:100%;height:100%;pointer-events:none;overflow:hidden;font-size:14px;line-height:1}
+  .cvlab>span{position:absolute;white-space:nowrap;color:rgba(90,90,90,0.9)}
+  .cvlab .katex{font-size:1em}
+  .excalc{background:#fff;border:1px solid var(--line);border-radius:12px;padding:5px 6px;font-size:14px;line-height:1.38;overflow:hidden}
+  .excalc .katex{font-size:1em}
+  .excalc .ln{display:block;padding:1px 0}
+  .excalc .ln>.lb{display:inline-block;margin:0 10px 2px 0;padding:1px 9px;border-radius:6px;background:#E6ECF8;color:var(--navy);font-size:13px;vertical-align:middle}
+  .excalc .ln>.bd{display:inline}
+  .excalc .ln>.bd>span{display:inline-block;margin-right:.35em;vertical-align:middle;white-space:nowrap}
+  .excalc .ln+.ln{border-top:1px solid var(--line);padding-top:2px;margin-top:2px}
+  .dtab{width:100%;border-collapse:collapse;font-size:15px}
+  .dtab th{background:var(--navy);color:#fff;font-weight:400;padding:5px 5px;text-align:center;position:sticky;top:0;z-index:3}
+  .dtab td{padding:1px 6px;text-align:center;color:var(--ink);line-height:1.35;background:#fff}
+  .dtab tr.hl td{background:#E6ECF8}
+  .dtab td.ycol{background:#fff3df;color:#7a4a06;font-weight:600}
+  .dtab .katex{font-size:1em}
+  .dtcap{font-size:13px;color:var(--muted);margin:0 0 4px}
+  .pg .tabbtn{padding:6px 10px}
+  .drow.eqr .dlab{min-width:0}
+  .stage.mod{flex-direction:row;gap:18px;align-items:flex-start}
+  .dleft{display:block;flex:0 0 300px;min-width:0;overflow-y:auto;overflow-x:hidden;border-radius:8px;position:relative;
+    max-height:min(var(--panel-h),calc(100vh - 165px))}
+  .main{display:flex;flex-direction:column;gap:6px;flex:1 1 auto;min-width:0}
+  .classleg{display:none}
+  .pg .panel .dgrid{row-gap:5px}
+  @media(max-width:820px){.stage.mod{flex-direction:column}.dleft{flex:none;width:100%;max-height:300px}}
+</style>
+</head>
+<body class="pg distcls">
+<h2 class="sr-only" style="position:absolute;width:1px;height:1px;overflow:hidden">Model monitoring in the three levels of the Day-10 workflow, on one drifting deployment. One vibration feature, two classes trained once and frozen; five levers drift the deployed data. Level 1 watches the input alone: the feature is binned and the Population Stability Index adds one term per bin, with the workflow's 0.1 retrain trigger. Level 2 watches the model's own output before any label arrives: the alarm rate against its three-sigma control band. Level 3 waits for the labels and reads recall against its own band. The same drift looks different at each level, and the blind spots between them are the lesson.</h2>
+<div class="wrap">
+  <div class="hdr"><h1 id="h1">Data Drift</h1><div class="tabs" id="tabs"></div></div>
+  <div class="layout" id="mainPanel">
+    <div class="stage mod">
+      <div class="dleft" id="dleft"><div class="dtcap" id="dtcap"></div>
+        <table class="dtab" id="mtab"><thead><tr id="mthead"></tr></thead><tbody id="mtbody"></tbody></table></div>
+      <div class="main" id="main">
+        <div class="canvasbox"><canvas id="cv"></canvas></div>
+        <div class="classleg" id="classleg" style="display:none"></div>
+        <div class="excalc" id="mcalc"></div>
+      </div>
+    </div>
+    <div class="panel">
+      <div class="dhd" id="hd-drift"></div>
+      <div class="dgrid">
+        <div class="drow eqr"><span class="dlab" id="lbl-dm0"></span><input type="range" id="Rdm0" min="-1" max="2" step="0.1" value="0"><input class="num" type="number" id="Ndm0" min="-1" max="2" step="0.1" value="0"></div>
+        <div class="drow eqr"><span class="dlab" id="lbl-ds0"></span><input type="range" id="Rds0" min="-0.5" max="2" step="0.1" value="0"><input class="num" type="number" id="Nds0" min="-0.5" max="2" step="0.1" value="0"></div>
+        <div class="drow eqr"><span class="dlab" id="lbl-dm1"></span><input type="range" id="Rdm1" min="-2" max="2" step="0.1" value="0"><input class="num" type="number" id="Ndm1" min="-2" max="2" step="0.1" value="0"></div>
+        <div class="drow eqr"><span class="dlab" id="lbl-ds1"></span><input type="range" id="Rds1" min="-0.5" max="2" step="0.1" value="0"><input class="num" type="number" id="Nds1" min="-0.5" max="2" step="0.1" value="0"></div>
+        <div class="drow eqr"><span class="dlab" id="lbl-p1d"></span><input type="range" id="Rp1d" min="0.02" max="0.5" step="0.02" value="0.1"><input class="num" type="number" id="Np1d" min="0.02" max="0.5" step="0.02" value="0.1"></div>
+      </div>
+    </div>
+  </div>
+</div>
+<script>
+(function(){
+"use strict";
+/* ============================================================================================
+   DATA DRIFT  ·  on the intro-playground shell (the template RIT ordered reused)
+
+   RIT 2026-09-25: three parts, the three LEVELS of monitoring, matching Day10
+   S1v10_Drift_Detect_and_Retrain --
+
+     1 Index        PSI on the binned input: sum of (q-p) ln((q+1e-4)/(p+1e-4)) per bin,
+                    the workflow's own smoothing and its 0.1 retrain trigger
+     2 Prediction   the model's alarm rate before any label arrives, against the 3-sigma
+                    binomial band  a_train +/- 3 sqrt(a(1-a)/700)  -- the workflow's p-chart
+     3 Performance  labels arrive (14 days late in the workflow): recall TP/(TP+FN)
+                    against its own 3-sigma band
+
+   The extra classifier scores are NOT monitored -- the workflow monitors recall alone, so the
+   page does too. One deployment, five drift levers shared by every tab; each tab is a
+   different lens on the same drift, and the gaps between the lenses are the lessons.
+
+   The world: one feature x (vibration), two classes trained once and FROZEN --
+   NORMAL ~ N(2.2, 0.8), FAULT ~ N(5.0, 1.5), pi_fault = 0.10, threshold = the Bayes
+   crossing of the train densities. A deployment window holds N = 700 readings; every
+   count in the tables is round(700 x probability) of the closed-form mixture, and every
+   number in the calc box comes from those printed counts. ddrift_ref.py re-derives all
+   of it (the same erf polynomial, digit for digit) for gate_data_drift.js.
+   ========================================================================================== */
+var M0=2.2,S0=0.8,M1=5.0,S1=1.5,P1=0.10,N=700;
+var XLO=-2,XHI=12,NB=10,BW=(XHI-XLO)/NB,EPS=0.0001;
+function gv(b){return parseFloat(document.getElementById('R'+b).value);}
+function fx(v,d){return (Math.abs(v)<Math.pow(10,-d)/2?0:v).toFixed(d);}
+function erf(x){var s=x<0?-1:1;x=Math.abs(x);var t=1/(1+0.3275911*x);
+  var y=1-(((((1.061405429*t-1.453152027)*t)+1.421413741)*t-0.284496736)*t+0.254829592)*t*Math.exp(-x*x);
+  return s*y;}
+function Phi(z){return 0.5*(1+erf(z/Math.SQRT2));}
+function pdf(x,m,s){return Math.exp(-0.5*Math.pow((x-m)/s,2))/(s*Math.sqrt(2*Math.PI));}
+/* the frozen threshold: the Bayes crossing of the TRAIN densities */
+function thr(){var a=M0,b=M1;
+  for(var i=0;i<60;i++){var m=(a+b)/2;
+    var v=P1*pdf(m,M1,S1)-(1-P1)*pdf(m,M0,S0);
+    if(v<0)a=m;else b=m;}
+  return (a+b)/2;}
+var T=thr();
+function dep(){return {m0:M0+gv('dm0'),s0:Math.max(0.2,S0+gv('ds0')),
+                       m1:M1+gv('dm1'),s1:Math.max(0.2,S1+gv('ds1')),p1:gv('p1d')};}
+function cdfMix(x,m0,s0,m1,s1,p1){return (1-p1)*Phi((x-m0)/s0)+p1*Phi((x-m1)/s1);}
+function pdfMix(x,m0,s0,m1,s1,p1){return (1-p1)*pdf(x,m0,s0)+p1*pdf(x,m1,s1);}
+/* the deployment window: N readings, every count a rounded closed-form probability */
+function binCounts(m0,s0,m1,s1,p1){var o=[],b;
+  for(b=0;b<NB;b++){var xa=XLO+b*BW,xb=xa+BW;
+    o.push(Math.round(N*(cdfMix(xb,m0,s0,m1,s1,p1)-cdfMix(xa,m0,s0,m1,s1,p1))));}
+  return o;}
+function confusion(m0,s0,m1,s1,p1){
+  var rec=1-Phi((T-m1)/s1),fpr=1-Phi((T-m0)/s0);
+  var nf=Math.round(N*p1),nn=N-nf;
+  var TP=Math.round(nf*rec),FN=nf-TP,FP=Math.round(nn*fpr),TN=nn-FP;
+  return {TP:TP,FN:FN,FP:FP,TN:TN};}
+function psiOf(ct,cd){var s=0,b;
+  for(b=0;b<NB;b++){var p=ct[b]/N,q=cd[b]/N;
+    s+=(q-p)*Math.log((q+EPS)/(p+EPS));}
+  return s;}
+function band3(a,n){var h=3*Math.sqrt(a*(1-a)/n);return [a-h,a+h];}
+/* everything the three lenses read, computed once per state */
+function world(){
+  var d=dep();
+  var ct=binCounts(M0,S0,M1,S1,P1),cd=binCounts(d.m0,d.s0,d.m1,d.s1,d.p1);
+  var cfT=confusion(M0,S0,M1,S1,P1),cfD=confusion(d.m0,d.s0,d.m1,d.s1,d.p1);
+  var aT=(cfT.TP+cfT.FP)/N,aD=(cfD.TP+cfD.FP)/N;
+  var rT=cfT.TP/(cfT.TP+cfT.FN),rD=cfD.TP/Math.max(1,cfD.TP+cfD.FN);
+  return {d:d,ct:ct,cd:cd,cfT:cfT,cfD:cfD,psi:psiOf(ct,cd),
+          aT:aT,aD:aD,aB:band3(aT,N),rT:rT,rD:rD,rB:band3(rT,N)};}
+
+/* ---------------- KaTeX ---------------- */
+var MT={'h1':'\\text{Data Drift}','hd-drift':'\\text{Drift}',
+  'lbl-dm0':'\\Delta\\mu_-','lbl-ds0':'\\Delta\\sigma_-',
+  'lbl-dm1':'\\Delta\\mu_+','lbl-ds1':'\\Delta\\sigma_+',
+  'lbl-p1d':"\\pi_+'"};
+var KXC={};
+function kx(t){if(KXC[t]!==undefined)return KXC[t];var r;
+  try{r=window.katex?katex.renderToString(t,{throwOnError:false}):t;}catch(e){r=t;}
+  if(t.length<26&&window.katex)KXC[t]=r;return r;}
+function K(t,el){if(!el)return;try{katex.render(t,el,{throwOnError:false});}catch(e){el.textContent=t;}}
+function renderTexts(){if(!window.katex)return;for(var id in MT)K(MT[id],document.getElementById(id));}
+
+/* ---------------- canvas ---------------- */
+var cv=document.getElementById('cv'),ctx=cv.getContext('2d'),SC=2,CW=640,CH=360;
+function sizeCanvas(){var w=Math.round(cv.clientWidth)||640,h=Math.round(cv.clientHeight)||360,
+  dpr=window.devicePixelRatio||1;CW=w;CH=h;SC=dpr;cv.width=Math.round(w*dpr);cv.height=Math.round(h*dpr);}
+function labs(c){var p=c.parentElement,Ly=p.querySelector('.cvlab');
+  if(!Ly){Ly=document.createElement('div');Ly.className='cvlab';p.appendChild(Ly);}
+  Ly.innerHTML='';
+  var ox=c.clientLeft||0,oy=c.clientTop||0;
+  return function(tex,x,y,o){o=o||{};var s=document.createElement('span');K(tex,s);
+    if(o.color)s.style.color=o.color;
+    if(o.bg){s.style.background=o.bg;s.style.borderRadius='4px';s.style.padding='1px 3px';}
+    var pr=document.createElement('span');pr.style.cssText='display:inline-block;width:0;height:0;vertical-align:baseline';s.appendChild(pr);
+    s.style.left=(x+ox)+'px';s.style.top='0px';
+    s.style.transform='translateX('+(o.align==='right'?'-100%':o.align==='center'?'-50%':'0')+')';
+    Ly.appendChild(s);
+    var sr=s.getBoundingClientRect(),base=pr.getBoundingClientRect().top-sr.top;
+    s.style.top=(oy+(o.vt==='middle'?y-sr.height/2:y-base))+'px';};}
+var CTR='#6b7280',CDP='#1e3a8a',CRD='#B0503A',CAM='#b45309',CGN='#15803d',
+    BAND='rgba(91,143,185,0.18)',FNC='rgba(176,80,58,0.25)',ALC='rgba(30,58,138,0.14)';
+var YMAX=1.3;   /* แกน y ตรึงที่เพดานของคันโยก (sigma ต่ำสุด 0.3) — ขยับ control แล้วเส้นขยับจริง */
+function frameXY(box){
+  function px(x){return box.l+(x-XLO)/(XHI-XLO)*(box.r-box.l);}
+  function py(v){return box.b-(v/YMAX)*(box.b-box.t);}
+  ctx.font='14px KaTeX_Main,serif';
+  ctx.strokeStyle='rgba(128,128,128,0.45)';ctx.lineWidth=1;
+  ctx.strokeRect(box.l,box.t,box.r-box.l,box.b-box.t);
+  ctx.fillStyle='rgba(90,90,90,0.9)';ctx.textAlign='center';ctx.textBaseline='alphabetic';
+  [0,2,4,6,8,10].forEach(function(v){ctx.fillText(String(v),px(v),box.b+15);});
+  return {px:px,py:py};}
+function curve(P,m0,s0,m1,s1,p1,col,wd,dash){
+  ctx.strokeStyle=col;ctx.lineWidth=wd;if(dash)ctx.setLineDash(dash);
+  ctx.beginPath();var first=true;
+  for(var x=XLO;x<=XHI+1e-9;x+=0.05){
+    var X=P.px(x),Y=P.py(Math.min(YMAX,pdfMix(x,m0,s0,m1,s1,p1)));
+    first?ctx.moveTo(X,Y):ctx.lineTo(X,Y);first=false;}
+  ctx.stroke();ctx.setLineDash([]);}
+function shade(P,m0,s0,m1,s1,p1,xa,xb,col){
+  ctx.fillStyle=col;ctx.beginPath();
+  ctx.moveTo(P.px(xa),P.py(0));
+  for(var x=xa;x<=xb+1e-9;x+=0.05)ctx.lineTo(P.px(x),P.py(Math.min(YMAX,pdfMix(x,m0,s0,m1,s1,p1))));
+  ctx.lineTo(P.px(xb),P.py(0));ctx.closePath();ctx.fill();}
+
+var TABS=[{n:'Index (PSI)'},{n:'Prediction (alarm rate)'},{n:'Performance (recall)'}];
+var curTab=0;
+
+function draw(){try{
+  ctx.setTransform(SC,0,0,SC,0,0);ctx.clearRect(0,0,CW,CH);
+  var lb=labs(cv),w=world(),d=w.d;
+  var L=52,Rm=14,box={l:L,r:CW-Rm,t:10,b:CH-38};
+  var P=frameXY(box);
+  ctx.save();ctx.beginPath();ctx.rect(box.l,box.t,box.r-box.l,box.b-box.t);ctx.clip();
+  if(curTab===0){
+    /* the bins behind the densities */
+    ctx.strokeStyle='rgba(128,128,128,0.22)';ctx.lineWidth=1;
+    for(var b=1;b<NB;b++){var X=P.px(XLO+b*BW);
+      ctx.beginPath();ctx.moveTo(X,box.t);ctx.lineTo(X,box.b);ctx.stroke();}
+  }
+  if(curTab===1){
+    shade(P,d.m0,d.s0,d.m1,d.s1,d.p1,T,XHI,ALC);
+  }
+  if(curTab===2){
+    shade(P,0,1,d.m1,d.s1,1,XLO,T,FNC);   /* the FAULT density below T: the misses */
+  }
+  curve(P,M0,S0,M1,S1,P1,CTR,1.8,[5,4]);
+  curve(P,d.m0,d.s0,d.m1,d.s1,d.p1,CDP,2.2);
+  if(curTab>=1){
+    ctx.strokeStyle=CRD;ctx.lineWidth=1.4;ctx.setLineDash([2,3]);
+    ctx.beginPath();ctx.moveTo(P.px(T),box.t);ctx.lineTo(P.px(T),box.b);ctx.stroke();ctx.setLineDash([]);
+    lb('T='+fx(T,1),P.px(T)+4,box.t+12,{color:CRD});}
+  ctx.restore();
+  lb('\\textcolor{#6b7280}{\\text{train}}',box.r-6,box.t+12,{align:'right'});
+  lb('\\textcolor{#1e3a8a}{\\text{deploy}}',box.r-6,box.t+30,{align:'right'});
+  lb('\\text{density}',L-8,box.t+12,{align:'right'});
+  lb('x\\text{, vibration}',CW-Rm,box.b+30,{align:'right'});
+ }catch(e){ctx.setTransform(SC,0,0,SC,0,0);ctx.fillStyle='#B0503A';
+  ctx.font='15px KaTeX_Main,serif';ctx.textAlign='left';ctx.fillText('draw err: '+e.message,10,20);}}
+
+/* ---------------- the count tables (they feed the calc box) ---------------- */
+function fillTable(){
+  var w=world(),hd=document.getElementById('mthead'),tb=document.getElementById('mtbody');
+  var Wt=function(x){return '\\textcolor{#fff}{'+x+'}';};
+  var cols,rows=[];
+  if(curTab===0){
+    cols=['\\text{bin}','\\text{train}','\\text{deploy}','\\text{term}'];
+    var top=0,ti=-1;
+    for(var b=0;b<NB;b++){var p=w.ct[b]/N,q=w.cd[b]/N,
+      tm=(q-p)*Math.log((q+EPS)/(p+EPS));
+      if(tm>top){top=tm;ti=b;}
+      rows.push({hl:false,cells:[fx(XLO+b*BW,1)+'\\text{..}'+fx(XLO+(b+1)*BW,1),
+        String(w.ct[b]),String(w.cd[b]),fx(tm,3)],yc:3,bi:b});}
+    rows.forEach(function(r){r.hl=(r.bi===ti&&top>0.005);});
+  }else if(curTab===1){
+    cols=['\\text{prediction}','\\text{train}','\\text{deploy}'];
+    rows=[{hl:true,cells:['\\text{FAULT (alarm)}',String(w.cfT.TP+w.cfT.FP),String(w.cfD.TP+w.cfD.FP)],yc:2},
+          {hl:false,cells:['\\text{NORMAL}',String(w.cfT.FN+w.cfT.TN),String(w.cfD.FN+w.cfD.TN)],yc:-1},
+          {hl:false,cells:['\\text{total}',String(N),String(N)],yc:-1}];
+  }else{
+    cols=['\\text{cell}','\\text{train}','\\text{deploy}'];
+    rows=[{hl:true,cells:['\\mathrm{TP}',String(w.cfT.TP),String(w.cfD.TP)],yc:2},
+          {hl:true,cells:['\\mathrm{FN}',String(w.cfT.FN),String(w.cfD.FN)],yc:2},
+          {hl:false,cells:['\\mathrm{FP}',String(w.cfT.FP),String(w.cfD.FP)],yc:-1},
+          {hl:false,cells:['\\mathrm{TN}',String(w.cfT.TN),String(w.cfD.TN)],yc:-1}];
+  }
+  hd.innerHTML=cols.map(function(c){return '<th>'+kx(Wt(c))+'</th>';}).join('');
+  document.getElementById('dtcap').innerHTML='';
+  var h='';
+  rows.forEach(function(r){
+    h+='<tr'+(r.hl?' class="hl"':'')+'>'+r.cells.map(function(v,j){
+      return '<td'+(j===r.yc?' class="ycol"':'')+'>'+kx(v)+'</td>';}).join('')+'</tr>';});
+  tb.innerHTML=h;}
+
+/* ---------------- the calc box: the level's own arithmetic, nothing else -------------- */
+function lline(t,parts2){
+  return '<span class="ln"><span class="lb">'+(t?kx('\\textbf{'+t+'}'):'')+'</span><span class="bd">'
+    +parts2.map(function(p){return '<span>'+kx(p)+'</span>';}).join('')+'</span></span>';}
+function lvlChip(ok,okTxt,badTxt){
+  return '\\textcolor{'+(ok?CGN:CRD)+'}{\\text{'+(ok?okTxt:badTxt)+'}}';}
+function fillCalc(){
+  var el=document.getElementById('mcalc'),w=world(),h='';
+  if(curTab===0){
+    h+=lline('PSI',['\\textstyle\\sum_b(q_b-p_b)\\ln((q_b{+}10^{-4})/(p_b{+}10^{-4}))='+fx(w.psi,2)]);
+    h+=lline('Trigger',['\\text{PSI}'+(w.psi>0.1?'>':'\\le')+'0.1',
+      lvlChip(w.psi<=0.1,'keep the model','retrain gate opens')]);
+  }else if(curTab===1){
+    h+=lline('Alarm',['a='+(w.cfD.TP+w.cfD.FP)+'/'+N+'='+fx(w.aD,3),
+      '\\text{train }'+fx(w.aT,3)]);
+    h+=lline('Band',[fx(w.aT,3)+'\\pm3\\sqrt{'+fx(w.aT,3)+'(1-'+fx(w.aT,3)+')/'+N+'}=['
+      +fx(w.aB[0],3)+',\\ '+fx(w.aB[1],3)+']',
+      lvlChip(w.aD>=w.aB[0]&&w.aD<=w.aB[1],'in control','out of control')]);
+  }else{
+    h+=lline('Recall',['\\mathrm{TP}/(\\mathrm{TP}+\\mathrm{FN})='+w.cfD.TP+'/('
+      +w.cfD.TP+'+'+w.cfD.FN+')='+fx(w.rD,2),'\\text{train }'+fx(w.rT,2)]);
+    h+=lline('Band',[fx(w.rT,2)+'\\pm3\\sqrt{'+fx(w.rT,2)+'(1-'+fx(w.rT,2)+')/'
+      +(w.cfD.TP+w.cfD.FN)+'}=['+fx(w.rB[0],2)+',\\ '+fx(w.rB[1],2)+']',
+      lvlChip(w.rD>=w.rB[0],'in control','out of control')]);
+  }
+  el.innerHTML=h;}
+
+function upd(){sizeCanvas();draw();fillTable();fillCalc();
+  if(Math.round(cv.clientWidth)!==CW||Math.round(cv.clientHeight)!==CH){sizeCanvas();draw();}}
+function applyTab(i){curTab=i;
+  document.querySelectorAll('.tabbtn').forEach(function(b,j){b.className='tabbtn'+(j===i?' on':'');});
+  renderTexts();upd();}
+var tb2=document.getElementById('tabs');
+TABS.forEach(function(t,i){var el=document.createElement('button');el.className='tabbtn';
+  K('\\text{'+t.n+'}',el);el.addEventListener('click',function(){applyTab(i);});tb2.appendChild(el);});
+['dm0','ds0','dm1','ds1','p1d'].forEach(function(b){
+  var Re=document.getElementById('R'+b),Ne=document.getElementById('N'+b);
+  Re.addEventListener('input',function(){Ne.value=Re.value;upd();});
+  Ne.addEventListener('input',function(){Re.value=Ne.value;upd();});});
+window.addEventListener('resize',function(){sizeCanvas();upd();});
+
+window.LAB={
+  read:function(){
+    var w=world();
+    return {tab:curTab,T:+T.toFixed(6),N:N,
+      dm0:gv('dm0'),ds0:gv('ds0'),dm1:gv('dm1'),ds1:gv('ds1'),p1d:gv('p1d'),
+      ct:w.ct.slice(),cd:w.cd.slice(),
+      psi:+w.psi.toFixed(6),
+      cfT:w.cfT,cfD:w.cfD,
+      aT:+w.aT.toFixed(6),aD:+w.aD.toFixed(6),
+      aB:[+w.aB[0].toFixed(6),+w.aB[1].toFixed(6)],
+      rT:+w.rT.toFixed(6),rD:+w.rD.toFixed(6),
+      rB:[+w.rB[0].toFixed(6),+w.rB[1].toFixed(6)]};},
+  set:function(o){
+    ['dm0','ds0','dm1','ds1','p1d'].forEach(function(b){
+      if(o[b]!=null){document.getElementById('R'+b).value=+o[b];
+        document.getElementById('N'+b).value=+o[b];}});
+    if(o.tab!=null)applyTab(Math.max(0,Math.min(2,+o.tab)));
+    else upd();}};
+
+renderTexts();applyTab(0);
+requestAnimationFrame(function(){renderTexts();upd();});
+setTimeout(function(){renderTexts();upd();},250);
+setTimeout(function(){renderTexts();upd();},800);
+if(document.fonts&&document.fonts.ready)document.fonts.ready.then(function(){upd();});
+})();
+</script>
+</body>
+</html>
